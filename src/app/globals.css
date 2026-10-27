@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* Monochrome palette: colour is reserved for a call's result. */
+:root {
+  --bg: #050505;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-strong: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.09);
+  --text: #f4f4f4;
+  --muted: #8a8a8a;
+  --win: #9be3b4;
+  --loss: #f2a3a3;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-win: var(--win);
+  --color-loss: var(--loss);
+  --font-sans: var(--font-manrope);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Soft grey light from above, like the reference landings. */
+.glow {
+  background:
+    radial-gradient(60% 45% at 50% -5%, rgba(255, 255, 255, 0.16), transparent 70%),
+    radial-gradient(40% 30% at 85% 30%, rgba(255, 255, 255, 0.05), transparent 70%),
+    var(--bg);
+}
+
+.glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+}
