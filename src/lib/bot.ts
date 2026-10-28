@@ -26,6 +26,7 @@ import {
 } from "./calls";
 import { config, llmEnabled } from "./config";
 import { db } from "./db";
+import { sourceLabel } from "./tatum";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -37,7 +38,8 @@ const authorOf = (ctx: Context) => ({
 function receiptText(call: CallRow, headline: string, reasons: string[] = []): string {
   const lines = [`🧾 <b>Receipt #${call.id}</b> · ${headline}`, `${esc(call.author_name)}: “${esc(call.quote)}”`, ""];
   lines.push(`<i>${esc(claim(call))}</i> · judged ${esc(when(call.deadline))}`);
-  if (call.entry_price !== null && call.status === "open") lines.push(`${call.subject} was ${usd(call.entry_price)} when called (Tatum)`);
+  if (call.entry_price !== null && call.status === "open")
+    lines.push(`${call.subject} was ${usd(call.entry_price)} when called · ${sourceLabel[call.price_source ?? "price-api"]}`);
   if (call.result_note) lines.push(esc(call.result_note));
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
   if (call.status === "open" && !reasons.length) lines.push("", "<i>Reply to this receipt to add why you think so.</i>");

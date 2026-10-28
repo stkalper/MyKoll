@@ -45,7 +45,7 @@ export function ReceiptCard({ call, children }: { call: ReceiptView; children?: 
 
         <footer className="flex items-center justify-between text-xs text-muted">
           <span>◇ stored on Walrus</span>
-          <span>{call.market === "cs2" ? "CS2" : "price via Tatum"}</span>
+          <span>{call.market === "cs2" ? "CS2" : call.priceSource === "sui-onchain" ? "on-chain via Tatum Sui RPC" : "price via Tatum"}</span>
         </footer>
         {children}
       </div>

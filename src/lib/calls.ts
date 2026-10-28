@@ -3,7 +3,7 @@ import { db } from "./db";
 import { complete, parseJson } from "./llm";
 import { remember } from "./memory";
 import { wakeAt } from "./schedule";
-import { priceUsd } from "./tatum";
+import { quote, sourceLabel, type PriceSource } from "./tatum";
 
 export type Market = "crypto" | "cs2";
 export type Direction = "above" | "below" | "up" | "down" | "win";
@@ -28,6 +28,7 @@ export interface CallRow {
   final_price: number | null;
   result_note: string | null;
   hidden: boolean;
+  price_source: PriceSource | null;
 }
 
 /** What the model reads out of a message before it becomes a call. */
@@ -51,7 +52,7 @@ const CS2_TEAMS = word(
   "navi|na'vi|нави|наві|faze|фейз|vitality|віталіті|spirit|спіріт|спирит|g2|mouz|falcons|liquid|astralis|heroic|furia|mongolz|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|parivision|legacy|mibr|imperial|og",
 );
 const CRYPTO = word(
-  "\\$[a-z]{2,8}|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
+  "\\$[a-z]{2,8}|navx|haedal|ika|hippo|lofi|scallop|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
 );
 /** Any ticker written in caps, e.g. "APT" or "WAL". */
 const TICKER = /(?<![\p{L}\d])[A-Z]{2,6}(?![\p{L}])/u;
@@ -177,22 +178,25 @@ export interface Author {
 
 export async function logCall(chat: { id: number; title?: string }, author: Author, draft: Draft): Promise<CallRow | { error: string }> {
   let entry: number | null = null;
+  let source: PriceSource | null = null;
   if (draft.market === "crypto") {
-    entry = await priceUsd(draft.subject);
-    if (entry === null) return { error: `Tatum has no price for ${draft.subject}, so I can't keep score on it.` };
+    const q = await quote(draft.subject);
+    if (!q) return { error: `Tatum has no price for ${draft.subject}, so I can't keep score on it.` };
+    entry = q.price;
+    source = q.source;
     if (draft.direction === "above" && entry >= draft.target!) return { error: `${draft.subject} is already at ${usd(entry)}, above ${usd(draft.target!)}.` };
     if (draft.direction === "below" && entry <= draft.target!) return { error: `${draft.subject} is already at ${usd(entry)}, below ${usd(draft.target!)}.` };
   }
 
   const [call] = await db<CallRow>(
-    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, quote, deadline)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning *`,
-    [chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target, entry, draft.quote, draft.deadline],
+    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, quote, deadline)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) returning *`,
+    [chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target, entry, source, draft.quote, draft.deadline],
   );
 
   await wakeAt(call.id, call.deadline);
 
-  const priceNote = entry !== null ? ` ${call.subject} was ${usd(entry)} at the time (Tatum).` : "";
+  const priceNote = entry !== null ? ` ${call.subject} was ${usd(entry)} at the time (${sourceLabel[source!]}).` : "";
   const job = await remember(
     chat.id,
     `[CALL #${call.id}] ${when(call.made_at)}: ${author.name} called "${call.quote}". Logged as ${claim(call)} by ${when(call.deadline)}.${priceNote}`,
@@ -230,7 +234,7 @@ export async function resolveDue(): Promise<Resolution[]> {
       continue;
     }
 
-    if (!prices.has(call.subject)) prices.set(call.subject, await priceUsd(call.subject));
+    if (!prices.has(call.subject)) prices.set(call.subject, (await quote(call.subject))?.price ?? null);
     const price = prices.get(call.subject);
     if (price == null) continue;
 

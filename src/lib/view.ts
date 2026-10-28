@@ -16,6 +16,8 @@ export interface ReceiptView {
   entry?: number;
   final?: number;
   note?: string;
+  /** "price-api" or "sui-onchain" for crypto calls. */
+  priceSource?: string;
   /** The author's own "why", added by replying to the receipt. */
   reasons?: string[];
   hidden?: boolean;

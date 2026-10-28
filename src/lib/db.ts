@@ -32,6 +32,7 @@ create table if not exists calls (
   hidden        boolean not null default false,
   memory_job    text
 );
+alter table calls add column if not exists price_source text;
 create index if not exists calls_chat_idx on calls (chat_id, made_at desc);
 create index if not exists calls_due_idx on calls (status, deadline);
 

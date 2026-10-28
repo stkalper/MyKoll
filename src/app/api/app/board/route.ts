@@ -18,6 +18,7 @@ function toView(c: CallRow, reasons: Map<number, string[]>): ReceiptView {
     entry: c.entry_price ?? undefined,
     final: c.final_price ?? undefined,
     note: c.result_note ?? undefined,
+    priceSource: c.price_source ?? undefined,
     reasons: reasons.get(c.id),
     hidden: c.hidden,
   };
