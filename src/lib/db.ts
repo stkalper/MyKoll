@@ -52,6 +52,14 @@ create table if not exists score_votes (
   primary key (call_id, user_id)
 );
 
+-- Why the author made a call, added by replying to its receipt.
+create table if not exists call_reasons (
+  id          serial primary key,
+  call_id     integer not null references calls (id),
+  text        text not null,
+  created_at  timestamptz not null default now()
+);
+
 -- 'ask': offer to log calls spotted in chat; 'auto': log them straight away (admins choose).
 create table if not exists chat_settings (
   chat_id  bigint primary key,

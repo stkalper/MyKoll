@@ -34,6 +34,12 @@ export function ReceiptCard({ call, children }: { call: ReceiptView; children?: 
           <Row label="Deadline" value={call.deadline} />
         </dl>
         {call.note && <p className="mt-3 text-sm text-muted">{call.note}</p>}
+        {call.reasons?.map((r) => (
+          <p key={r} className="mt-3 text-sm leading-relaxed">
+            <span className="text-muted">Why · </span>
+            {r}
+          </p>
+        ))}
 
         <div className="my-4 border-t border-dashed border-line" />
 

@@ -327,6 +327,30 @@ export async function setHidden(callId: number, authorId: number, hidden: boolea
 
 export const hideCall = (callId: number, authorId: number) => setHidden(callId, authorId, true);
 
+/** Adds the author's reasoning to their call and to the chat's memory. */
+export async function addReason(callId: number, authorId: number, text: string): Promise<CallRow | "not_yours"> {
+  const [call] = await db<CallRow>(`select * from calls where id = $1`, [callId]);
+  if (!call || String(call.author_id) !== String(authorId) || call.hidden) return "not_yours";
+  const reason = text.trim().slice(0, 500);
+  await db(`insert into call_reasons (call_id, text) values ($1, $2)`, [callId, reason]);
+  await remember(call.chat_id, `[REASON #${call.id}] ${call.author_name} explained the call "${call.quote}" (${claim(call)}): ${reason}`).catch((err) =>
+    console.error("memory write failed", err),
+  );
+  return call;
+}
+
+/** Reasons per call id, oldest first. */
+export async function reasonsFor(callIds: number[]): Promise<Map<number, string[]>> {
+  const out = new Map<number, string[]>();
+  if (!callIds.length) return out;
+  const rows = await db<{ call_id: number; text: string }>(
+    `select call_id, text from call_reasons where call_id = any($1::int[]) order by created_at`,
+    [callIds],
+  );
+  for (const r of rows) out.set(r.call_id, [...(out.get(r.call_id) ?? []), r.text]);
+  return out;
+}
+
 /** How long the author has to say an auto-logged message wasn't a call. */
 export const UNDO_MINUTES = 15;
 

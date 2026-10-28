@@ -7,9 +7,11 @@ import {
   extractCall,
   hideCall,
   leaderboard,
+  addReason,
   logCall,
   mightBeCall,
   openCalls,
+  reasonsFor,
   resolveDue,
   setChatMode,
   undoCall,
@@ -31,13 +33,18 @@ const authorOf = (ctx: Context) => ({
   name: ctx.from!.username ? `@${ctx.from!.username}` : ctx.from!.first_name,
 });
 
-function receiptText(call: CallRow, headline: string): string {
+function receiptText(call: CallRow, headline: string, reasons: string[] = []): string {
   const lines = [`🧾 <b>Receipt #${call.id}</b> · ${headline}`, `${esc(call.author_name)}: “${esc(call.quote)}”`, ""];
   lines.push(`<i>${esc(claim(call))}</i> · judged ${esc(when(call.deadline))}`);
   if (call.entry_price !== null && call.status === "open") lines.push(`${call.subject} was ${usd(call.entry_price)} when called (Tatum)`);
   if (call.result_note) lines.push(esc(call.result_note));
+  for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
+  if (call.status === "open" && !reasons.length) lines.push("", "<i>Reply to this receipt to add why you think so.</i>");
   return lines.join("\n");
 }
+
+/** The call a bot message is the receipt of, if it is one. */
+const receiptIdIn = (text?: string) => Number(text?.match(/^🧾 Receipt #(\d+)/)?.[1]) || null;
 
 const outcomeHeadline = (call: CallRow) => (call.status === "win" ? "✅ called it" : call.status === "loss" ? "❌ missed" : "logged");
 
@@ -47,7 +54,9 @@ function draftSummary(d: Draft): string {
 
 /** Posts results for calls that were just settled, and asks the chat for CS2 scores. */
 export async function announceResolutions(bot: Bot) {
-  for (const { call, askScore } of await resolveDue()) {
+  const settled = await resolveDue();
+  const reasons = await reasonsFor(settled.map((r) => r.call.id));
+  for (const { call, askScore } of settled) {
     if (askScore) {
       const kb = new InlineKeyboard()
         .text(call.subject, `score:${call.id}:a`)
@@ -60,7 +69,7 @@ export async function announceResolutions(bot: Bot) {
         { parse_mode: "HTML", reply_markup: kb },
       );
     } else {
-      await bot.api.sendMessage(call.chat_id, receiptText(call, outcomeHeadline(call)), { parse_mode: "HTML" });
+      await bot.api.sendMessage(call.chat_id, receiptText(call, outcomeHeadline(call), reasons.get(call.id)), { parse_mode: "HTML" });
     }
   }
 }
@@ -134,6 +143,19 @@ export function createBot(): Bot {
     if (!q) return ctx.reply("Ask me something, e.g. /ask what did Max say about SOL?");
     await ctx.replyWithChatAction("typing");
     await ctx.reply(await answer(ctx.chat.id, q));
+  });
+
+  async function saveReason(ctx: Context, callId: number, text: string) {
+    const call = await addReason(callId, ctx.from!.id, text);
+    if (call === "not_yours") return ctx.reply("Only the author can add the why to their own call.");
+    const reasons = (await reasonsFor([call.id])).get(call.id) ?? [];
+    await ctx.reply(receiptText(call, "why added 💭", reasons), { parse_mode: "HTML" });
+  }
+
+  bot.command("why", async (ctx) => {
+    const m = ctx.match.match(/^#?(\d+)\s+([\s\S]+)/);
+    if (!m) return ctx.reply("Add your reasoning to a call: /why 12 ETF inflows and shorts getting squeezed — or just reply to its receipt.");
+    await saveReason(ctx, Number(m[1]), m[2]);
   });
 
   bot.command("hide", async (ctx) => {
@@ -212,6 +234,13 @@ export function createBot(): Bot {
     const mention = `@${ctx.me.username}`;
     const repliedToMe = ctx.message.reply_to_message?.from?.id === ctx.me.id;
 
+    // The author replying to their own receipt is adding the why behind the call.
+    const receiptId = repliedToMe ? receiptIdIn(ctx.message.reply_to_message?.text) : null;
+    if (receiptId && !text.includes(mention)) {
+      const [call] = await db<CallRow>(`select * from calls where id = $1`, [receiptId]);
+      if (call && String(call.author_id) === String(ctx.from.id)) return saveReason(ctx, receiptId, text);
+    }
+
     // A question to the bot: "@mykoll_bot what did Ivan say about SUI?"
     if (text.includes(mention) || (repliedToMe && ctx.chat.type !== "private")) {
       const q = text.replace(mention, "").trim();
@@ -260,6 +289,7 @@ export const BOT_COMMANDS = [
   { command: "board", description: "Who calls it right" },
   { command: "open", description: "Calls still running" },
   { command: "ask", description: "Ask what someone said before" },
+  { command: "why", description: "Add why you made a call: /why 12 ETF inflows" },
   { command: "hide", description: "Hide one of your calls" },
   { command: "mode", description: "Ask before logging calls, or log them automatically" },
 ];

@@ -9,6 +9,7 @@ export const demoCalls: ReceiptView[] = [
     market: "crypto",
     quote: "SUI to $5 by Friday",
     claim: "SUI above $5.00",
+    reasons: ["Walrus mainnet usage is exploding and shorts are stacked above $4"],
     madeAt: "Thursday 30 Oct, 14:02",
     deadline: "Friday 31 Oct, 23:59",
     outcome: "loss",

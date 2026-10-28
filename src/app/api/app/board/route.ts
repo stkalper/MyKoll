@@ -1,11 +1,11 @@
-import { callsBy, claim, leaderboard, recentCalls, when, type CallRow, type Standing } from "@/lib/calls";
+import { callsBy, claim, leaderboard, reasonsFor, recentCalls, when, type CallRow, type Standing } from "@/lib/calls";
 import { chatMember } from "@/lib/telegramAuth";
 import type { BoardView, ReceiptView, StandingView } from "@/lib/view";
 
 const outcome = (s: CallRow["status"]): ReceiptView["outcome"] =>
   s === "win" ? "win" : s === "loss" ? "loss" : s === "void" ? "void" : "open";
 
-function toView(c: CallRow): ReceiptView {
+function toView(c: CallRow, reasons: Map<number, string[]>): ReceiptView {
   return {
     id: c.id,
     author: c.author_name,
@@ -18,6 +18,7 @@ function toView(c: CallRow): ReceiptView {
     entry: c.entry_price ?? undefined,
     final: c.final_price ?? undefined,
     note: c.result_note ?? undefined,
+    reasons: reasons.get(c.id),
     hidden: c.hidden,
   };
 }
@@ -36,12 +37,13 @@ export async function GET(req: Request) {
     recentCalls(chatId),
     callsBy(chatId, user.id),
   ]);
+  const reasons = await reasonsFor([...new Set([...recent, ...mine].map((c) => c.id))]);
   const view: BoardView = {
     chat: { id: chatId, title: recent[0]?.chat_title ?? mine[0]?.chat_title ?? "Your chat" },
     me: { id: user.id },
     boards: { crypto: crypto.map(toStanding), cs2: cs2.map(toStanding) },
-    recent: recent.map(toView),
-    mine: mine.map(toView),
+    recent: recent.map((c) => toView(c, reasons)),
+    mine: mine.map((c) => toView(c, reasons)),
   };
   return Response.json(view);
 }
