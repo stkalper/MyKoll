@@ -45,3 +45,6 @@ tatumapi.txt
 
 # local PGlite database
 .data/
+
+.vercel
+.env*
