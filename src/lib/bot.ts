@@ -221,13 +221,18 @@ export function createBot(): Bot {
       }
     }
 
-    if (ctx.chat.type === "private" || !llmEnabled || !mightBeCall(text)) return;
-    const draft = await extractCall(text).catch(() => null);
+    if (ctx.chat.type === "private" || !llmEnabled) return;
+    if (!mightBeCall(text)) return console.log("skipped by prefilter", { chat: ctx.chat.id, length: text.length });
+    const draft = await extractCall(text).catch((err) => {
+      console.error("call extraction failed", err);
+      return null;
+    });
+    console.log("spotted candidate", { chat: ctx.chat.id, length: text.length, result: draft ? ("reason" in draft ? draft.reason : "call") : "not a call" });
     if (!draft || "reason" in draft) return;
 
     if ((await chatMode(ctx.chat.id)) === "auto") {
       const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, authorOf(ctx), draft);
-      if ("error" in call) return;
+      if ("error" in call) return ctx.reply(call.error, { reply_parameters: { message_id: ctx.message.message_id } });
       return ctx.reply(receiptText(call, "logged automatically ⚡"), {
         parse_mode: "HTML",
         reply_parameters: { message_id: ctx.message.message_id },

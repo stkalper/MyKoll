@@ -51,15 +51,17 @@ const CS2_TEAMS = word(
   "navi|na'vi|нави|наві|faze|фейз|vitality|віталіті|spirit|спіріт|спирит|g2|mouz|falcons|liquid|astralis|heroic|furia|mongolz|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|parivision|legacy|mibr|imperial|og",
 );
 const CRYPTO = word(
-  "\\$[a-z]{2,8}|btc|eth|sol|sui|wal|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|біток|биток|біткоїн|биткоин|ефір|эфир|солана|суі",
+  "\\$[a-z]{2,8}|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
 );
+/** Any ticker written in caps, e.g. "APT" or "WAL". */
+const TICKER = /(?<![\p{L}\d])[A-Z]{2,6}(?![\p{L}])/u;
 const PREDICTION =
   /\d|\b(will|gonna|by|to|until|pump|dump|moon|long|short|win|wins|beat|beats|take|takes|crash|ath)\b|буд|пі[дй]д|впад|вирос|вигра|візьм|рознес|злет|пойд|упад|вырас|выигр|возьм|разнес|порв/iu;
 
 /** Cheap filter so the model only sees messages that could plausibly be a call. */
 export function mightBeCall(text: string): boolean {
   if (text.length < 6 || text.length > 300 || text.startsWith("/")) return false;
-  return (CRYPTO.test(text) || CS2_TEAMS.test(text)) && PREDICTION.test(text);
+  return (CRYPTO.test(text) || TICKER.test(text) || CS2_TEAMS.test(text)) && PREDICTION.test(text);
 }
 
 /** "Tuesday 28 October 2026 at 14:05 (GMT+02:00)" in the chat's zone, so the model can resolve "by Friday". */
