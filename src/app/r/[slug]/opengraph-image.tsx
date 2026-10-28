@@ -5,11 +5,12 @@ export const alt = "A call and how it turned out";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+// Manrope has no check/cross glyphs, so the preview says it in words.
 const mark = {
-  win: { label: "✓ CALLED IT", color: "#9be3b4" },
-  loss: { label: "✗ MISSED", color: "#f2a3a3" },
-  open: { label: "◷ OPEN", color: "#8a8a8a" },
-  void: { label: "— VOID", color: "#8a8a8a" },
+  win: { label: "CALLED IT", color: "#9be3b4" },
+  loss: { label: "MISSED", color: "#f2a3a3" },
+  open: { label: "OPEN", color: "#8a8a8a" },
+  void: { label: "VOID", color: "#8a8a8a" },
 } as const;
 
 /** Manrope as TTF (ImageResponse can't read woff2); an old user agent makes Google serve TTF. */
