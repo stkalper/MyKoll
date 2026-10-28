@@ -9,6 +9,7 @@ export function MemberBadge({
   strong = [],
   weak = [],
   className = "",
+  ...rest
 }: {
   name: string;
   hits: number;
@@ -16,9 +17,9 @@ export function MemberBadge({
   strong?: string[];
   weak?: string[];
   className?: string;
-}) {
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`relative w-[300px] rounded-xl border-2 border-outline bg-[#dfe3ea] p-1.5 shadow-[4px_6px_0_rgba(0,0,0,0.45)] ${className}`}>
+    <div {...rest} className={`relative w-[300px] rounded-xl border-2 border-outline bg-[#dfe3ea] p-1.5 shadow-[4px_6px_0_rgba(0,0,0,0.45)] ${className}`}>
       <span className="absolute -top-3 left-1/2 h-5 w-14 -translate-x-1/2 rounded-md border-2 border-outline bg-[#9aa3b2]" />
       <div className="rounded-lg bg-paper p-3 text-ink">
         <div className="flex items-center justify-between rounded-md bg-ink px-2.5 py-1.5 text-paper">

@@ -177,7 +177,7 @@ function Sheet({
 
 export default function Landing() {
   return (
-    <main className="glow flex-1">
+    <main className="glow relative flex-1">
       <ScrollPen />
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6">
         <span className="font-form text-lg font-extrabold uppercase tracking-[0.06em]">
@@ -230,8 +230,8 @@ export default function Landing() {
           </a>
         </div>
 
-        {/* Receipts taped straight onto the desk. */}
-        <div className="mt-16 grid items-start gap-10 md:grid-cols-3">
+        {/* Receipts taped straight onto the desk. The pen's route starts at the first one. */}
+        <div data-pen="1" data-pen-points="0.2,0.55" className="mt-16 grid items-start gap-10 md:grid-cols-3">
           {demoCalls.map((c, i) => (
             <Taped
               key={c.id}
@@ -263,7 +263,9 @@ export default function Landing() {
               </Sheet>
             ))}
           </div>
-          <ChatPreview />
+          <div data-pen="2" data-pen-points="0.25,0.03;0.6,0.5;0.25,0.98">
+            <ChatPreview />
+          </div>
         </div>
       </Section>
 
@@ -271,7 +273,7 @@ export default function Landing() {
         tab="What it does"
         title="Built for chats that argue about charts and maps."
       >
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div data-pen="3" data-pen-points="0.15,0.3;0.7,0.85" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f, i) => (
             <Sheet
               key={f.title}
@@ -334,6 +336,7 @@ export default function Landing() {
             </Taped>
             {/* What the bot learned about Ivan from those verdicts: the badge it holds up on his next call. */}
             <MemberBadge
+              data-pen="4"
               name="@ivan"
               hits={13}
               calls={18}
@@ -352,7 +355,9 @@ export default function Landing() {
           from the deepest Cetus pool on Sui mainnet through Tatum&apos;s Sui
           gRPC gateway. Live right now:
         </p>
-        <LivePrices />
+        <div data-pen="5" data-pen-points="0.12,0.5">
+          <LivePrices />
+        </div>
         <p className="mt-6 text-sm text-muted">
           Every receipt records which source judged it.{" "}
           <a
@@ -366,7 +371,11 @@ export default function Landing() {
 
       <Section tab="Mini App" title="The board, one tap from the chat.">
         <div className="grid items-center gap-10 lg:grid-cols-2">
-          <div className="mx-auto w-full max-w-[340px] overflow-hidden rounded-[44px] border-2 border-outline bg-bg p-2 shadow-[6px_8px_0_rgba(0,0,0,0.5)]">
+          <div
+            data-pen="6"
+            data-pen-points="0.95,0.35"
+            className="mx-auto w-full max-w-[340px] overflow-hidden rounded-[44px] border-2 border-outline bg-bg p-2 shadow-[6px_8px_0_rgba(0,0,0,0.5)]"
+          >
             <iframe
               src="/app"
               title="Receipts Mini App demo"
@@ -391,7 +400,7 @@ export default function Landing() {
       </Section>
 
       <Section tab="Commands" title="Everything, in seven commands.">
-        <div className="paper divide-y divide-rule rounded-sm">
+        <div data-pen="7" data-pen-points="0.9,0.5" className="paper divide-y divide-rule rounded-sm">
           {commands.map(([cmd, what]) => (
             <div
               key={cmd}
@@ -405,7 +414,7 @@ export default function Landing() {
       </Section>
 
       <Section tab="Privacy" title="It keeps receipts, not your chat.">
-        <ul className="grid gap-5 sm:grid-cols-2">
+        <ul data-pen="8" data-pen-points="0.08,0.6" className="grid gap-5 sm:grid-cols-2">
           {privacy.map((p, i) => (
             <li
               key={p}
@@ -420,7 +429,7 @@ export default function Landing() {
       </Section>
 
       <section className="mx-auto max-w-6xl px-4 pt-10 pb-24 text-center sm:px-6">
-        <h2 className="font-form text-4xl font-extrabold uppercase tracking-tight sm:text-6xl">
+        <h2 data-pen="9" data-pen-points="0.35,1.08" className="font-form text-4xl font-extrabold uppercase tracking-tight sm:text-6xl">
           Settle it. <span className="hl text-ink">Remember it.</span>
         </h2>
         <a

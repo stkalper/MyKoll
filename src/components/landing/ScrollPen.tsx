@@ -3,89 +3,129 @@
 import { useEffect, useRef } from "react";
 
 /**
- * A pen in the page margin that signs its way down as you scroll: it eases after the
- * scroll position and leaves an ink line behind, finishing with a flourish at the bottom.
- * Wide screens only (it lives in the side gutter); hidden for reduced motion.
+ * A pen that signs its way down the page as you scroll. The ink line runs through the
+ * page's own blocks (anything marked data-pen="<order>", with optional data-pen-points
+ * "x,y;x,y" as fractions of that block), so the route weaves between them on any screen.
+ * The pen stays near the middle of the viewport and draws up to there, easing as it goes.
+ * Hidden on narrow screens (it would cover text) and for reduced motion.
  */
 
-const W = 120;
+type Point = { x: number; y: number };
 
-/** A signature-like stroke down a margin of height h: a wandering line with a few loops. */
-function signaturePath(h: number): string {
-  const pts: string[] = [`M 60 0`];
-  for (let y = 25; y <= h - 80; y += 25) {
-    const x = 60 + Math.sin(y / 70) * 26 + Math.sin(y / 23) * 7;
-    pts.push(`L ${x.toFixed(1)} ${y}`);
-    // A small loop every so often, like letters in a signature.
-    if (y % 225 === 0) pts.push(`q 18 -14 6 -26 q -14 8 0 24`);
+/** A smooth curve through the points (Catmull-Rom turned into cubic Béziers). */
+function smoothPath(pts: Point[]): string {
+  if (pts.length < 2) return "";
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+    const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+    d += ` C ${c1.x.toFixed(1)} ${c1.y.toFixed(1)}, ${c2.x.toFixed(1)} ${c2.y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
   }
-  // Final flourish: a long underline swoosh.
-  pts.push(`C 40 ${h - 40}, 110 ${h - 30}, 20 ${h - 8}`);
-  return pts.join(" ");
+  return d;
+}
+
+/** The route: the marked blocks in order, measured relative to the overlay. */
+function waypoints(root: HTMLElement): Point[] {
+  const base = root.getBoundingClientRect();
+  const blocks = [...document.querySelectorAll<HTMLElement>("[data-pen]")].sort((a, b) => Number(a.dataset.pen) - Number(b.dataset.pen));
+  const pts: Point[] = [];
+  for (const el of blocks) {
+    const r = el.getBoundingClientRect();
+    const spots = (el.dataset.penPoints ?? "0.5,0.5").split(";").map((s) => s.split(",").map(Number));
+    for (const [fx, fy] of spots) pts.push({ x: r.left - base.left + r.width * fx, y: r.top - base.top + r.height * fy });
+  }
+  return pts;
+}
+
+/** A closing flourish after the last point: a loop and a long underline, like the end of a signature. */
+function flourish(width: number): string {
+  const w = Math.min(320, width * 0.3);
+  return ` c 40 30, 20 70, -20 50 c -30 -15, 10 -40, 50 -10 c 40 30, ${(w * 0.6).toFixed(0)} 20, ${w.toFixed(0)} -6`;
 }
 
 export function ScrollPen() {
+  const rootRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const pathRef = useRef<SVGPathElement>(null);
   const penRef = useRef<HTMLDivElement>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const root = rootRef.current;
     const svg = svgRef.current;
     const el = pathRef.current;
     const pen = penRef.current;
-    const wrap = wrapRef.current;
-    if (!svg || !el || !pen || !wrap) return;
+    if (!root || !svg || !el || !pen) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      wrap.style.display = "none";
+      root.style.display = "none";
       return;
     }
 
-    // The path is drawn at the margin's real pixel height, so dash lengths match what's on screen.
     let length = 0;
+    /** Path length at sampled heights, to find how much to draw for a given scroll depth. */
+    let table: { len: number; y: number }[] = [];
+
     const layout = () => {
-      const h = wrap.clientHeight || 600;
-      svg.setAttribute("viewBox", `0 0 ${W} ${h}`);
-      el.setAttribute("d", signaturePath(h));
+      if (getComputedStyle(root).display === "none") return;
+      const height = root.parentElement?.scrollHeight ?? document.documentElement.scrollHeight;
+      root.style.height = `${height}px`;
+      svg.setAttribute("viewBox", `0 0 ${root.clientWidth} ${height}`);
+      const pts = waypoints(root);
+      if (pts.length < 2) return;
+      el.setAttribute("d", smoothPath(pts) + flourish(root.clientWidth));
       length = el.getTotalLength();
       el.style.strokeDasharray = `${length}`;
+      table = Array.from({ length: 401 }, (_, i) => {
+        const len = (length * i) / 400;
+        return { len, y: el.getPointAtLength(len).y };
+      });
     };
     layout();
-    window.addEventListener("resize", layout);
+    // Fonts, images and the Mini App iframe shift the layout after load, so re-measure when it changes.
+    const resize = new ResizeObserver(layout);
+    resize.observe(document.body);
+
+    /** How much line to show: up to the first point on the route below the middle of the screen. */
+    const target = () => {
+      const top = root.getBoundingClientRect().top + window.scrollY;
+      const tipY = window.scrollY + window.innerHeight * 0.55 - top;
+      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4) return length;
+      const hit = table.find((t) => t.y >= tipY);
+      return hit ? hit.len : length;
+    };
 
     let shown = 0;
     let frame = 0;
-    const target = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      return max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
-    };
-
     const tick = () => {
-      // Ease towards the scroll position so the pen glides instead of jumping.
-      shown += (target() - shown) * 0.12;
-      const drawn = length * shown;
-      el.style.strokeDashoffset = `${length - drawn}`;
-
-      const p = el.getPointAtLength(Math.max(drawn, 0.01));
-      const ahead = el.getPointAtLength(Math.min(drawn + 6, length));
-      const lean = Math.atan2(ahead.x - p.x, ahead.y - p.y) * (180 / Math.PI);
-      pen.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${28 - lean * 0.25}deg)`;
+      if (length) {
+        // Ease after the scroll position so the pen glides instead of jumping.
+        shown += (target() - shown) * 0.1;
+        el.style.strokeDashoffset = `${length - shown}`;
+        const p = el.getPointAtLength(Math.max(shown, 0.01));
+        const ahead = el.getPointAtLength(Math.min(shown + 8, length));
+        const lean = Math.atan2(ahead.x - p.x, ahead.y - p.y) * (180 / Math.PI);
+        pen.style.opacity = shown > 2 ? "1" : "0";
+        pen.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${24 - lean * 0.2}deg)`;
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener("resize", layout);
+      resize.disconnect();
     };
   }, []);
 
   return (
-    <div ref={wrapRef} aria-hidden className="pointer-events-none fixed top-[8vh] right-6 z-20 hidden h-[84vh] w-[120px] xl:block">
+    <div ref={rootRef} aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-30 hidden md:block">
       <svg ref={svgRef} className="absolute inset-0 h-full w-full overflow-visible">
-        <path ref={pathRef} fill="none" stroke="#8fb4ff" strokeOpacity="0.75" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="0 1" />
+        <path ref={pathRef} fill="none" stroke="#7ea6ff" strokeOpacity="0.85" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="0 1" />
       </svg>
-      {/* The pen's nib sits at the element's origin, so it writes exactly where the line ends. */}
-      <div ref={penRef} className="absolute top-0 left-0 origin-top-left will-change-transform">
+      {/* The nib sits at this element's origin, so it writes exactly where the line ends. */}
+      <div ref={penRef} className="absolute top-0 left-0 origin-top-left opacity-0 transition-opacity will-change-transform">
         <svg width="34" height="120" viewBox="0 0 34 120" className="absolute -top-[118px] -left-[17px] drop-shadow-[3px_4px_0_rgba(0,0,0,0.45)]">
           {/* end cap */}
           <rect x="10" y="2" width="14" height="12" rx="4" fill="#1d2433" stroke="#151515" strokeWidth="2" />
