@@ -155,3 +155,13 @@ body {
     conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / var(--tooth) 100%;
   padding-bottom: calc(var(--tooth) + 0.75rem);
 }
+
+/* A scrap torn off top and bottom, for chat messages written on paper. */
+.ripped {
+  --tooth: 9px;
+  mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / var(--tooth) 51% repeat-x,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--tooth) 51% repeat-x;
+  padding-top: calc(var(--tooth) + 0.35rem);
+  padding-bottom: calc(var(--tooth) + 0.35rem);
+}

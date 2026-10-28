@@ -11,7 +11,7 @@ const verdicts: Record<Outcome, { label: string; className: string }> = {
 export function Stamp({ outcome, date, className = "" }: { outcome: Outcome; date?: string; className?: string }) {
   const v = verdicts[outcome];
   return (
-    <span className={`stamp text-center ${v.className} ${className}`}>
+    <span className={`stamp shrink-0 whitespace-nowrap text-center ${v.className} ${className}`}>
       <span className="block text-lg leading-tight">{v.label}</span>
       {date && <span className="block text-[0.6rem] tracking-[0.15em]">{date}</span>}
     </span>
