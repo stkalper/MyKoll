@@ -33,6 +33,9 @@ export interface StandingView {
 
 /** The bot's learned view of the viewer, from their settled calls. */
 export interface LearnedView {
+  name: string;
+  hits: number;
+  calls: number;
   summary: string;
   strong: { segment: string; hits: number; calls: number }[];
   weak: { segment: string; hits: number; calls: number }[];

@@ -62,6 +62,9 @@ export const demoBoard: BoardView = {
   recent: demoCalls,
   mine: [demoCalls[0], { ...demoCalls[2], id: 120, quote: "DEEP to 3 cents this month", claim: "DEEP above $0.0300", priceSource: "sui-onchain", entry: 0.017, outcome: "loss", hidden: true }],
   learned: {
+    name: "@ivan",
+    hits: 13,
+    calls: 18,
     summary: "@ivan is 13/18 right; strong on majors 9/10; weak on Sui tokens 1/4.",
     strong: [{ segment: "majors", hits: 9, calls: 10 }],
     weak: [{ segment: "Sui tokens", hits: 1, calls: 4 }],

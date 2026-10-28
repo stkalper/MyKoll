@@ -31,7 +31,14 @@ export async function GET(req: Request) {
     boards: { crypto: crypto.map(toStanding(records)), cs2: cs2.map(toStanding(records)) },
     recent: recent.map((c) => toView(c, reasons)),
     mine: mine.map((c) => toView(c, reasons)),
-    learned: mineLearned && { summary: mineLearned.summary, strong: mineLearned.strong, weak: mineLearned.weak },
+    learned: mineLearned && {
+      name: mineLearned.authorName,
+      hits: mineLearned.hits,
+      calls: mineLearned.calls,
+      summary: mineLearned.summary,
+      strong: mineLearned.strong,
+      weak: mineLearned.weak,
+    },
   };
   return Response.json(view);
 }

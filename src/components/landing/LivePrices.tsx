@@ -24,15 +24,15 @@ export function LivePrices() {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {(prices ?? Array.from({ length: 6 }, (_, i): Price => ({ symbol: String(i) }))).map((p) => (
-        <div key={p.symbol} className="glass rounded-3xl p-5">
+        <div key={p.symbol} className="paper rounded-sm p-4">
           {prices ? (
             <>
               <div className="flex items-center justify-between">
-                <span className="font-medium">{p.symbol}</span>
-                <span className={`h-2 w-2 rounded-full ${p.price ? "bg-win" : "bg-muted"}`} />
+                <span className="font-form text-sm font-extrabold uppercase">{p.symbol}</span>
+                <span className={`h-2 w-2 rounded-full ${p.price ? "bg-stamp-win" : "bg-ink-muted"}`} />
               </div>
-              <p className="mt-3 text-2xl font-light tabular-nums">{p.price ? fmt(p.price) : "—"}</p>
-              <p className="mt-1 text-xs text-muted">{p.source === "sui-onchain" ? "on-chain · Tatum Sui RPC" : "Tatum Price API"}</p>
+              <p className="mt-2 font-mono text-2xl tabular-nums">{p.price ? fmt(p.price) : "—"}</p>
+              <p className="field-label mt-1">{p.source === "sui-onchain" ? "on-chain · Tatum Sui RPC" : "Tatum Price API"}</p>
             </>
           ) : (
             <div className="h-[76px] animate-pulse" />

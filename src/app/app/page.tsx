@@ -2,6 +2,8 @@
 
 import Script from "next/script";
 import { useCallback, useState } from "react";
+import { MemberBadge } from "@/components/file/MemberBadge";
+import { Tally } from "@/components/file/Tally";
 import { ReceiptCard } from "@/components/ReceiptCard";
 import { demoBoard } from "@/lib/demo";
 import { hitRate, type BoardView, type Market } from "@/lib/view";
@@ -60,8 +62,8 @@ export default function MiniApp() {
     if (tg) {
       tg.ready();
       tg.expand();
-      tg.setHeaderColor("#050505");
-      tg.setBackgroundColor("#050505");
+      tg.setHeaderColor("#0b0e15");
+      tg.setBackgroundColor("#0b0e15");
     }
     // Outside Telegram there is no signed user, so show the demo chat.
     if (!tg?.initData) return setView(demoBoard);
@@ -93,39 +95,46 @@ export default function MiniApp() {
 
   const isDemo = view?.chat.id === "demo";
 
+  const settledCount = view ? view.boards.crypto.reduce((n, s) => n + s.calls, 0) + view.boards.cs2.reduce((n, s) => n + s.calls, 0) : 0;
+
   return (
     <main className="glow mx-auto flex w-full max-w-md flex-1 flex-col px-4 pt-6 pb-28">
       <Script src="https://telegram.org/js/telegram-web-app.js" strategy="afterInteractive" onReady={() => void load()} />
 
-      <header className="flex items-center justify-between">
+      <header className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-muted">{view ? view.chat.title : "Loading…"}</p>
-          <p className="text-sm font-medium">Receipts</p>
+          <p className="font-form text-sm font-extrabold uppercase tracking-[0.08em]">Dept. of Receipts</p>
+          <p className="font-mono text-xs text-muted">{view ? `chat file · ${view.chat.title}` : "opening the file…"}</p>
         </div>
-        {isDemo && <span className="glass rounded-full px-3 py-1 text-xs text-muted">demo</span>}
+        {isDemo ? (
+          <span className="stamp text-[0.65rem] text-loss">demo</span>
+        ) : (
+          view && (
+            <span className="text-muted">
+              <Tally count={Math.min(settledCount, 25)} />
+            </span>
+          )
+        )}
       </header>
 
-      {error && <p className="glass mt-8 rounded-3xl p-5 text-sm text-muted">{error}</p>}
+      {error && <p className="paper mt-8 rounded-sm p-5 font-mono text-sm">{error}</p>}
 
       {!view && chats && (
         <>
-          <h1 className="mt-8 text-4xl font-light leading-tight tracking-tight">
-            Pick a <span className="font-semibold">chat.</span>
-          </h1>
+          <Title>Pick a file.</Title>
           <div className="mt-6 space-y-3">
             {chats.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => openChat(c.id, initData)}
-                className="glass flex w-full items-center justify-between rounded-3xl px-5 py-4 text-left"
-              >
-                <span className="font-medium">{c.title}</span>
-                <span className="text-muted">→</span>
+              <button key={c.id} onClick={() => openChat(c.id, initData)} className="paper flex w-full items-center justify-between rounded-sm px-5 py-4 text-left">
+                <span>
+                  <span className="field-label block">Chat file</span>
+                  <span className="font-mono font-semibold">{c.title}</span>
+                </span>
+                <span className="font-mono">→</span>
               </button>
             ))}
             {!chats.length && (
-              <p className="glass rounded-3xl px-5 py-6 text-sm leading-relaxed text-muted">
-                No groups yet. Add @mykoll_bot to a group chat, make a call, then open this again.
+              <p className="paper rounded-sm px-5 py-6 font-mono text-sm leading-relaxed">
+                No files yet. Add @mykoll_bot to a group chat, make a call, then open this again.
               </p>
             )}
           </div>
@@ -134,38 +143,38 @@ export default function MiniApp() {
 
       {view && tab === "board" && (
         <>
-          <h1 className="mt-8 text-4xl font-light leading-tight tracking-tight">
-            Who called
-            <br />
-            it <span className="font-semibold">right.</span>
-          </h1>
+          <Title>Who called it right.</Title>
           <div className="mt-6 flex gap-2">
             {markets.map((m) => (
               <button
                 key={m.id}
                 onClick={() => setMarket(m.id)}
-                className={`rounded-full px-5 py-2 text-sm transition-colors ${market === m.id ? "bg-text font-medium text-bg" : "glass text-muted"}`}
+                className={`rounded-t-lg border-2 border-b-0 px-5 pt-2 pb-1.5 font-form text-xs font-extrabold uppercase tracking-wider ${
+                  market === m.id ? "border-outline bg-folder text-ink" : "border-line text-muted"
+                }`}
               >
                 {m.label}
               </button>
             ))}
           </div>
-          <ol className="mt-6 space-y-3">
+          <ol className="folder -mt-[2px] space-y-3 rounded-b-2xl rounded-tr-2xl p-3">
             {view.boards[market].map((s, i) => (
-              <li key={s.name} className="glass flex items-center gap-4 rounded-3xl px-5 py-4">
-                <span className="w-4 text-sm text-muted">{i + 1}</span>
-                <div className="flex-1">
-                  <p className="font-medium">{s.name}</p>
-                  <p className="text-xs text-muted">
+              <li key={s.name} className="paper flex items-center gap-3 rounded-sm px-4 py-3" style={{ transform: `rotate(${i % 2 ? 0.5 : -0.5}deg)` }}>
+                <span className="font-form text-lg font-extrabold text-ink-muted">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-mono font-semibold">{s.name}</p>
+                  <p className="field-label">
                     {s.hits} of {s.calls} right
                   </p>
-                  {s.insight && <p className="mt-1 text-xs text-text/70">{s.insight}</p>}
+                  {s.insight && <p className="mt-1 truncate font-hand text-lg leading-none text-ink-muted">{s.insight}</p>}
                 </div>
-                <span className="text-2xl font-light tabular-nums">{hitRate(s)}%</span>
+                <span className={`font-mono text-2xl font-semibold tabular-nums ${hitRate(s) >= 50 ? "text-stamp-win" : "text-stamp-loss"}`}>{hitRate(s)}%</span>
               </li>
             ))}
             {!view.boards[market].length && (
-              <li className="glass rounded-3xl px-5 py-6 text-sm text-muted">No settled {market === "cs2" ? "CS2" : "crypto"} calls yet. Make one in the chat and come back after the deadline.</li>
+              <li className="paper rounded-sm px-4 py-5 font-mono text-sm">
+                No settled {market === "cs2" ? "CS2" : "crypto"} calls yet. Make one in the chat and come back after the deadline.
+              </li>
             )}
           </ol>
         </>
@@ -173,100 +182,95 @@ export default function MiniApp() {
 
       {view && tab === "calls" && (
         <>
-          <h1 className="mt-8 text-4xl font-light leading-tight tracking-tight">
-            Latest <span className="font-semibold">receipts.</span>
-          </h1>
-          <div className="mt-6 space-y-4">
-            {view.recent.map((c) => (
-              <ReceiptCard key={c.id} call={c} />
+          <Title>Latest filings.</Title>
+          <div className="mt-6 space-y-6">
+            {view.recent.map((c, i) => (
+              <ReceiptCard key={c.id} call={c} tilt={i % 2 ? 0.6 : -0.6} />
             ))}
-            {!view.recent.length && <p className="glass rounded-3xl px-5 py-6 text-sm text-muted">No calls in this chat yet.</p>}
+            {!view.recent.length && <p className="paper rounded-sm px-5 py-6 font-mono text-sm">No calls in this chat yet.</p>}
           </div>
         </>
       )}
 
       {view && tab === "me" && (
         <>
-          <h1 className="mt-8 text-4xl font-light leading-tight tracking-tight">
-            What I remember
-            <br />
-            about <span className="font-semibold">you.</span>
-          </h1>
-          <p className="mt-4 text-sm leading-relaxed text-muted">
-            Every call you log is kept in this chat&apos;s Walrus Memory. Hide one and it drops off the board, and I stop bringing it up when
-            someone asks.
+          <Title>Your file.</Title>
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            Every call you make is filed in this chat&apos;s Walrus Memory. Hide one and it drops off the board, and I stop bringing it up.
           </p>
-          <div className="glass mt-6 rounded-3xl p-5">
-            <p className="text-xs tracking-[0.2em] text-muted">WHAT I&apos;VE LEARNED</p>
+          <div className="mt-8 flex justify-center">
             {view.learned ? (
-              <>
-                <p className="mt-3 text-sm leading-relaxed">{view.learned.summary}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {view.learned.strong.map((r) => (
-                    <span key={r.segment} className="rounded-full border border-line px-3 py-1 text-xs text-win">
-                      ↑ {r.segment} {r.hits}/{r.calls}
-                    </span>
-                  ))}
-                  {view.learned.weak.map((r) => (
-                    <span key={r.segment} className="rounded-full border border-line px-3 py-1 text-xs text-loss">
-                      ↓ {r.segment} {r.hits}/{r.calls}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-4 text-xs leading-relaxed text-muted">I bring this up when you make a new call of the same kind.</p>
-              </>
+              <MemberBadge
+                name={view.learned.name}
+                hits={view.learned.hits}
+                calls={view.learned.calls}
+                strong={view.learned.strong.map((r) => `${r.segment} ${r.hits}/${r.calls}`)}
+                weak={view.learned.weak.map((r) => `${r.segment} ${r.hits}/${r.calls}`)}
+                className="-rotate-2"
+              />
             ) : (
-              <p className="mt-3 text-sm text-muted">Nothing yet. Once a few of your calls settle, I&apos;ll learn where you tend to be right.</p>
+              <p className="paper rounded-sm px-5 py-5 font-mono text-sm">No record yet. Once a few of your calls settle, I&apos;ll learn where you tend to be right.</p>
             )}
           </div>
-          <div className="mt-6 space-y-4">
+          {view.learned && (
+            <p className="mt-4 text-center font-hand text-xl text-muted">I bring this up when you make a new call of the same kind.</p>
+          )}
+          <div className="mt-8 space-y-6">
             {view.mine.map((c) => (
               <ReceiptCard key={c.id} call={c}>
                 <button
                   onClick={() => toggleHidden(c.id, !c.hidden)}
                   disabled={isDemo}
-                  className="glass mt-4 w-full rounded-full py-2 text-sm text-muted transition-colors hover:text-text"
+                  className="mt-3 w-full rounded-sm border-2 border-ink py-2 font-form text-xs font-extrabold uppercase tracking-wider"
                 >
-                  {c.hidden ? "Show again" : "Hide this call"}
+                  {c.hidden ? "Unhide this call" : "Hide this call"}
                 </button>
               </ReceiptCard>
             ))}
-            {!view.mine.length && <p className="glass rounded-3xl px-5 py-6 text-sm text-muted">You haven&apos;t made a call here yet.</p>}
+            {!view.mine.length && <p className="paper rounded-sm px-5 py-6 font-mono text-sm">You haven&apos;t made a call here yet.</p>}
           </div>
         </>
       )}
 
       {showHint && (
-        <div className="glass fixed inset-x-4 bottom-24 mx-auto max-w-md rounded-3xl p-5 text-sm">
-          <p className="font-medium">Make a call in the chat</p>
-          <p className="mt-2 text-muted">/call SOL above $200 by Friday</p>
-          <p className="text-muted">/call Spirit beat Vitality tonight</p>
-          <p className="mt-2 text-muted">Or just say it — I&apos;ll offer to log it.</p>
+        <div className="paper fixed inset-x-4 bottom-24 mx-auto max-w-md rotate-[-1deg] rounded-sm p-5">
+          <p className="field-label">How to file a call</p>
+          <p className="mt-2 font-mono text-sm">/call SOL above $200 by Friday</p>
+          <p className="font-mono text-sm">/call Spirit beat Vitality tonight</p>
+          <p className="mt-2 font-hand text-xl text-ink-muted">or just say it in the chat, I&apos;ll offer to log it</p>
         </div>
       )}
 
       <nav className="fixed inset-x-0 bottom-5 mx-auto flex w-full max-w-md items-center justify-between px-4">
-        <div className="glass flex gap-1 rounded-full p-1.5">
+        <div className="flex gap-1 rounded-lg border-2 border-outline bg-paper p-1 shadow-[4px_4px_0_rgba(0,0,0,0.5)]">
           {(
             [
-              ["board", "⌂ Board"],
-              ["calls", "◎ Calls"],
-              ["me", "◇ Me"],
+              ["board", "Board"],
+              ["calls", "Calls"],
+              ["me", "My file"],
             ] as const
           ).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`rounded-full px-4 py-2 text-sm ${tab === id ? "bg-text font-medium text-bg" : "text-muted"}`}
+              className={`rounded-md px-4 py-2 font-form text-xs font-extrabold uppercase tracking-wider ${tab === id ? "bg-ink text-paper" : "text-ink-muted"}`}
             >
               {label}
             </button>
           ))}
         </div>
-        <button onClick={() => setShowHint((v) => !v)} className="grid h-12 w-12 place-items-center rounded-full bg-text text-xl text-bg">
+        <button
+          onClick={() => setShowHint((v) => !v)}
+          className="grid h-12 w-12 place-items-center rounded-lg border-2 border-outline text-xl font-bold text-ink shadow-[4px_4px_0_rgba(0,0,0,0.5)]"
+          style={{ background: "var(--hl)" }}
+        >
           {showHint ? "×" : "+"}
         </button>
       </nav>
     </main>
   );
+}
+
+function Title({ children }: { children: React.ReactNode }) {
+  return <h1 className="mt-8 font-form text-4xl font-extrabold uppercase leading-[0.95] tracking-tight">{children}</h1>;
 }
