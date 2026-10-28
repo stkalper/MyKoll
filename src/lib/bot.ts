@@ -98,6 +98,7 @@ export function createBot(): Bot {
 
     const draft = await extractCall(text);
     if (!draft) return ctx.reply("That doesn't read like a checkable call. Try: /call BTC under 90k by Sunday, or /call Spirit beat Vitality.");
+    if ("reason" in draft) return ctx.reply(draft.reason);
     const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, author, draft);
     if ("error" in call) return ctx.reply(call.error);
     await ctx.reply(receiptText(call, "logged ✍️"), { parse_mode: "HTML" });
@@ -180,7 +181,7 @@ export function createBot(): Bot {
 
     if (ctx.chat.type === "private" || !llmEnabled || !mightBeCall(text)) return;
     const draft = await extractCall(text).catch(() => null);
-    if (!draft) return;
+    if (!draft || "reason" in draft) return;
 
     // Nothing is stored until the author agrees; the draft waits here for their tap.
     const id = randomBytes(6).toString("hex");

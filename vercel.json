@@ -1,4 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [{ "path": "/api/cron/resolve", "schedule": "0 9 * * *" }]
+  "crons": [{ "path": "/api/cron/resolve", "schedule": "0 9 * * *" }],
+  "functions": {
+    "src/app/api/queues/deadline/route.ts": {
+      "experimentalTriggers": [{ "type": "queue/v2beta", "topic": "call-deadlines" }]
+    }
+  }
 }

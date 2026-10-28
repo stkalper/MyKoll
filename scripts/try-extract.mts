@@ -12,6 +12,7 @@ const samples = [
 ];
 for (const s of samples) {
   const pre = mightBeCall(s);
-  const d = pre ? await extractCall(s) : null;
+  const r = pre ? await extractCall(s) : null;
+  const d = r && !("reason" in r) ? r : null;
   console.log(pre ? "?" : "-", JSON.stringify(s), "=>", d ? `${d.market} ${d.subject}${d.opponent ? " vs " + d.opponent : ""} ${d.direction} ${d.target ?? ""} by ${d.deadline}` : "no call");
 }

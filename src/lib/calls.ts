@@ -2,6 +2,7 @@ import { config } from "./config";
 import { db } from "./db";
 import { complete, parseJson } from "./llm";
 import { remember } from "./memory";
+import { wakeAt } from "./schedule";
 import { priceUsd } from "./tatum";
 
 export type Market = "crypto" | "cs2";
@@ -72,9 +73,10 @@ function nowInZone(): string {
 
 /**
  * Asks the model whether a message is a checkable prediction and, if so, turns it
- * into a structured draft. Returns null for chatter, jokes and questions.
+ * into a structured draft. Returns null for chatter, jokes and questions, and a reason
+ * when it is a call the bot can't keep score on.
  */
-export async function extractCall(text: string): Promise<Draft | null> {
+export async function extractCall(text: string): Promise<Draft | { reason: string } | null> {
   const reply = await complete(
     [
       {
@@ -94,7 +96,8 @@ Reply with JSON only:
  "opponent": the other team for cs2, else null,
  "direction": "above" | "below" (crypto with a price level), "up" | "down" (crypto without a level), "win" (cs2),
  "target": price level in USD as a number, else null (expand "90k" to 90000),
- "deadline": ISO 8601 with offset for when the call is judged, or null if none was said}`,
+ "in_minutes": minutes from now until the call is judged if the message says it relatively ("in 5 minutes", "in 2 hours", "within a day"), else null,
+ "deadline": ISO 8601 with offset for when the call is judged if the message names a time or day, else null. "by Friday" / "до неділі" means the END of that day (23:59 local); "tonight" means 23:59 today}`,
       },
       { role: "user", content: text },
     ],
@@ -108,6 +111,7 @@ Reply with JSON only:
     opponent?: string | null;
     direction?: Direction;
     target?: number | null;
+    in_minutes?: number | null;
     deadline?: string | null;
   }>(reply);
   if (!r?.is_call || !r.subject || !r.market || !r.direction) return null;
@@ -116,10 +120,14 @@ Reply with JSON only:
   if (r.market === "crypto" && !["above", "below", "up", "down"].includes(r.direction)) return null;
   if ((r.direction === "above" || r.direction === "below") && !(Number(r.target) > 0)) return null;
 
-  // No deadline said: a CS2 match is usually within a day, a price call gets a week.
-  let deadline = r.deadline ? new Date(r.deadline) : new Date(Date.now() + (r.market === "cs2" ? DAY : 7 * DAY));
+  // Relative times are counted here, not by the model. No deadline said: a CS2 match is
+  // usually within a day, a price call gets a week.
+  const minutes = Number(r.in_minutes);
+  let deadline =
+    minutes > 0 ? new Date(Date.now() + minutes * 60_000) : r.deadline ? new Date(r.deadline) : new Date(Date.now() + (r.market === "cs2" ? DAY : 7 * DAY));
   if (Number.isNaN(deadline.getTime())) deadline = new Date(Date.now() + 7 * DAY);
-  if (deadline.getTime() < Date.now() + 5 * 60_000 || deadline.getTime() > Date.now() + 120 * DAY) return null;
+  if (deadline.getTime() < Date.now() + 60_000) return { reason: "That deadline is already here. Give it at least a couple of minutes." };
+  if (deadline.getTime() > Date.now() + 120 * DAY) return { reason: "I only keep score on calls that settle within 120 days." };
 
   return {
     market: r.market,
@@ -179,6 +187,8 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning *`,
     [chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target, entry, draft.quote, draft.deadline],
   );
+
+  await wakeAt(call.id, call.deadline);
 
   const priceNote = entry !== null ? ` ${call.subject} was ${usd(entry)} at the time (Tatum).` : "";
   const job = await remember(
