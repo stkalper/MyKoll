@@ -298,8 +298,19 @@ export async function hiddenIds(chatId: number | string): Promise<Set<number>> {
   return new Set(rows.map((r) => r.id));
 }
 
-/** Lets an author take a call off the board and out of the bot's answers. */
-export async function hideCall(callId: number, authorId: number): Promise<boolean> {
-  const rows = await db(`update calls set hidden = true where id = $1 and author_id = $2 returning id`, [callId, authorId]);
+export async function recentCalls(chatId: number | string, limit = 30): Promise<CallRow[]> {
+  return db<CallRow>(`select * from calls where chat_id = $1 and not hidden order by made_at desc limit $2`, [chatId, limit]);
+}
+
+/** Everything the bot keeps about one member of a chat, hidden calls included. */
+export async function callsBy(chatId: number | string, authorId: number | string): Promise<CallRow[]> {
+  return db<CallRow>(`select * from calls where chat_id = $1 and author_id = $2 order by made_at desc`, [chatId, authorId]);
+}
+
+/** Lets an author take a call off the board and out of the bot's answers, or bring it back. */
+export async function setHidden(callId: number, authorId: number, hidden: boolean): Promise<boolean> {
+  const rows = await db(`update calls set hidden = $3 where id = $1 and author_id = $2 returning id`, [callId, authorId, hidden]);
   return rows.length > 0;
 }
+
+export const hideCall = (callId: number, authorId: number) => setHidden(callId, authorId, true);

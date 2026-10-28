@@ -109,7 +109,9 @@ export function createBot(): Bot {
       rows.length
         ? `<b>${title}</b>\n` + rows.map((r, i) => `${i + 1}. ${esc(r.author_name)} — ${Math.round((r.hits / r.calls) * 100)}% (${r.hits}/${r.calls})`).join("\n")
         : `<b>${title}</b>\nno settled calls yet`;
-    await ctx.reply(`🏆 Who calls it right\n\n${section("Crypto", crypto)}\n\n${section("CS2", cs2)}`, { parse_mode: "HTML" });
+    // Groups can't host web_app buttons, so link to the bot's Main Mini App with the chat as start_param.
+    const open = new InlineKeyboard().url("📊 Open the board", `https://t.me/${ctx.me.username}?startapp=${ctx.chat.id}`);
+    await ctx.reply(`🏆 Who calls it right\n\n${section("Crypto", crypto)}\n\n${section("CS2", cs2)}`, { parse_mode: "HTML", reply_markup: open });
   });
 
   bot.command("open", async (ctx) => {

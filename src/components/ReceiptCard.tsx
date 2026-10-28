@@ -1,18 +1,19 @@
-import type { Call } from "@/lib/demo";
+import type { ReceiptView } from "@/lib/view";
 
 const outcomeMark = {
   win: { label: "✓ Called it", className: "text-win" },
   loss: { label: "✗ Missed", className: "text-loss" },
   open: { label: "◷ Open", className: "text-muted" },
+  void: { label: "— Void", className: "text-muted" },
 } as const;
 
-const usd = (n: number) => `$${n < 10 ? n.toFixed(2) : n.toFixed(1)}`;
+const usd = (n: number) => (n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toPrecision(3)}`);
 
 /** A call rendered as a paper receipt: the shareable unit of the product. */
-export function ReceiptCard({ call }: { call: Call }) {
+export function ReceiptCard({ call, children }: { call: ReceiptView; children?: React.ReactNode }) {
   const mark = outcomeMark[call.outcome];
   return (
-    <article className="glass w-full overflow-hidden rounded-[28px] text-left">
+    <article className={`glass w-full overflow-hidden rounded-[28px] text-left ${call.hidden ? "opacity-50" : ""}`}>
       <div className="px-6 pt-6 pb-5">
         <header className="flex items-center justify-between text-xs tracking-[0.2em] text-muted">
           <span>RECEIPT #{call.id}</span>
@@ -22,21 +23,17 @@ export function ReceiptCard({ call }: { call: Call }) {
         <div className="my-4 border-t border-dashed border-line" />
 
         <p className="text-sm text-muted">
-          @{call.author} · {call.madeAt}
+          {call.author} · {call.madeAt}
         </p>
         <p className="mt-2 text-2xl font-light leading-snug">&ldquo;{call.quote}&rdquo;</p>
 
         <dl className="mt-5 space-y-2 text-sm">
-          {call.entry !== undefined && (
-            <>
-              <Row label="Then" value={usd(call.entry)} />
-              <Row label="Now" value={usd(call.current!)} />
-              <Row label="Target" value={usd(call.target!)} />
-            </>
-          )}
-          {call.score && <Row label="Result" value={call.score} />}
+          <Row label="Call" value={call.claim} />
+          {call.entry !== undefined && <Row label="Then" value={usd(call.entry)} />}
+          {call.final !== undefined && <Row label="At result" value={usd(call.final)} />}
           <Row label="Deadline" value={call.deadline} />
         </dl>
+        {call.note && <p className="mt-3 text-sm text-muted">{call.note}</p>}
 
         <div className="my-4 border-t border-dashed border-line" />
 
@@ -44,6 +41,7 @@ export function ReceiptCard({ call }: { call: Call }) {
           <span>◇ stored on Walrus</span>
           <span>{call.market === "cs2" ? "CS2" : "price via Tatum"}</span>
         </footer>
+        {children}
       </div>
     </article>
   );
@@ -51,9 +49,9 @@ export function ReceiptCard({ call }: { call: Call }) {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex justify-between gap-4">
       <dt className="text-muted">{label}</dt>
-      <dd className="tabular-nums">{value}</dd>
+      <dd className="text-right tabular-nums">{value}</dd>
     </div>
   );
 }

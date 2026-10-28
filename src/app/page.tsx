@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ReceiptCard } from "@/components/ReceiptCard";
-import { calls } from "@/lib/demo";
+import { demoCalls } from "@/lib/demo";
 
 const steps = [
   { title: "Someone makes a call", text: "“SOL to 300 by Friday.” The bot asks once if it should log it. Nothing is saved without a tap." },
@@ -38,7 +38,7 @@ export default function Landing() {
         </a>
 
         <div className="mt-20 flex w-full flex-col items-center gap-6 md:flex-row md:items-start md:justify-center">
-          {calls.map((c) => (
+          {demoCalls.map((c) => (
             <div key={c.id} className="w-full max-w-sm">
               <ReceiptCard call={c} />
             </div>
