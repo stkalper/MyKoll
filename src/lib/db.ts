@@ -62,8 +62,10 @@ async function connect(): Promise<Query> {
     const { neon } = await import("@neondatabase/serverless");
     const sql = neon(config.databaseUrl);
     query = async (text, params = []) => (await sql.query(text, params)) as never;
+    // The HTTP driver runs one statement per call; drop comments first, they may contain ";".
     exec = async (text) => {
-      for (const stmt of text.split(";").map((s) => s.trim()).filter(Boolean)) await sql.query(stmt);
+      const statements = text.replace(/--.*$/gm, "").split(";").map((s) => s.trim()).filter(Boolean);
+      for (const stmt of statements) await sql.query(stmt);
     };
   } else {
     const { PGlite } = await import("@electric-sql/pglite");

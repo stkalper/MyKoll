@@ -48,3 +48,8 @@ tatumapi.txt
 
 .vercel
 .env*
+
+# Vercel marketplace agent skills
+.agents/
+.claude/
+skills-lock.json
