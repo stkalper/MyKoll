@@ -73,20 +73,12 @@ export default async function Image({ params }: { params: Promise<{ slug: string
               {receipt?.note && <span style={{ marginTop: 6 }}>{receipt.note}</span>}
               <span style={{ marginTop: 14, fontFamily: "Form", fontSize: 16, letterSpacing: 3 }}>FILED ON WALRUS · PRICED VIA TATUM</span>
             </div>
-            <span
-              style={{
-                fontFamily: "Form",
-                fontSize: 50,
-                color: s.color,
-                border: `7px double ${s.color}`,
-                borderRadius: 8,
-                padding: "6px 22px",
-                letterSpacing: 4,
-                transform: "rotate(-8deg)",
-              }}
-            >
-              {s.label}
-            </span>
+            {/* Satori has no double borders, so the stamp's two rings are nested boxes. */}
+            <div style={{ display: "flex", border: `4px solid ${s.color}`, borderRadius: 10, padding: 4, transform: "rotate(-8deg)" }}>
+              <span style={{ fontFamily: "Form", fontSize: 50, color: s.color, border: `2px solid ${s.color}`, borderRadius: 6, padding: "4px 20px", letterSpacing: 4 }}>
+                {s.label}
+              </span>
+            </div>
           </div>
         </div>
       </div>
