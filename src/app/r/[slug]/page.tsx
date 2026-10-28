@@ -9,9 +9,9 @@ const verdict = { win: "called it", loss: "missed", open: "is still open", void:
 
 export async function generateMetadata({ params }: PageProps<"/r/[slug]">): Promise<Metadata> {
   const receipt = await sharedReceipt((await params).slug);
-  if (!receipt) return { title: "Receipts" };
+  if (!receipt) return { title: "MyKoll" };
   return {
-    title: `${receipt.author} ${verdict[receipt.outcome]} · Receipts`,
+    title: `${receipt.author} ${verdict[receipt.outcome]} · MyKoll`,
     description: `“${receipt.quote}” — ${receipt.claim}, judged ${receipt.deadline}.`,
   };
 }
@@ -27,7 +27,7 @@ export default function SharedReceipt({ params }: PageProps<"/r/[slug]">) {
   return (
     <main className="glow flex flex-1 flex-col items-center px-4 py-16">
       <Link href="/" className="font-form text-lg font-extrabold uppercase tracking-[0.06em]">
-        Receipts
+        MyKoll
       </Link>
       <div className="mt-10 w-full max-w-md">
         <Suspense fallback={<div className="paper h-96 w-full animate-pulse rounded-sm" />}>
@@ -40,7 +40,7 @@ export default function SharedReceipt({ params }: PageProps<"/r/[slug]">) {
         className="mt-6 rounded-md border-2 border-outline px-6 py-3 font-form text-sm font-extrabold uppercase tracking-wider text-ink shadow-[4px_4px_0_rgba(0,0,0,0.55)]"
         style={{ background: "var(--hl)" }}
       >
-        Get Receipts for your chat
+        Get MyKoll for your chat
       </Link>
     </main>
   );

@@ -9,8 +9,8 @@ const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"
 const caveat = Caveat({ variable: "--font-caveat", subsets: ["latin", "cyrillic"], weight: ["500", "700"] });
 
 export const metadata: Metadata = {
-  title: "Receipts",
-  description: "A Telegram bot that keeps receipts on your group chat's crypto and CS2 calls.",
+  title: "MyKoll",
+  description: "MyKoll: a Telegram bot that keeps receipts on your group chat's crypto and CS2 calls.",
 };
 
 export const viewport: Viewport = {

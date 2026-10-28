@@ -23,7 +23,7 @@ export function MemberBadge({
       <span className="absolute -top-3 left-1/2 h-5 w-14 -translate-x-1/2 rounded-md border-2 border-outline bg-[#9aa3b2]" />
       <div className="rounded-lg bg-paper p-3 text-ink">
         <div className="flex items-center justify-between rounded-md bg-ink px-2.5 py-1.5 text-paper">
-          <span className="font-form text-[0.7rem] font-extrabold uppercase tracking-[0.1em]">Dept. of Receipts</span>
+          <span className="font-form text-[0.7rem] font-extrabold uppercase tracking-[0.1em]">MyKoll</span>
           <span className="font-mono text-[0.6rem]">MEMBER FILE</span>
         </div>
         <div className="mt-3 flex gap-3">

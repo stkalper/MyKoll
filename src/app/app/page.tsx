@@ -103,7 +103,7 @@ export default function MiniApp() {
 
       <header className="flex items-start justify-between">
         <div>
-          <p className="font-form text-sm font-extrabold uppercase tracking-[0.08em]">Dept. of Receipts</p>
+          <p className="font-form text-sm font-extrabold uppercase tracking-[0.08em]">MyKoll</p>
           <p className="font-mono text-xs text-muted">{view ? `chat file · ${view.chat.title}` : "opening the file…"}</p>
         </div>
         {isDemo ? (

@@ -1,6 +1,6 @@
-# Receipts
+# MyKoll
 
-**Your group chat finally keeps receipts.** Receipts is a Telegram bot for group chats that argue about crypto and Counter-Strike 2. When someone makes a call (“SUI to $5 by Friday”, “NaVi take FaZe tonight”), the bot logs it with the price at that second. It settles the call by itself at the deadline and remembers it in the chat’s **Walrus Memory**. So months later anyone can ask *“what did Ivan say about SUI?”* and get Ivan’s own words back.
+**Your group chat finally keeps receipts.** MyKoll is a Telegram bot for group chats that argue about crypto and Counter-Strike 2. When someone makes a call (“SUI to $5 by Friday”, “NaVi take FaZe tonight”), the bot logs it with the price at that second. It settles the call by itself at the deadline and remembers it in the chat’s **Walrus Memory**. So months later anyone can ask *“what did Ivan say about SUI?”* and get Ivan’s own words back.
 
 - **Bot:** [@mykoll_bot](https://t.me/mykoll_bot). Add it to a group.
 - **Site:** https://receipts-flame.vercel.app (the landing page with a live demo of the Mini App)
@@ -12,7 +12,7 @@ Built for the **Tatum × Walrus “Total Recall”** hackathon, track *Markets &
 
 ## Why
 
-Every crypto or esports chat has the same fight: *“you said it would pump!”*, *“I never said that.”* Calls get made in passing, deleted, edited or forgotten, and nobody keeps score. Receipts keeps score without changing how people talk. People just chat, and the bot remembers.
+Every crypto or esports chat has the same fight: *“you said it would pump!”*, *“I never said that.”* Calls get made in passing, deleted, edited or forgotten, and nobody keeps score. MyKoll keeps score without changing how people talk. People just chat, and the bot remembers.
 
 ## How it works
 
@@ -30,7 +30,7 @@ Every crypto or esports chat has the same fight: *“you said it would pump!”*
 
 ## Walrus Memory: why the bot needs a memory
 
-Without memory, Receipts is just a price alert. The product is the memory: *who said what, when, why, and how it ended*.
+Without memory, MyKoll is just a price alert. The product is the memory: *who said what, when, why, and how it ended*.
 
 - **Each chat owns its memory.** Every group has its own namespace, `receipts:chat:<chatId>`, so one chat’s calls never come up in another chat’s answers.
 - **Plain-language entries, recalled by meaning.** Each call writes up to three memories:

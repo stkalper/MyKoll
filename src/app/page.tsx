@@ -182,7 +182,7 @@ export default function Landing() {
       <ScrollPen />
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6">
         <span className="font-form text-lg font-extrabold uppercase tracking-[0.06em]">
-          Receipts
+          MyKoll
         </span>
         <div className="flex items-center gap-5 text-sm text-muted">
           <a href="#memory" className="hidden hover:text-text sm:inline">
@@ -378,7 +378,7 @@ export default function Landing() {
           >
             <iframe
               src="/app"
-              title="Receipts Mini App demo"
+              title="MyKoll Mini App demo"
               className="h-[680px] w-full rounded-[36px] bg-bg"
               loading="lazy"
             />
@@ -449,7 +449,7 @@ export default function Landing() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <span className="font-mono text-xs">
-            Receipts · built for the Tatum × Walrus Total Recall hackathon
+            MyKoll · built for the Tatum × Walrus Total Recall hackathon
           </span>
           <div className="flex gap-5">
             <a href={GITHUB} className="hover:text-text">

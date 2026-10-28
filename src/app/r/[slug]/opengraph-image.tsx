@@ -52,7 +52,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: `4px solid ${INK}`, paddingBottom: 14 }}>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <span style={{ fontFamily: "Form", fontSize: 30, letterSpacing: 2 }}>DEPARTMENT OF RECEIPTS</span>
+              <span style={{ fontFamily: "Form", fontSize: 30, letterSpacing: 2 }}>MYKOLL</span>
               <span style={{ fontFamily: "Form", fontSize: 16, color: MUTED, letterSpacing: 3 }}>FORM RC-1 · CALL RECORD</span>
             </div>
             <span style={{ border: `3px solid ${INK}`, padding: "4px 12px", fontSize: 24 }}>CASE #{receipt?.id ?? ""}</span>
