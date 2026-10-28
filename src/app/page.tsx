@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MemberBadge } from "@/components/file/MemberBadge";
 import { ChatPreview } from "@/components/landing/ChatPreview";
 import { LivePrices } from "@/components/landing/LivePrices";
+import { PenTail } from "@/components/landing/PenTail";
 import { ScrollPen } from "@/components/landing/ScrollPen";
 import { ReceiptCard, Taped } from "@/components/ReceiptCard";
 import { demoCalls } from "@/lib/demo";
@@ -177,7 +178,7 @@ function Sheet({
 
 export default function Landing() {
   return (
-    <main className="glow relative flex-1">
+    <main className="glow relative isolate flex-1">
       <ScrollPen />
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6">
         <span className="font-form text-lg font-extrabold uppercase tracking-[0.06em]">
@@ -231,7 +232,7 @@ export default function Landing() {
         </div>
 
         {/* Receipts taped straight onto the desk. The pen's route starts at the first one. */}
-        <div data-pen="1" data-pen-points="0.2,0.55" className="mt-16 grid items-start gap-10 md:grid-cols-3">
+        <div className="mt-16 grid items-start gap-10 md:grid-cols-3">
           {demoCalls.map((c, i) => (
             <Taped
               key={c.id}
@@ -239,7 +240,7 @@ export default function Landing() {
               tapeTilt={[-5, 4, -2][i % 3]}
               className={["", "md:mt-10", "md:mt-4"][i % 3]}
             >
-              <ReceiptCard call={c} />
+              <ReceiptCard call={c} penWrite={i === 0} />
             </Taped>
           ))}
         </div>
@@ -329,8 +330,7 @@ export default function Landing() {
                   ))}
                 </ul>
                 <p className="mt-4 font-hand text-xl leading-snug text-ink-muted">
-                  “who was bullish on Sui coins?” finds Ivan&apos;s WAL call,
-                  though the word “bullish” is nowhere in it.
+                  <PenTail text="“who was bullish on Sui coins?” finds Ivan's WAL call, though the word “bullish” is nowhere in it." />
                 </p>
               </div>
             </Taped>

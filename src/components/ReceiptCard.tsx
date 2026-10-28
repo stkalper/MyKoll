@@ -1,10 +1,22 @@
 import { Stamp } from "@/components/file/Stamp";
+import { PenTail } from "@/components/landing/PenTail";
 import type { ReceiptView } from "@/lib/view";
 
 const usd = (n: number) => (n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toPrecision(3)}`);
 
 /** A call as a torn-off slip: the words highlighted, what it means, and the verdict stamped on. */
-export function ReceiptCard({ call, children, tilt = 0 }: { call: ReceiptView; children?: React.ReactNode; tilt?: number }) {
+export function ReceiptCard({
+  call,
+  children,
+  tilt = 0,
+  penWrite = false,
+}: {
+  call: ReceiptView;
+  children?: React.ReactNode;
+  tilt?: number;
+  /** Let the landing page's pen finish writing the first reason. */
+  penWrite?: boolean;
+}) {
   const source = call.market === "cs2" ? "score confirmed in chat" : call.priceSource === "sui-onchain" ? "on-chain · Tatum Sui RPC" : "Tatum Price API";
   const price = call.entry !== undefined ? `${usd(call.entry)} → ${call.final !== undefined ? usd(call.final) : "…"}` : null;
   return (
@@ -28,9 +40,9 @@ export function ReceiptCard({ call, children, tilt = 0 }: { call: ReceiptView; c
         {price && <span className="block">{price}</span>}
       </p>
 
-      {call.reasons?.map((r) => (
+      {call.reasons?.map((r, i) => (
         <p key={r} className="mt-2 font-hand text-xl leading-tight text-ink-muted">
-          why: {r}
+          why: {penWrite && i === 0 ? <PenTail text={r} /> : r}
         </p>
       ))}
 

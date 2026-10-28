@@ -1,7 +1,11 @@
 /** A Telegram-style exchange showing one call from message to verdict, written on scraps of paper. */
 
+import { PenTail } from "./PenTail";
+
 type Line = {
   from: "user" | "bot";
+  /** The pen finishes writing this one on its way through the chat. */
+  pen?: boolean;
   name?: string;
   text: string;
   time: string;
@@ -26,6 +30,7 @@ const lines: Line[] = [
     from: "user",
     name: "Ivan",
     text: "storage usage keeps climbing, chart is coiling",
+    pen: true,
     sub: "↩ reply to Receipt #142",
     time: "14:03",
   },
@@ -86,7 +91,7 @@ export function ChatPreview() {
               <p
                 className={`whitespace-pre-line ${l.from === "user" ? "font-hand text-xl leading-tight" : "font-mono text-xs leading-relaxed"}`}
               >
-                {l.text}
+                {l.pen ? <PenTail text={l.text} /> : l.text}
               </p>
               {l.button && (
                 <p className="mt-2 border-2 border-dashed border-rule py-1 text-center font-mono text-[0.65rem] text-ink-muted">
