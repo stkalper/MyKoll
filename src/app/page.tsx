@@ -437,7 +437,12 @@ export default function Landing() {
           className="mt-10 inline-block rounded-md border-2 border-outline px-8 py-3.5 font-form text-sm font-extrabold uppercase tracking-wider text-ink shadow-[4px_4px_0_rgba(0,0,0,0.55)]"
           style={{ background: "var(--hl)" }}
         >
-          Add @mykoll_bot to your group
+          Add{" "}
+          {/* The pen signs the bot's name here at the end of its route. */}
+          <span className="mx-1 font-hand text-3xl font-bold normal-case leading-none tracking-normal">
+            <PenTail text="@mykoll_bot" letters={11} />
+          </span>{" "}
+          to your group
         </a>
       </section>
 

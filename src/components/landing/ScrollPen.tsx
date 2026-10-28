@@ -19,8 +19,11 @@ type Point = { x: number; y: number };
 type Stop = { start: Point; end: Point; letters: HTMLElement[]; lenStart: number; lenEnd: number };
 
 /** Scroll distance the pen spends writing at a stop, and how long it takes to catch up after. */
-const DWELL = 110;
-const CATCH_UP = 320;
+const DWELL = 220;
+const CATCH_UP = 360;
+/** Easing per frame: the nib slows down over letters, so the endings are written, not flicked on. */
+const GLIDE = 0.1;
+const WRITE = 0.045;
 
 /** A smooth curve through the points (Catmull-Rom turned into cubic Béziers). */
 function smoothPath(pts: Point[]): string {
@@ -156,9 +159,12 @@ export function ScrollPen() {
 
     /** How much line to show for the current scroll position, with a pause at each stop. */
     const target = () => {
-      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4) return length;
       const top = ink.getBoundingClientRect().top + window.scrollY;
-      const tipY = window.scrollY + window.innerHeight * 0.55 - top;
+      // The nib rides at 55% of the screen, sliding to the bottom edge over the last screen of
+      // scroll, so the signature on the closing button is reachable.
+      const left = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+      const at = 0.55 + 0.45 * Math.max(0, 1 - left / window.innerHeight);
+      const tipY = left <= 2 ? Infinity : window.scrollY + window.innerHeight * at - top;
       let lag = 0;
       let floor = 0;
       for (const s of stops) {
@@ -180,7 +186,8 @@ export function ScrollPen() {
     const tick = () => {
       if (length) {
         // Ease after the scroll position so the pen glides instead of jumping.
-        shown += (target() - shown) * 0.1;
+        const writing = stops.some((s) => shown > s.lenStart - 2 && shown < s.lenEnd);
+        shown += (target() - shown) * (writing ? WRITE : GLIDE);
         el.style.strokeDashoffset = `${length - shown}`;
         const p = el.getPointAtLength(Math.max(shown, 0.01));
         const ahead = el.getPointAtLength(Math.min(shown + 8, length));
