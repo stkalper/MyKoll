@@ -51,6 +51,12 @@ create table if not exists score_votes (
   winner    text not null,
   primary key (call_id, user_id)
 );
+
+-- 'ask': offer to log calls spotted in chat; 'auto': log them straight away (admins choose).
+create table if not exists chat_settings (
+  chat_id  bigint primary key,
+  mode     text not null default 'ask' check (mode in ('ask', 'auto'))
+);
 `;
 
 let ready: Promise<Query> | undefined;

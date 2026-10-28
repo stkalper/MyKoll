@@ -324,3 +324,26 @@ export async function setHidden(callId: number, authorId: number, hidden: boolea
 }
 
 export const hideCall = (callId: number, authorId: number) => setHidden(callId, authorId, true);
+
+/** How long the author has to say an auto-logged message wasn't a call. */
+export const UNDO_MINUTES = 15;
+
+/** Voids an auto-logged call its author says wasn't one; it leaves the board and the bot's answers. */
+export async function undoCall(callId: number, authorId: number): Promise<"ok" | "not_yours" | "too_late"> {
+  const [call] = await db<CallRow>(`select * from calls where id = $1`, [callId]);
+  if (!call || String(call.author_id) !== String(authorId)) return "not_yours";
+  if (Date.now() - new Date(call.made_at).getTime() > UNDO_MINUTES * 60_000) return "too_late";
+  await db(`update calls set status = 'void', hidden = true, result_note = 'not a call (undone by author)', resolved_at = now() where id = $1`, [callId]);
+  return "ok";
+}
+
+export type ChatMode = "ask" | "auto";
+
+export async function chatMode(chatId: number | string): Promise<ChatMode> {
+  const [row] = await db<{ mode: ChatMode }>(`select mode from chat_settings where chat_id = $1`, [chatId]);
+  return row?.mode ?? "ask";
+}
+
+export async function setChatMode(chatId: number | string, mode: ChatMode) {
+  await db(`insert into chat_settings (chat_id, mode) values ($1, $2) on conflict (chat_id) do update set mode = excluded.mode`, [chatId, mode]);
+}

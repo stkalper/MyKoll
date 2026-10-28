@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Bot, InlineKeyboard, type Context } from "grammy";
 import { answer } from "./ask";
 import {
+  chatMode,
   claim,
   extractCall,
   hideCall,
@@ -10,10 +11,14 @@ import {
   mightBeCall,
   openCalls,
   resolveDue,
+  setChatMode,
+  undoCall,
+  UNDO_MINUTES,
   usd,
   voteScore,
   when,
   type CallRow,
+  type ChatMode,
   type Draft,
 } from "./calls";
 import { config, llmEnabled } from "./config";
@@ -138,6 +143,43 @@ export function createBot(): Bot {
     await ctx.reply(ok ? `Call #${id} is hidden. It no longer counts and I won't bring it up.` : "You can only hide your own calls.");
   });
 
+  const MODE_TEXT: Record<ChatMode, string> = {
+    ask: "📌 <b>Ask first</b> — when someone sounds like they're making a call, I offer to log it and the author taps to confirm.",
+    auto: `⚡ <b>Auto</b> — I log anything that sounds like a call right away. The author can undo it within ${UNDO_MINUTES} minutes.`,
+  };
+  const modeKeyboard = (current: ChatMode) =>
+    new InlineKeyboard().text(`${current === "ask" ? "● " : ""}Ask first`, "mode:ask").text(`${current === "auto" ? "● " : ""}Auto`, "mode:auto");
+
+  async function isAdmin(ctx: Context): Promise<boolean> {
+    if (ctx.chat?.type === "private") return true;
+    const member = await ctx.getChatMember(ctx.from!.id);
+    return member.status === "creator" || member.status === "administrator";
+  }
+
+  bot.command("mode", async (ctx) => {
+    const current = await chatMode(ctx.chat.id);
+    await ctx.reply(`How should I handle calls in this chat?\n\n${MODE_TEXT.ask}\n\n${MODE_TEXT.auto}\n\nOnly group admins can switch.`, {
+      parse_mode: "HTML",
+      reply_markup: modeKeyboard(current),
+    });
+  });
+
+  bot.callbackQuery(/^mode:(ask|auto)$/, async (ctx) => {
+    if (!(await isAdmin(ctx))) return ctx.answerCallbackQuery({ text: "Only group admins can change this.", show_alert: true });
+    const mode = ctx.match![1] as ChatMode;
+    await setChatMode(ctx.chat!.id, mode);
+    await ctx.answerCallbackQuery({ text: mode === "auto" ? "Auto mode on" : "Ask-first mode on" });
+    await ctx.editMessageText(`Mode set.\n\n${MODE_TEXT[mode]}`, { parse_mode: "HTML", reply_markup: modeKeyboard(mode) });
+  });
+
+  bot.callbackQuery(/^undo:(\d+)$/, async (ctx) => {
+    const res = await undoCall(Number(ctx.match![1]), ctx.from.id);
+    if (res === "not_yours") return ctx.answerCallbackQuery({ text: "Only the author can undo their call.", show_alert: true });
+    if (res === "too_late") return ctx.answerCallbackQuery({ text: `Too late — calls can be undone within ${UNDO_MINUTES} minutes. Use /hide instead.`, show_alert: true });
+    await ctx.answerCallbackQuery({ text: "Undone." });
+    await ctx.editMessageText("↩️ Not a call — removed.");
+  });
+
   bot.callbackQuery(/^(log|nolog):(\w+)$/, async (ctx) => {
     const [, action, pendingId] = ctx.match!;
     const [pending] = await db<{ chat_id: string; author_id: string; draft: Draft }>(`select * from pending_calls where id = $1`, [pendingId]);
@@ -183,6 +225,16 @@ export function createBot(): Bot {
     const draft = await extractCall(text).catch(() => null);
     if (!draft || "reason" in draft) return;
 
+    if ((await chatMode(ctx.chat.id)) === "auto") {
+      const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, authorOf(ctx), draft);
+      if ("error" in call) return;
+      return ctx.reply(receiptText(call, "logged automatically ⚡"), {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message.message_id },
+        reply_markup: new InlineKeyboard().text("✗ Not a call", `undo:${call.id}`),
+      });
+    }
+
     // Nothing is stored until the author agrees; the draft waits here for their tap.
     const id = randomBytes(6).toString("hex");
     await db(`insert into pending_calls (id, chat_id, author_id, draft) values ($1, $2, $3, $4)`, [id, ctx.chat.id, ctx.from.id, JSON.stringify(draft)]);
@@ -204,4 +256,5 @@ export const BOT_COMMANDS = [
   { command: "open", description: "Calls still running" },
   { command: "ask", description: "Ask what someone said before" },
   { command: "hide", description: "Hide one of your calls" },
+  { command: "mode", description: "Ask before logging calls, or log them automatically" },
 ];
