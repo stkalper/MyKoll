@@ -26,6 +26,7 @@ import {
 } from "./calls";
 import { config, llmEnabled } from "./config";
 import { db } from "./db";
+import { noteForNewCall, trackRecords } from "./learning";
 import { shareUrl } from "./receipts";
 import { sourceLabel } from "./tatum";
 
@@ -36,15 +37,23 @@ const authorOf = (ctx: Context) => ({
   name: ctx.from!.username ? `@${ctx.from!.username}` : ctx.from!.first_name,
 });
 
-function receiptText(call: CallRow, headline: string, reasons: string[] = []): string {
+function receiptText(call: CallRow, headline: string, reasons: string[] = [], learned: string[] = []): string {
   const lines = [`🧾 <b>Receipt #${call.id}</b> · ${headline}`, `${esc(call.author_name)}: “${esc(call.quote)}”`, ""];
   lines.push(`<i>${esc(claim(call))}</i> · judged ${esc(when(call.deadline))}`);
   if (call.entry_price !== null && call.status === "open")
     lines.push(`${call.subject} was ${usd(call.entry_price)} when called · ${sourceLabel[call.price_source ?? "price-api"]}`);
   if (call.result_note) lines.push(esc(call.result_note));
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
+  if (learned.length) lines.push("", ...learned.map(esc));
   if (call.status === "open" && !reasons.length) lines.push("", "<i>Reply to this receipt to add why you think so.</i>");
   return lines.join("\n");
+}
+
+/** What the bot has learned that bears on this call: shown when it's made, and after it settles. */
+const learnedForNew = (call: CallRow) => noteForNewCall(call).catch(() => [] as string[]);
+async function learnedAfter(call: CallRow): Promise<string[]> {
+  const record = (await trackRecords(call.chat_id).catch(() => new Map())).get(String(call.author_id));
+  return record ? [`📈 Updated record: ${record.summary}`] : [];
 }
 
 /** The call a bot message is the receipt of, if it is one. */
@@ -74,7 +83,7 @@ export async function announceResolutions(bot: Bot) {
       );
     } else {
       const share = config.publicUrl ? new InlineKeyboard().url("🔗 Share this receipt", shareUrl(call.id)) : undefined;
-      await bot.api.sendMessage(call.chat_id, receiptText(call, outcomeHeadline(call), reasons.get(call.id)), { parse_mode: "HTML", reply_markup: share });
+      await bot.api.sendMessage(call.chat_id, receiptText(call, outcomeHeadline(call), reasons.get(call.id), await learnedAfter(call)), { parse_mode: "HTML", reply_markup: share });
     }
   }
 }
@@ -121,7 +130,7 @@ export function createBot(): Bot {
     if ("reason" in draft) return ctx.reply(draft.reason);
     const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, author, draft);
     if ("error" in call) return ctx.reply(call.error);
-    await ctx.reply(receiptText(call, "logged ✍️"), { parse_mode: "HTML" });
+    await ctx.reply(receiptText(call, "logged ✍️", [], await learnedForNew(call)), { parse_mode: "HTML" });
   });
 
   bot.command("board", async (ctx) => {
@@ -221,7 +230,7 @@ export function createBot(): Bot {
     const call = await logCall({ id: ctx.chat!.id, title: "title" in ctx.chat! ? ctx.chat!.title : undefined }, authorOf(ctx), pending.draft);
     await ctx.answerCallbackQuery();
     if ("error" in call) return ctx.editMessageText(call.error);
-    await ctx.editMessageText(receiptText(call, "logged ✍️"), { parse_mode: "HTML" });
+    await ctx.editMessageText(receiptText(call, "logged ✍️", [], await learnedForNew(call)), { parse_mode: "HTML" });
   });
 
   bot.callbackQuery(/^score:(\d+):(a|b|void)$/, async (ctx) => {
@@ -231,7 +240,7 @@ export function createBot(): Bot {
     const winner = pick === "a" ? call.subject : pick === "b" ? call.opponent! : "void";
     const res = await voteScore(call.id, authorOf(ctx), winner);
     await ctx.answerCallbackQuery({ text: res.message });
-    if (res.call) await ctx.editMessageText(receiptText(res.call, outcomeHeadline(res.call)), { parse_mode: "HTML" });
+    if (res.call) await ctx.editMessageText(receiptText(res.call, outcomeHeadline(res.call), [], await learnedAfter(res.call)), { parse_mode: "HTML" });
     else if (winner === "void" && res.message.startsWith("Marked")) await ctx.editMessageText(`Call #${call.id} is void: match cancelled.`);
   });
 
@@ -268,7 +277,7 @@ export function createBot(): Bot {
     if ((await chatMode(ctx.chat.id)) === "auto") {
       const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, authorOf(ctx), draft);
       if ("error" in call) return ctx.reply(call.error, { reply_parameters: { message_id: ctx.message.message_id } });
-      return ctx.reply(receiptText(call, "logged automatically ⚡"), {
+      return ctx.reply(receiptText(call, "logged automatically ⚡", [], await learnedForNew(call)), {
         parse_mode: "HTML",
         reply_parameters: { message_id: ctx.message.message_id },
         reply_markup: new InlineKeyboard().text("✗ Not a call", `undo:${call.id}`),

@@ -159,6 +159,7 @@ export default function MiniApp() {
                   <p className="text-xs text-muted">
                     {s.hits} of {s.calls} right
                   </p>
+                  {s.insight && <p className="mt-1 text-xs text-text/70">{s.insight}</p>}
                 </div>
                 <span className="text-2xl font-light tabular-nums">{hitRate(s)}%</span>
               </li>
@@ -195,6 +196,29 @@ export default function MiniApp() {
             Every call you log is kept in this chat&apos;s Walrus Memory. Hide one and it drops off the board, and I stop bringing it up when
             someone asks.
           </p>
+          <div className="glass mt-6 rounded-3xl p-5">
+            <p className="text-xs tracking-[0.2em] text-muted">WHAT I&apos;VE LEARNED</p>
+            {view.learned ? (
+              <>
+                <p className="mt-3 text-sm leading-relaxed">{view.learned.summary}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {view.learned.strong.map((r) => (
+                    <span key={r.segment} className="rounded-full border border-line px-3 py-1 text-xs text-win">
+                      ↑ {r.segment} {r.hits}/{r.calls}
+                    </span>
+                  ))}
+                  {view.learned.weak.map((r) => (
+                    <span key={r.segment} className="rounded-full border border-line px-3 py-1 text-xs text-loss">
+                      ↓ {r.segment} {r.hits}/{r.calls}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-4 text-xs leading-relaxed text-muted">I bring this up when you make a new call of the same kind.</p>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-muted">Nothing yet. Once a few of your calls settle, I&apos;ll learn where you tend to be right.</p>
+            )}
+          </div>
           <div className="mt-6 space-y-4">
             {view.mine.map((c) => (
               <ReceiptCard key={c.id} call={c}>

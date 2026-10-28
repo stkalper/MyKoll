@@ -61,6 +61,17 @@ create table if not exists call_reasons (
   created_at  timestamptz not null default now()
 );
 
+-- What the bot has learned about each member from their settled calls (latest only; history lives in Walrus Memory).
+create table if not exists track_records (
+  chat_id      bigint not null,
+  author_id    bigint not null,
+  author_name  text not null,
+  summary      text not null,
+  stats        jsonb not null,
+  updated_at   timestamptz not null default now(),
+  primary key (chat_id, author_id)
+);
+
 -- Groups the bot has seen, so the Mini App can list them when opened outside a group.
 create table if not exists chats (
   chat_id     bigint primary key,

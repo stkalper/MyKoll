@@ -1,6 +1,7 @@
 import { config } from "./config";
 import { db } from "./db";
 import { complete, parseJson } from "./llm";
+import { learnFrom, trackRecords } from "./learning";
 import { remember } from "./memory";
 import { wakeAt } from "./schedule";
 import { quote, sourceLabel, type PriceSource } from "./tatum";
@@ -197,9 +198,11 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
   await wakeAt(call.id, call.deadline);
 
   const priceNote = entry !== null ? ` ${call.subject} was ${usd(entry)} at the time (${sourceLabel[source!]}).` : "";
+  const record = (await trackRecords(chat.id).catch(() => new Map())).get(String(author.id));
+  const recordNote = record ? ` Their record at the time: ${record.summary}` : "";
   const job = await remember(
     chat.id,
-    `[CALL #${call.id}] ${when(call.made_at)}: ${author.name} called "${call.quote}". Logged as ${claim(call)} by ${when(call.deadline)}.${priceNote}`,
+    `[CALL #${call.id}] ${when(call.made_at)}: ${author.name} called "${call.quote}". Logged as ${claim(call)} by ${when(call.deadline)}.${priceNote}${recordNote}`,
   ).catch((err) => {
     console.error("memory write failed", err);
     return null;
@@ -266,6 +269,7 @@ async function settle(call: CallRow, outcome: "win" | "loss", note: string, pric
     row.chat_id,
     `[RESULT #${row.id}] ${row.author_name}'s call "${row.quote}" (${claim(row)}) was ${outcome === "win" ? "RIGHT" : "WRONG"}: ${note}.`,
   ).catch((err) => console.error("memory write failed", err));
+  await learnFrom(row).catch((err) => console.error("learning failed", err));
   return row;
 }
 

@@ -27,6 +27,15 @@ export interface StandingView {
   name: string;
   calls: number;
   hits: number;
+  /** What the bot has learned about them, e.g. "strong: CS2 picks · weak: Sui tokens". */
+  insight?: string;
+}
+
+/** The bot's learned view of the viewer, from their settled calls. */
+export interface LearnedView {
+  summary: string;
+  strong: { segment: string; hits: number; calls: number }[];
+  weak: { segment: string; hits: number; calls: number }[];
 }
 
 export interface BoardView {
@@ -35,6 +44,7 @@ export interface BoardView {
   boards: Record<Market, StandingView[]>;
   recent: ReceiptView[];
   mine: ReceiptView[];
+  learned?: LearnedView;
 }
 
 export const hitRate = (s: StandingView) => Math.round((s.hits / s.calls) * 100);
