@@ -14,6 +14,7 @@ import {
   reasonsFor,
   resolveDue,
   setChatMode,
+  touchChat,
   undoCall,
   UNDO_MINUTES,
   usd,
@@ -88,7 +89,8 @@ export function createBot(): Bot {
 
   // Every update is a chance to settle due calls (Hobby cron only runs daily).
   // Registered first, because command handlers don't pass updates further down.
-  bot.use(async (_ctx, next) => {
+  bot.use(async (ctx, next) => {
+    if (ctx.chat && "title" in ctx.chat && ctx.chat.title) await touchChat(ctx.chat.id, ctx.chat.title).catch(() => {});
     await next();
     await sweepSoon(bot);
   });

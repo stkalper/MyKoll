@@ -39,28 +39,47 @@ export default function MiniApp() {
   const [market, setMarket] = useState<Market>("crypto");
   const [showHint, setShowHint] = useState(false);
   const [initData, setInitData] = useState("");
+  /** The viewer's groups, when the app was opened without one (e.g. from the bot's profile). */
+  const [chats, setChats] = useState<{ id: string; title: string }[] | null>(null);
+
+  const openChat = useCallback(async (chat: string, auth: string) => {
+    const res = await fetch(`/api/app/board?chat=${encodeURIComponent(chat)}`, {
+      headers: { "X-Telegram-Init-Data": auth },
+    });
+    const data = await res.json();
+    if (!res.ok) return setError(data.error ?? "Something went wrong.");
+    setError("");
+    setView(data);
+    try {
+      localStorage.setItem("receipts:lastChat", chat);
+    } catch {}
+  }, []);
 
   const load = useCallback(async () => {
     const tg = window.Telegram?.WebApp;
-    const chat = tg?.initDataUnsafe?.start_param;
     if (tg) {
       tg.ready();
       tg.expand();
       tg.setHeaderColor("#050505");
       tg.setBackgroundColor("#050505");
     }
-    if (!tg?.initData || !chat) {
-      setView(demoBoard);
-      return;
-    }
+    // Outside Telegram there is no signed user, so show the demo chat.
+    if (!tg?.initData) return setView(demoBoard);
     setInitData(tg.initData);
-    const res = await fetch(`/api/app/board?chat=${encodeURIComponent(chat)}`, {
-      headers: { "X-Telegram-Init-Data": tg.initData },
-    });
-    const data = await res.json();
-    if (!res.ok) setError(data.error ?? "Something went wrong.");
-    else setView(data);
-  }, []);
+
+    const chat = tg.initDataUnsafe?.start_param;
+    if (chat) return openChat(chat, tg.initData);
+
+    const res = await fetch("/api/app/chats", { headers: { "X-Telegram-Init-Data": tg.initData } });
+    const list: { id: string; title: string }[] = res.ok ? (await res.json()).chats : [];
+    let last: string | null = null;
+    try {
+      last = localStorage.getItem("receipts:lastChat");
+    } catch {}
+    const preferred = list.find((c) => c.id === last) ?? (list.length === 1 ? list[0] : null);
+    if (preferred) return openChat(preferred.id, tg.initData);
+    setChats(list);
+  }, [openChat]);
 
   async function toggleHidden(callId: number, hidden: boolean) {
     if (!view || view.chat.id === "demo") return;
@@ -69,7 +88,7 @@ export default function MiniApp() {
       headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
       body: JSON.stringify({ chat: view.chat.id, callId, hidden }),
     });
-    if (res.ok) await load();
+    if (res.ok) await openChat(view.chat.id, initData);
   }
 
   const isDemo = view?.chat.id === "demo";
@@ -87,6 +106,31 @@ export default function MiniApp() {
       </header>
 
       {error && <p className="glass mt-8 rounded-3xl p-5 text-sm text-muted">{error}</p>}
+
+      {!view && chats && (
+        <>
+          <h1 className="mt-8 text-4xl font-light leading-tight tracking-tight">
+            Pick a <span className="font-semibold">chat.</span>
+          </h1>
+          <div className="mt-6 space-y-3">
+            {chats.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => openChat(c.id, initData)}
+                className="glass flex w-full items-center justify-between rounded-3xl px-5 py-4 text-left"
+              >
+                <span className="font-medium">{c.title}</span>
+                <span className="text-muted">→</span>
+              </button>
+            ))}
+            {!chats.length && (
+              <p className="glass rounded-3xl px-5 py-6 text-sm leading-relaxed text-muted">
+                No groups yet. Add @mykoll_bot to a group chat, make a call, then open this again.
+              </p>
+            )}
+          </div>
+        </>
+      )}
 
       {view && tab === "board" && (
         <>

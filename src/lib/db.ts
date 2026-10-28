@@ -60,6 +60,13 @@ create table if not exists call_reasons (
   created_at  timestamptz not null default now()
 );
 
+-- Groups the bot has seen, so the Mini App can list them when opened outside a group.
+create table if not exists chats (
+  chat_id     bigint primary key,
+  title       text,
+  updated_at  timestamptz not null default now()
+);
+
 -- 'ask': offer to log calls spotted in chat; 'auto': log them straight away (admins choose).
 create table if not exists chat_settings (
   chat_id  bigint primary key,

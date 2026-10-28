@@ -363,6 +363,31 @@ export async function undoCall(callId: number, authorId: number): Promise<"ok" |
   return "ok";
 }
 
+/** Remembers a group's current title; cheap enough to call on every group update. */
+export async function touchChat(chatId: number, title: string) {
+  await db(
+    `insert into chats (chat_id, title) values ($1, $2)
+     on conflict (chat_id) do update set title = excluded.title, updated_at = now()
+     where chats.title is distinct from excluded.title or chats.updated_at < now() - interval '1 hour'`,
+    [chatId, title],
+  );
+}
+
+export async function knownChats(): Promise<{ chat_id: string; title: string | null }[]> {
+  // Groups with calls count too, in case they were active before the chats table existed.
+  return db(
+    `select chat_id, max(title) as title from (
+       select chat_id, title, updated_at from chats
+       union all select chat_id, chat_title, made_at from calls where chat_id < 0
+     ) seen group by chat_id order by max(updated_at) desc limit 200`,
+  );
+}
+
+export async function chatTitle(chatId: number | string): Promise<string | null> {
+  const [row] = await db<{ title: string | null }>(`select title from chats where chat_id = $1`, [chatId]);
+  return row?.title ?? null;
+}
+
 export type ChatMode = "ask" | "auto";
 
 export async function chatMode(chatId: number | string): Promise<ChatMode> {
