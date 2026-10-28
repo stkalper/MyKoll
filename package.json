@@ -2,6 +2,7 @@
   "name": "receipts",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,9 +10,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.12",
     "@grpc/grpc-js": "^1.14.6",
+    "@mysten-incubation/memwal": "^0.1.8",
     "@mysten/sui": "^2.38.0",
+    "@neondatabase/serverless": "^1.2.0",
     "@protobuf-ts/grpc-transport": "^2.11.1",
+    "grammy": "^1.46.0",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -24,6 +29,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
