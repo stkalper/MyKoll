@@ -53,3 +53,4 @@ tatumapi.txt
 .agents/
 .claude/
 skills-lock.json
+!.env.example
