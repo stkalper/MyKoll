@@ -26,6 +26,7 @@ import {
 } from "./calls";
 import { config, llmEnabled } from "./config";
 import { db } from "./db";
+import { shareUrl } from "./receipts";
 import { sourceLabel } from "./tatum";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -72,7 +73,8 @@ export async function announceResolutions(bot: Bot) {
         { parse_mode: "HTML", reply_markup: kb },
       );
     } else {
-      await bot.api.sendMessage(call.chat_id, receiptText(call, outcomeHeadline(call), reasons.get(call.id)), { parse_mode: "HTML" });
+      const share = config.publicUrl ? new InlineKeyboard().url("🔗 Share this receipt", shareUrl(call.id)) : undefined;
+      await bot.api.sendMessage(call.chat_id, receiptText(call, outcomeHeadline(call), reasons.get(call.id)), { parse_mode: "HTML", reply_markup: share });
     }
   }
 }

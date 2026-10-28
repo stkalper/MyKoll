@@ -1,28 +1,7 @@
-import { callsBy, chatTitle, claim, leaderboard, reasonsFor, recentCalls, when, type CallRow, type Standing } from "@/lib/calls";
+import { callsBy, chatTitle, leaderboard, reasonsFor, recentCalls, type Standing } from "@/lib/calls";
+import { toView } from "@/lib/receipts";
 import { chatMember } from "@/lib/telegramAuth";
-import type { BoardView, ReceiptView, StandingView } from "@/lib/view";
-
-const outcome = (s: CallRow["status"]): ReceiptView["outcome"] =>
-  s === "win" ? "win" : s === "loss" ? "loss" : s === "void" ? "void" : "open";
-
-function toView(c: CallRow, reasons: Map<number, string[]>): ReceiptView {
-  return {
-    id: c.id,
-    author: c.author_name,
-    market: c.market,
-    quote: c.quote,
-    claim: claim(c),
-    madeAt: when(c.made_at),
-    deadline: when(c.deadline),
-    outcome: outcome(c.status),
-    entry: c.entry_price ?? undefined,
-    final: c.final_price ?? undefined,
-    note: c.result_note ?? undefined,
-    priceSource: c.price_source ?? undefined,
-    reasons: reasons.get(c.id),
-    hidden: c.hidden,
-  };
-}
+import type { BoardView, StandingView } from "@/lib/view";
 
 const toStanding = (s: Standing): StandingView => ({ name: s.author_name, calls: s.calls, hits: s.hits });
 

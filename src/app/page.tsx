@@ -31,7 +31,7 @@ export default function Landing() {
           that.&rdquo;
         </p>
         <a
-          href="https://t.me/"
+          href="https://t.me/mykoll_bot?startgroup=receipts"
           className="mt-10 rounded-full bg-text px-7 py-3 font-medium text-bg transition-opacity hover:opacity-90"
         >
           Add to Telegram
