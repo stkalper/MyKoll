@@ -12,10 +12,9 @@ export const sourceLabel: Record<PriceSource, string> = {
 /** USD price of a ticker from Tatum's Price API, or null if Tatum doesn't know the symbol. */
 export async function priceUsd(symbol: string): Promise<number | null> {
   const url = `https://api.tatum.io/v4/data/rate/symbol?symbol=${encodeURIComponent(symbol.toUpperCase())}&basePair=USD`;
-  const res = await fetch(url, {
-    headers: { "x-api-key": config.tatum.apiKey },
-    signal: AbortSignal.timeout(10_000),
-  });
+  const get = () => fetch(url, { headers: { "x-api-key": config.tatum.apiKey }, signal: AbortSignal.timeout(6_000) });
+  // The first request from a cold function now and then hangs; a second try goes through.
+  const res = await get().catch(get);
   if (!res.ok) return null;
   const data = (await res.json()) as { value?: string };
   const value = Number(data.value);
