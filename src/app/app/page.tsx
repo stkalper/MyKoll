@@ -215,6 +215,17 @@ export default function MiniApp() {
           {view.learned && (
             <p className="mt-4 text-center font-hand text-xl text-muted">I bring this up when you make a new call of the same kind.</p>
           )}
+          {view.habits && (view.habits.habit || view.habits.misreads > 0) && (
+            <div className="paper mt-6 rotate-[0.6deg] rounded-sm px-5 py-4">
+              <p className="field-label">How I handle your calls</p>
+              {view.habits.habit && <p className="mt-2 font-mono text-sm">{view.habits.habit}</p>}
+              {view.habits.misreads > 0 && (
+                <p className="mt-2 font-hand text-xl text-ink-muted">
+                  You told me {view.habits.misreads === 1 ? "once" : `${view.habits.misreads} times`} that I misread you. I ask less about calls like those.
+                </p>
+              )}
+            </div>
+          )}
           <div className="mt-8 space-y-6">
             {view.mine.map((c) => (
               <ReceiptCard key={c.id} call={c}>

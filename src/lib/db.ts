@@ -79,6 +79,16 @@ create table if not exists chats (
   updated_at  timestamptz not null default now()
 );
 
+-- Each "Log it" (accepted), "No" or "Not a call" (rejected) on a call the bot spotted, so it learns how each member talks.
+create table if not exists call_feedback (
+  id          serial primary key,
+  chat_id     bigint not null,
+  author_id   bigint not null,
+  accepted    boolean not null,
+  created_at  timestamptz not null default now()
+);
+create index if not exists call_feedback_author_idx on call_feedback (chat_id, author_id, id desc);
+
 -- 'ask': offer to log calls spotted in chat; 'auto': log them straight away (admins choose).
 create table if not exists chat_settings (
   chat_id  bigint primary key,

@@ -13,8 +13,11 @@ export async function answer(chatId: number, question: string): Promise<string> 
     leaderboard(chatId, "cs2"),
     trackRecords(chatId),
   ]);
-  // Older track records are superseded by the current ones below, so they don't argue with them.
-  const visible = memories.filter((m) => !m.text.startsWith("[TRACK RECORD") && !callIdsIn(m.text).some((id) => hidden.has(id)));
+  // Older track records are superseded by the current ones below, so they don't argue with them;
+  // misreads are the bot's own mistakes, not something anyone said.
+  const visible = memories.filter(
+    (m) => !m.text.startsWith("[TRACK RECORD") && !m.text.startsWith("[NOT A CALL") && !callIdsIn(m.text).some((id) => hidden.has(id)),
+  );
   if (!visible.length && !records.size) return "I don't remember anything about that in this chat yet.";
   if (!llmEnabled) return visible.map((m) => `• ${m.text}`).join("\n");
 
@@ -28,7 +31,7 @@ export async function answer(chatId: number, question: string): Promise<string> 
         role: "system",
         content: `You are MyKoll, the memory of a Telegram group chat. People make crypto and CS2 calls; you remember who said what and whether they were right.
 Answer the question using ONLY the memories and track records below. Quote people's exact words, give dates, and say if a call was right or wrong.
-CALL entries are predictions, RESULT entries say how they ended, REASON entries are the author's own explanation of why they made the call.
+CALL entries are predictions, RESULT entries say how they ended, REASON entries are the author's own explanation of why they made the call, HABIT entries say how you changed the way you handle someone's calls.
 When asked who to trust, or how good someone is, use the track records: they say where each person tends to be right or wrong.
 If nothing below answers it, say you don't remember that. Be short and a little playful, like a friend in the chat. No markdown.
 Reply in the language of the question.

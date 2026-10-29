@@ -36,6 +36,17 @@ const lines: Line[] = [
   },
   { from: "bot", text: "🧾 Receipt #142 · why added 💭", time: "14:03" },
   {
+    from: "user",
+    name: "Ola",
+    text: "nah, WAL dumps before Friday",
+    time: "15:20",
+  },
+  {
+    from: "bot",
+    text: "🧾 Receipt #143 · logged ⚡\n🧭 Also on WAL: Ivan ↑ up (1/4 on Sui tokens)\nWeighted by track record the chat leans ↓ down (60%).",
+    time: "15:20",
+  },
+  {
     from: "bot",
     text: "🧾 Receipt #142 · ❌ missed\nWAL was $0.0362 at the deadline\n📈 Ivan on Sui tokens: 1/4",
     time: "Fri 23:59",

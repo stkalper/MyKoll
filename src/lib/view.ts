@@ -48,6 +48,8 @@ export interface BoardView {
   recent: ReceiptView[];
   mine: ReceiptView[];
   learned?: LearnedView;
+  /** How the bot has adapted to the viewer: whether it still asks, and how many misreads it learned from. */
+  habits?: { habit?: string; misreads: number };
 }
 
 export const hitRate = (s: StandingView) => Math.round((s.hits / s.calls) * 100);

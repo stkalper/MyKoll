@@ -121,7 +121,12 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
       .map((s) => record.segments.find((r) => r.segment === s))
       .filter((r): r is SegmentRecord => Boolean(r) && r!.segment !== "crypto calls")
       .slice(0, 3);
-    lines.push(`📊 ${call.author_name}'s record: ${relevant.length ? relevant.map(fmt).join(" · ") : `${record.hits}/${record.calls} overall`}`);
+    // Call out when this call is in a spot the author is known to be good or bad at.
+    const isIn = (list: SegmentRecord[]) => relevant.find((r) => list.some((s) => s.segment === r.segment));
+    const strong = isIn(record.strong);
+    const weak = isIn(record.weak);
+    const spot = weak ? ` — ⚠️ a weak spot (${fmt(weak)})` : strong ? ` — 🔥 a strong spot (${fmt(strong)})` : "";
+    lines.push(`📊 ${call.author_name}'s record: ${relevant.length ? relevant.map(fmt).join(" · ") : `${record.hits}/${record.calls} overall`}${spot}`);
   }
 
   const memories = await recall(call.chat_id, `${call.author_name} ${call.subject} ${call.quote}`, 8).catch(() => []);
@@ -133,5 +138,71 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
     const quote = similar.text.match(/call "([^"]+)"/)?.[1];
     if (quote) lines.push(`↩ Last time: “${quote}” — ${verdict}`);
   }
-  return lines;
+  return [...lines, ...(await roomNote(call).catch(() => []))];
+}
+
+/* ---------- Whom to trust ---------- */
+
+/** Which way a call leans: "up" or "down" for crypto, the team picked for CS2. */
+const sideOf = (c: CallRow) => (c.market === "cs2" ? c.subject : c.direction === "above" || c.direction === "up" ? "up" : "down");
+const sideLabel = (side: string) => (side === "up" ? "↑ up" : side === "down" ? "↓ down" : side);
+
+/** Two calls on the same coin, or on the same match from either side. */
+const sameQuestion = (a: CallRow, b: CallRow) =>
+  a.market === b.market &&
+  (a.market === "crypto" ? a.subject === b.subject : [a.subject, a.opponent].sort().join() === [b.subject, b.opponent].sort().join());
+
+/**
+ * How far the bot trusts an author on a call: their hit rate on the closest kind of call
+ * (this coin or team first, then its group, then overall), smoothed so 1/1 isn't 100%.
+ */
+function trustOn(record: TrackRecord | undefined, c: CallRow): { weight: number; basis: string } {
+  if (!record) return { weight: 0.5, basis: "no record yet" };
+  const own = `${c.subject} ${c.market === "cs2" ? "picks" : "calls"}`;
+  const kinds = segmentsOf(c).filter((s) => s !== "crypto calls").sort((a, b) => Number(b === own) - Number(a === own));
+  const r = kinds.map((s) => record.segments.find((x) => x.segment === s)).find(Boolean) ?? { segment: "everything", hits: record.hits, calls: record.calls };
+  return { weight: (r.hits + 1) / (r.calls + 2), basis: `${r.hits}/${r.calls} on ${r.segment}` };
+}
+
+/**
+ * When others in the chat already have an open call on the same coin or match, the bot
+ * weighs everyone's view by what it has learned about them and says which way the
+ * people worth listening to lean.
+ */
+export async function roomNote(call: CallRow): Promise<string[]> {
+  const open = await db<CallRow>(
+    `select * from calls where chat_id = $1 and market = $2 and status = 'open' and not hidden and id <> $3 and author_id <> $4 order by made_at desc`,
+    [call.chat_id, call.market, call.id, call.author_id],
+  );
+  // One voice per member: their latest call on it.
+  const others = new Map<string, CallRow>();
+  for (const c of open) if (sameQuestion(call, c) && !others.has(String(c.author_id))) others.set(String(c.author_id), c);
+  if (!others.size) return [];
+
+  const records = await trackRecords(call.chat_id);
+  const votes = [call, ...others.values()].map((c) => ({ c, side: sideOf(c), ...trustOn(records.get(String(c.author_id)), c) }));
+  const bySide = new Map<string, number>();
+  for (const v of votes) bySide.set(v.side, (bySide.get(v.side) ?? 0) + v.weight);
+  const total = [...bySide.values()].reduce((a, b) => a + b, 0);
+  const [lead, weight] = [...bySide.entries()].sort((a, b) => b[1] - a[1])[0];
+  const share = Math.round((weight / total) * 100);
+
+  // When the head count and the track records disagree, that's the point worth making.
+  const heads = new Map<string, number>();
+  for (const v of votes) heads.set(v.side, (heads.get(v.side) ?? 0) + 1);
+  const [mostSaid, saidBy] = [...heads.entries()].sort((a, b) => b[1] - a[1])[0];
+  const overruled = mostSaid !== lead && saidBy > votes.length / 2 ? `${saidBy} of ${votes.length} say ${sideLabel(mostSaid)}, but w` : "W";
+
+  const topic = call.market === "cs2" ? `${call.subject} vs ${call.opponent}` : call.subject;
+  return [
+    `🧭 Also on ${topic}: ${votes
+      .slice(1)
+      .map((v) => `${v.c.author_name} ${sideLabel(v.side)} (${v.basis})`)
+      .join(", ")}`,
+    bySide.size === 1
+      ? `Everyone agrees: ${sideLabel(lead)}.`
+      : share === 50
+        ? "Weighted by track record, the chat is split 50/50."
+        : `${overruled}eighted by track record the chat leans ${sideLabel(lead)} (${share}%).`,
+  ];
 }

@@ -363,12 +363,12 @@ export async function reasonsFor(callIds: number[]): Promise<Map<number, string[
 export const UNDO_MINUTES = 15;
 
 /** Voids an auto-logged call its author says wasn't one; it leaves the board and the bot's answers. */
-export async function undoCall(callId: number, authorId: number): Promise<"ok" | "not_yours" | "too_late"> {
+export async function undoCall(callId: number, authorId: number): Promise<CallRow | "not_yours" | "too_late"> {
   const [call] = await db<CallRow>(`select * from calls where id = $1`, [callId]);
   if (!call || String(call.author_id) !== String(authorId)) return "not_yours";
   if (Date.now() - new Date(call.made_at).getTime() > UNDO_MINUTES * 60_000) return "too_late";
   await db(`update calls set status = 'void', hidden = true, result_note = 'not a call (undone by author)', resolved_at = now() where id = $1`, [callId]);
-  return "ok";
+  return call;
 }
 
 /** Remembers a group's current title; cheap enough to call on every group update. */

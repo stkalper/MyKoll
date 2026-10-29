@@ -1,4 +1,5 @@
 import { callsBy, chatTitle, leaderboard, reasonsFor, recentCalls, type Standing } from "@/lib/calls";
+import { habitsView } from "@/lib/habits";
 import { insightLine, trackRecords, type TrackRecord } from "@/lib/learning";
 import { toView } from "@/lib/receipts";
 import { chatMember } from "@/lib/telegramAuth";
@@ -15,13 +16,14 @@ export async function GET(req: Request) {
   const user = await chatMember(req, chatId);
   if (!user) return Response.json({ error: "Open this from your group's /board button." }, { status: 403 });
 
-  const [crypto, cs2, recent, mine, title, records] = await Promise.all([
+  const [crypto, cs2, recent, mine, title, records, habits] = await Promise.all([
     leaderboard(chatId, "crypto"),
     leaderboard(chatId, "cs2"),
     recentCalls(chatId),
     callsBy(chatId, user.id),
     chatTitle(chatId),
     trackRecords(chatId),
+    habitsView(chatId, user.id),
   ]);
   const mineLearned = records.get(String(user.id));
   const reasons = await reasonsFor([...new Set([...recent, ...mine].map((c) => c.id))]);
@@ -39,6 +41,7 @@ export async function GET(req: Request) {
       strong: mineLearned.strong,
       weak: mineLearned.weak,
     },
+    habits,
   };
   return Response.json(view);
 }

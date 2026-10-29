@@ -77,6 +77,11 @@ const memoryEntries = [
     color: "border-stamp-win text-stamp-win",
     text: "@ivan is 13/18 right; strong on majors 9/10; weak on Sui tokens 1/4.",
   },
+  {
+    tag: "HABIT",
+    color: "border-ink-muted text-ink-muted",
+    text: "@max confirmed their last 3 calls, so I log theirs without asking.",
+  },
 ];
 
 const memoryPoints = [
@@ -86,7 +91,7 @@ const memoryPoints = [
   },
   {
     title: "It changes what the bot does",
-    text: "Every verdict rewrites the author’s track record. New calls come back with that record and the most similar past call, recalled by meaning.",
+    text: "Every verdict rewrites the author’s track record, and new calls come back with it. When several people call the same coin or match, it weighs them by that record. Say “not a call” and it asks you less; confirm a few and it stops asking.",
   },
   {
     title: "Each chat owns its file",
@@ -111,6 +116,7 @@ const commands = [
 const privacy = [
   "Stores calls, never the rest of the chat.",
   "In ask mode nothing is saved until the author taps “Log it”.",
+  "When you say a message wasn’t a call, it keeps its own misreading (“BTC below $90,000”), not your message.",
   "Auto mode is opt-in per group and every logged call can be undone by its author.",
   "Hidden calls drop off the board, the share links and the bot’s answers.",
   "The Mini App only shows a group to people who are in it.",

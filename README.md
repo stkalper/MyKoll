@@ -41,12 +41,40 @@ Without memory, MyKoll is just a price alert. The product is the memory: *who sa
   ```
   `/ask who was bullish on Sui coins?` finds Ivan’s WAL call even though the word “bullish” is never in it.
 - **People control what is remembered.** This follows the Walrus team’s guidance on long-term memory management:
-  - Only calls are stored, never the rest of the chat.
+  - Only calls are stored, never the rest of the chat. When someone says a message wasn’t a call, only the bot’s own misreading is kept.
   - The author can **undo** an auto-logged message within 15 minutes.
   - The author can **hide** any call with `/hide`, or from the Mini App’s “What I remember about you” screen. Hidden calls drop off the board, the share links and the bot’s answers. Recall results are filtered by call id.
   - Reasons can be added later, so old memories gain context instead of going stale.
 
 Code: [`src/lib/memory.ts`](src/lib/memory.ts), [`src/lib/ask.ts`](src/lib/ask.ts), [`src/lib/calls.ts`](src/lib/calls.ts).
+
+## The learning loop: memory that changes what the bot does
+
+Every settled call and every tap on a spotted call teaches the bot something, and the next message is handled differently because of it.
+
+- **Where each member is right.** Each verdict recomputes the author’s track record by kind of call: per coin or team, Sui tokens vs majors, bullish vs bearish, short vs long range. New calls come back with that record, a warning when the call is in a known weak spot (or a 🔥 for a strong one), and the author’s most similar past call, recalled by meaning.
+  ```
+  📊 @ivan's record: WAL calls 0/2 · Sui tokens 1/4 · bullish calls 2/6 — ⚠️ a weak spot (Sui tokens 1/4)
+  ↩ Last time: “WAL to 5 cents by Friday” — ❌ wrong
+  ```
+- **Whom to trust.** When others already have an open call on the same coin or match, the bot weighs everyone by their record on that kind of call, so a head count can lose to the people who are usually right:
+  ```
+  🧭 Also on SUI: @ivan ↓ down (0/3 on SUI calls), @max ↑ up (3/3 on SUI calls)
+  2 of 3 say ↓ down, but weighted by track record the chat leans ↑ up (53%).
+  ```
+- **How each member talks.** Answers to spotted calls change how the bot treats that person:
+  - **Confirms:** after 3 confirmed calls in a row, it logs theirs without asking, and says why.
+  - **Rejects:** when 2 of the last 3 spotted calls were rejected, it asks first, even in auto mode.
+  - **Misreads:** when the author says “not a call”, the bot writes its own misreading to Walrus Memory. A later message that reads the same way (same coin, same direction) is offered with a note instead of logged, and after two rejections it stays quiet. The misreading is stored, never the message.
+- **The history is in Walrus Memory**, next to the calls, so `/ask` can explain how the bot’s view of someone changed:
+  ```
+  [TRACK RECORD @ivan] 2026-10-31, after call #142: @ivan is 1/4 right; weak on Sui tokens 1/4.
+  [HABIT @max] Friday 31 Oct, 18:40: @max confirmed their last 3 calls, so I log theirs without asking.
+  [NOT A CALL] @ola: I read a message as "BTC below $90,000" (BTC, bearish) and they said it wasn't a call.
+  ```
+- **The Mini App shows each member what was learned about them:** their record card, strong and weak spots, and how the bot now handles their calls.
+
+Code: [`src/lib/learning.ts`](src/lib/learning.ts), [`src/lib/habits.ts`](src/lib/habits.ts). Try it without Telegram: [`scripts/try-learning.mts`](scripts/try-learning.mts), [`scripts/try-habits.mts`](scripts/try-habits.mts).
 
 ## Tatum: prices you can check
 

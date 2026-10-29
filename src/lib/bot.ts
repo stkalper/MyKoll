@@ -26,6 +26,7 @@ import {
 } from "./calls";
 import { config, llmEnabled } from "./config";
 import { db } from "./db";
+import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
 import { noteForNewCall, trackRecords } from "./learning";
 import { shareUrl } from "./receipts";
 import { sourceLabel } from "./tatum";
@@ -214,7 +215,8 @@ export function createBot(): Bot {
     if (res === "not_yours") return ctx.answerCallbackQuery({ text: "Only the author can undo their call.", show_alert: true });
     if (res === "too_late") return ctx.answerCallbackQuery({ text: `Too late — calls can be undone within ${UNDO_MINUTES} minutes. Use /hide instead.`, show_alert: true });
     await ctx.answerCallbackQuery({ text: "Undone." });
-    await ctx.editMessageText("↩️ Not a call — removed.");
+    await ctx.editMessageText("↩️ Not a call — removed. I'll remember that.");
+    await recordFeedback(ctx.chat!.id, authorOf(ctx), false, res);
   });
 
   bot.callbackQuery(/^(log|nolog):(\w+)$/, async (ctx) => {
@@ -224,13 +226,15 @@ export function createBot(): Bot {
     if (String(pending.author_id) !== String(ctx.from.id)) return ctx.answerCallbackQuery({ text: "Only the author can log their call.", show_alert: true });
     await db(`delete from pending_calls where id = $1`, [pendingId]);
     if (action === "nolog") {
-      await ctx.answerCallbackQuery({ text: "Not logged." });
-      return ctx.deleteMessage().catch(() => {});
+      await ctx.answerCallbackQuery({ text: "Not logged. I'll remember that." });
+      await ctx.deleteMessage().catch(() => {});
+      return recordFeedback(ctx.chat!.id, authorOf(ctx), false, pending.draft);
     }
     const call = await logCall({ id: ctx.chat!.id, title: "title" in ctx.chat! ? ctx.chat!.title : undefined }, authorOf(ctx), pending.draft);
     await ctx.answerCallbackQuery();
     if ("error" in call) return ctx.editMessageText(call.error);
     await ctx.editMessageText(receiptText(call, "logged ✍️", [], await learnedForNew(call)), { parse_mode: "HTML" });
+    await recordFeedback(ctx.chat!.id, authorOf(ctx), true, pending.draft);
   });
 
   bot.callbackQuery(/^score:(\d+):(a|b|void)$/, async (ctx) => {
@@ -274,10 +278,16 @@ export function createBot(): Bot {
     console.log("spotted candidate", { chat: ctx.chat.id, length: text.length, result: draft ? ("reason" in draft ? draft.reason : "call") : "not a call" });
     if (!draft || "reason" in draft) return;
 
-    if ((await chatMode(ctx.chat.id)) === "auto") {
-      const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, authorOf(ctx), draft);
+    // What the bot has learned about this member can override the chat's mode, and it says so.
+    const author = authorOf(ctx);
+    const [mode, habit, misreads] = await Promise.all([chatMode(ctx.chat.id), habitFor(ctx.chat.id, author.id), misreadsLike(ctx.chat.id, author.name, draft)]);
+    if (misreads >= 2) return console.log("skipped: the author said this reading wasn't a call before", { chat: ctx.chat.id, misreads });
+
+    if (!misreads && (habit === "trusted" || (mode === "auto" && habit !== "unsure"))) {
+      const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, author, draft);
       if ("error" in call) return ctx.reply(call.error, { reply_parameters: { message_id: ctx.message.message_id } });
-      return ctx.reply(receiptText(call, "logged automatically ⚡", [], await learnedForNew(call)), {
+      const why = mode === "ask" ? [`🤝 ${author.name} ${habitText.trusted.them}.`] : [];
+      return ctx.reply(receiptText(call, mode === "auto" ? "logged automatically ⚡" : "logged without asking ⚡", [], [...why, ...(await learnedForNew(call))]), {
         parse_mode: "HTML",
         reply_parameters: { message_id: ctx.message.message_id },
         reply_markup: new InlineKeyboard().text("✗ Not a call", `undo:${call.id}`),
@@ -285,9 +295,14 @@ export function createBot(): Bot {
     }
 
     // Nothing is stored until the author agrees; the draft waits here for their tap.
+    const because = misreads
+      ? "Last time I read something like this from you, it wasn't a call."
+      : mode === "auto" && habit === "unsure"
+        ? habitText.unsure.you
+        : "";
     const id = randomBytes(6).toString("hex");
     await db(`insert into pending_calls (id, chat_id, author_id, draft) values ($1, $2, $3, $4)`, [id, ctx.chat.id, ctx.from.id, JSON.stringify(draft)]);
-    await ctx.reply(`📌 Sounds like a call: <b>${esc(draftSummary(draft))}</b>. Log it?`, {
+    await ctx.reply(`📌 Sounds like a call: <b>${esc(draftSummary(draft))}</b>. Log it?${because ? `\n<i>${esc(because)}</i>` : ""}`, {
       parse_mode: "HTML",
       reply_parameters: { message_id: ctx.message.message_id },
       reply_markup: new InlineKeyboard().text("🧾 Log it", `log:${id}`).text("No", `nolog:${id}`),
