@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { claim, mightBeCall, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
+import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
 import { poolPrice } from "./suiPrices";
 import { gap } from "./tatum";
 
@@ -19,7 +20,7 @@ const call = (over: Partial<CallRow>): CallRow =>
 
 describe("spotting calls", () => {
   it("lets through predictions in English, Ukrainian and Russian", () => {
-    for (const text of ["SUI to $5 by Friday", "btc dumps under 90k this week", "біток до 90к до неділі", "NaVi рознесуть FaZe сьогодні", "эфир упадет до 2000", "WAL 0.05 by friday"])
+    for (const text of ["SUI to $5 by Friday", "btc dumps under 90k this week", "біток до 90к до неділі", "NaVi рознесуть FaZe сьогодні", "эфир упадет до 2000", "WAL 0.05 by friday", "тесла до 450 до пʼятниці", "PONS to 50 cents"])
       assert.equal(mightBeCall(text), true, text);
   });
   it("skips chatter, commands and coins without a prediction", () => {
@@ -45,6 +46,8 @@ describe("the learning loop", () => {
       "crypto calls", "WAL calls", "Sui tokens", "bullish calls", "calls under a day",
     ]);
     assert.deepEqual(segmentsOf(call({ market: "cs2", subject: "NaVi" })), ["CS2 picks", "NaVi picks"]);
+    assert.ok(segmentsOf(call({ subject: "TSLA" })).includes("stock tokens"));
+    assert.ok(segmentsOf(call({ subject: "PONS" })).includes("Robinhood Chain memecoins"));
   });
 
   it("finds strengths and weaknesses once there are two calls of a kind", () => {
@@ -81,6 +84,12 @@ describe("prices", () => {
     // SUI (9 decimals) at $0.95 in USDC (6 decimals): raw price is 0.95e-3.
     const sqrt = BigInt(Math.round(Math.sqrt(0.95e-3) * 2 ** 64)).toString();
     assert.ok(Math.abs(poolPrice(sqrt, 9, 6) - 0.95) < 1e-9);
+  });
+  it("reads a Uniswap v3 price from the pool's raw slot 0 storage word", () => {
+    // WETH/USDG on Robinhood Chain, as read over Tatum's RPC: WETH (18 decimals) is token0, USDG (6) token1.
+    const sqrt = sqrtPriceFromSlot0("0x0001442a402a40171dfcf7cd000000000000000000032cff0fe805aea0000000");
+    assert.equal(sqrt, BigInt("3839266650001300581777408"));
+    assert.ok(Math.abs(uniswapPrice(sqrt, 18, 6) - 2348.21) < 0.01);
   });
   it("measures how far two sources are apart", () => {
     assert.ok(Math.abs(gap(100, 102) - 0.02) < 1e-12);

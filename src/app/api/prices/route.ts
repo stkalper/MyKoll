@@ -1,11 +1,12 @@
-import { proofUrl } from "@/lib/suiPrices";
+import { proofLabel, proofUrl } from "@/lib/proof";
 import { gap, quote } from "@/lib/tatum";
 
-const SYMBOLS = ["BTC", "ETH", "SUI", "WAL", "DEEP", "NS"];
+const SYMBOLS = ["BTC", "SUI", "WAL", "DEEP", "TSLA", "PONS"];
 
 /**
- * Live prices for the landing page: which come from on-chain Sui pools, the transaction each
- * pool price comes from, and how the Price API compares where it has one. Cached at the edge.
+ * Live prices for the landing page: which come from on-chain pools (Sui, Robinhood Chain),
+ * the explorer page behind each pool price, and how the Price API compares where it has
+ * one. Cached at the edge.
  */
 export async function GET() {
   const prices = [];
@@ -16,6 +17,7 @@ export async function GET() {
       price: q?.price,
       source: q?.source,
       proofUrl: q?.proof?.[0] ? proofUrl(q.proof[0]) : undefined,
+      proofChain: q?.proof?.[0] ? proofLabel(q.proof[0]) : undefined,
       check: q?.check ? { price: q.check, apart: gap(q.price, q.check) } : undefined,
     });
   }

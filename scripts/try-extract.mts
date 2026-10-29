@@ -9,6 +9,9 @@ const samples = [
   "who's watching the major tonight?",
   "eth up by tomorrow evening",
   "Spirit beat Vitality, easy",
+  "тесла до 450 до пʼятниці",
+  "NVDA under 200 by end of month",
+  "PONS to 50 cents this week",
 ];
 for (const s of samples) {
   const pre = mightBeCall(s);

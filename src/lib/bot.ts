@@ -29,7 +29,7 @@ import { db } from "./db";
 import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
 import { noteForNewCall, trackRecords } from "./learning";
 import { shareUrl } from "./receipts";
-import { proofUrl } from "./suiPrices";
+import { proofLabel, proofUrl } from "./proof";
 import { DISAGREE, gap, sourceLabel } from "./tatum";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -69,7 +69,7 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
  */
 function receiptButtons(call: CallRow, kb = new InlineKeyboard()): InlineKeyboard | undefined {
   const proof = (call.status === "win" || call.status === "loss" ? call.final_proof : call.entry_proof)?.[0];
-  if (proof) (kb.inline_keyboard.flat().length ? kb.row() : kb).url("🔎 Check the price on Sui", proofUrl(proof));
+  if (proof) (kb.inline_keyboard.flat().length ? kb.row() : kb).url(`🔎 Check the price on ${proofLabel(proof)}`, proofUrl(proof));
   return kb.inline_keyboard.flat().length ? kb : undefined;
 }
 

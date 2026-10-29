@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import { claim, reasonsFor, when, type CallRow } from "./calls";
 import { config } from "./config";
 import { db } from "./db";
-import { proofUrl } from "./suiPrices";
+import { proofLabel, proofUrl } from "./proof";
 import { gap } from "./tatum";
 import type { ReceiptView } from "./view";
 
@@ -16,6 +16,7 @@ export function toView(c: CallRow, reasons: Map<number, string[]>): ReceiptView 
   const [price, check] = settled ? [c.final_price, c.final_check] : [c.entry_price, c.entry_check];
   return {
     proofUrl: proof ? proofUrl(proof) : undefined,
+    proofChain: proof ? proofLabel(proof) : undefined,
     check: price && check ? { price: check, apart: gap(price, check) } : undefined,
     id: c.id,
     author: c.author_name,

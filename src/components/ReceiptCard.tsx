@@ -17,7 +17,14 @@ export function ReceiptCard({
   /** Let the landing page's pen finish writing the first reason. */
   penWrite?: boolean;
 }) {
-  const source = call.market === "cs2" ? "score confirmed in chat" : call.priceSource === "sui-onchain" ? "on-chain · Tatum Sui RPC" : "Tatum Price API";
+  const source =
+    call.market === "cs2"
+      ? "score confirmed in chat"
+      : call.priceSource === "sui-onchain"
+        ? "on-chain · Tatum Sui RPC"
+        : call.priceSource === "robinhood-onchain"
+          ? "Robinhood Chain · Tatum RPC"
+          : "Tatum Price API";
   const price = call.entry !== undefined ? `${usd(call.entry)} → ${call.final !== undefined ? usd(call.final) : "…"}` : null;
   return (
     <article
@@ -45,7 +52,7 @@ export function ReceiptCard({
         )}
         {call.proofUrl && (
           <a href={call.proofUrl} target="_blank" rel="noreferrer" className="block underline decoration-dotted underline-offset-2">
-            check the price on Sui ↗
+            check the price on {call.proofChain ?? "Sui"} ↗
           </a>
         )}
       </p>

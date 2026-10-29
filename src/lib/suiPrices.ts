@@ -2,6 +2,7 @@ import { ChannelCredentials } from "@grpc/grpc-js";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { GrpcTransport } from "@protobuf-ts/grpc-transport";
 import { config } from "./config";
+import type { PoolRead } from "./proof";
 
 /**
  * Prices for Sui tokens read straight from on-chain Cetus CLMM pools over Tatum's Sui gRPC
@@ -88,14 +89,6 @@ async function decimalsOf(coinType: string): Promise<number> {
 
 const sameType = (a: string, b: string) => a.replace(/^0x0*/, "") === b.replace(/^0x0*/, "");
 
-/** Which pool state a price was read from: anyone can open the transaction on a Sui explorer and check. */
-export interface PoolRead {
-  pool: string;
-  version: string;
-  /** The transaction that last changed the pool, i.e. the one that set this price. */
-  tx: string | null;
-}
-
 interface PoolPrice {
   coinA: string;
   coinB: string;
@@ -123,7 +116,7 @@ async function fetchPool(poolId: string): Promise<PoolPrice> {
   const sqrt = (object.json as { current_sqrt_price?: string } | null)?.current_sqrt_price;
   if (!coinA || !coinB || !sqrt) throw new Error(`unexpected pool ${poolId}`);
   const [decA, decB] = await Promise.all([decimalsOf(coinA), decimalsOf(coinB)]);
-  return { coinA, coinB, aInB: poolPrice(sqrt, decA, decB), read: { pool: poolId, version: object.version, tx: object.previousTransaction } };
+  return { coinA, coinB, aInB: poolPrice(sqrt, decA, decB), read: { chain: "sui", pool: poolId, version: object.version, tx: object.previousTransaction } };
 }
 
 /** Cetus keeps sqrt(price of A in B) as Q64.64 over raw units; this is the price in whole tokens. */
@@ -153,6 +146,3 @@ export async function suiTokenQuote(symbol: string): Promise<{ price: number; re
 }
 
 export const suiTokenPriceUsd = async (symbol: string) => (await suiTokenQuote(symbol))?.price ?? null;
-
-/** A Sui explorer page for the transaction that set a pool's price. */
-export const proofUrl = (read: PoolRead) => (read.tx ? `https://suiscan.xyz/mainnet/tx/${read.tx}` : `https://suiscan.xyz/mainnet/object/${read.pool}`);

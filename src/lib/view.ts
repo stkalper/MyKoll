@@ -16,10 +16,12 @@ export interface ReceiptView {
   entry?: number;
   final?: number;
   note?: string;
-  /** "price-api" or "sui-onchain" for crypto calls. */
+  /** "price-api", "sui-onchain" or "robinhood-onchain" for price calls. */
   priceSource?: string;
-  /** On-chain prices: the Sui transaction that set the pool price the call was judged by (or logged at). */
+  /** On-chain prices: the explorer page behind the pool price the call was judged by (or logged at). */
   proofUrl?: string;
+  /** Which chain that page is on: "Sui" or "Robinhood Chain". */
+  proofChain?: string;
   /** On-chain prices: the Price API's price for the same moment, and how far apart the two are (0.012 = 1.2%). */
   check?: { price: number; apart: number };
   /** The author's own "why", added by replying to the receipt. */

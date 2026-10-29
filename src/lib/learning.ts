@@ -1,6 +1,7 @@
 import type { CallRow } from "./calls";
 import { db } from "./db";
 import { recall, remember } from "./memory";
+import { robinhoodKind } from "./robinhoodPrices";
 import { isSuiToken } from "./suiPrices";
 
 /**
@@ -17,8 +18,11 @@ const DAY = 86_400_000;
 export function segmentsOf(c: Pick<CallRow, "market" | "subject" | "direction" | "made_at" | "deadline">): string[] {
   if (c.market === "cs2") return ["CS2 picks", `${c.subject} picks`];
   const out = ["crypto calls", `${c.subject} calls`];
+  const robinhood = robinhoodKind(c.subject);
   if (isSuiToken(c.subject) && c.subject !== "SUI") out.push("Sui tokens");
   else if (MAJORS.has(c.subject)) out.push("majors");
+  else if (robinhood === "stock") out.push("stock tokens");
+  else if (robinhood === "memecoin") out.push("Robinhood Chain memecoins");
   out.push(c.direction === "above" || c.direction === "up" ? "bullish calls" : "bearish calls");
   const horizon = new Date(c.deadline).getTime() - new Date(c.made_at).getTime();
   if (horizon < DAY) out.push("calls under a day");

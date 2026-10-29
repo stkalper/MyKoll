@@ -415,9 +415,11 @@ export default function Landing() {
           Majors come from Tatum&apos;s Price API. Sui tokens like WAL, DEEP and
           NS aren&apos;t covered there, so the bot reads their price straight
           from the deepest Cetus pool on Sui mainnet through Tatum&apos;s Sui
-          gRPC gateway. Each on-chain price links to the transaction that set
-          it, and where both sources cover a token, the receipt shows how far
-          apart they are. Live right now:
+          gRPC gateway. Stock tokens like TSLA and NVDA, and memecoins like
+          PONS, come from their Uniswap pool on Robinhood Chain through
+          Tatum&apos;s Robinhood Chain RPC. Each on-chain price links to where it
+          was read, and where two sources cover a token, the receipt shows how
+          far apart they are. Live right now:
         </p>
         <div data-pen="5" data-pen-points="0.12,0.5">
           <LivePrices />

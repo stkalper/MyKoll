@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 interface Price {
   symbol: string;
   price?: number;
-  source?: "price-api" | "sui-onchain";
-  /** The Sui transaction that set this pool price. */
+  source?: "price-api" | "sui-onchain" | "robinhood-onchain";
+  /** The explorer page behind this pool price, and which chain it's on. */
   proofUrl?: string;
+  proofChain?: string;
   /** The Price API's price for the same token, when it has one. */
   check?: { price: number; apart: number };
 }
@@ -36,7 +37,9 @@ export function LivePrices() {
                 <span className={`h-2 w-2 rounded-full ${p.price ? "bg-stamp-win" : "bg-ink-muted"}`} />
               </div>
               <p className="mt-2 font-mono text-2xl tabular-nums">{p.price ? fmt(p.price) : "—"}</p>
-              <p className="field-label mt-1">{p.source === "sui-onchain" ? "on-chain · Tatum Sui RPC" : "Tatum Price API"}</p>
+              <p className="field-label mt-1">
+                {p.source === "sui-onchain" ? "on-chain · Tatum Sui RPC" : p.source === "robinhood-onchain" ? "Robinhood Chain · Tatum RPC" : "Tatum Price API"}
+              </p>
               {p.check && (
                 <p className={`mt-1 font-mono text-[0.65rem] ${p.check.apart > 0.02 ? "text-stamp-loss" : "text-ink-muted"}`}>
                   Price API {fmt(p.check.price)} · {(p.check.apart * 100).toFixed(1)}% apart
@@ -44,7 +47,7 @@ export function LivePrices() {
               )}
               {p.proofUrl && (
                 <a href={p.proofUrl} target="_blank" rel="noreferrer" className="mt-1 block font-mono text-[0.65rem] text-ink-muted underline decoration-dotted underline-offset-2">
-                  pool tx on Suiscan ↗
+                  {p.proofChain === "Robinhood Chain" ? "pool on Blockscout ↗" : "pool tx on Suiscan ↗"}
                 </a>
               )}
             </>

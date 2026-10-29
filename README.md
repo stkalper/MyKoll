@@ -87,8 +87,11 @@ Every crypto call is judged by a price from Tatum, and each receipt records whic
 |---|---|---|
 | BTC, ETH, SOL and other majors | **Tatum Price API** | `GET /v4/data/rate/symbol` |
 | SUI, WAL, DEEP, CETUS, HAEDAL, NAVX, NS, IKA, HIPPO, SCA, LOFI | **Tatum Sui RPC (gRPC)** | Reads the token’s deepest **Cetus CLMM pool on Sui mainnet** and converts `current_sqrt_price` (Q64.64) to USD |
+| Stock tokens TSLA, NVDA, AAPL, SPY, MSFT, AMZN, GOOGL, META, COIN; memecoins PONS, CASHCAT | **Tatum Robinhood Chain RPC** | Reads the token’s deepest **Uniswap v3 pool on Robinhood Chain**, quoted in USDG or via WETH/USDG, and converts `sqrtPriceX96` (Q64.96) to USD |
 
 Why on-chain matters: on our plan the Price API covers SUI but answers `402` for WAL, DEEP, NS, HIPPO and the other Sui tokens. For the tokens a Sui chat actually talks about, the pool on Sui is the only price there is.
+
+**Robinhood Chain, read with the free plan.** Robinhood’s stock tokens and the chain’s memecoins trade only in its DEX pools, so the pool is the price. The free plan has no `eth_call` and no batching, so the bot reads each pool’s raw `slot0` storage with `eth_getStorageAt` (its low 160 bits are `sqrtPriceX96`), all at one block it fetched first, so the price and its proof describe the same moment. Copycat tokens reuse tickers there (a second “NVDA” trades at $0.0007), so pools are pinned, each checked against market prices by [`scripts/try-robinhood.mts`](scripts/try-robinhood.mts). Receipts keep the pool and block and link the pool on Blockscout.
 
 **Every on-chain price can be checked.** The bot reads each pool together with the transaction that last changed it, which is the transaction that set the price. The receipt keeps that digest for the price at logging and the price at the deadline. In the chat a **🔎 Check the price on Sui** button opens it on Suiscan, and the Mini App and share pages link to it too. For a token quoted in SUI, both pool reads are kept (token/SUI and SUI/USDC).
 
