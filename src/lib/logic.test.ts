@@ -6,6 +6,7 @@ import { claim, mightBeCall, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
+import { scorecardLine, scoreMemory } from "./scorecard";
 import { poolPrice } from "./suiPrices";
 import { gap } from "./tatum";
 
@@ -14,7 +15,7 @@ const call = (over: Partial<CallRow>): CallRow =>
   ({
     id: 1, chat_id: "-1", chat_title: null, author_id: "7", author_name: "@ivan", market: "crypto", subject: "SUI", opponent: null,
     direction: "up", target: null, entry_price: 1, quote: "", made_at: new Date(0), deadline: new Date(3 * DAY), status: "open",
-    final_price: null, result_note: null, hidden: false, price_source: null, entry_proof: null, entry_check: null, final_proof: null, final_check: null,
+    final_price: null, result_note: null, resolved_at: null, hidden: false, price_source: null, entry_proof: null, entry_check: null, final_proof: null, final_check: null,
     ...over,
   }) as CallRow;
 
@@ -67,6 +68,33 @@ describe("the learning loop", () => {
     const record = trackRecordOf([call({ status: "win" }), call({ status: "win" }), call({ status: "win" }), call({ subject: "BTC", status: "loss" })])!;
     assert.deepEqual(trustOn(record, call({})), { weight: 4 / 5, basis: "3/3 on SUI calls" });
     assert.deepEqual(trustOn(undefined, call({})), { weight: 0.5, basis: "no record yet" });
+  });
+});
+
+describe("memory scorecard", () => {
+  // Ivan misses on Sui tokens again and again; Max keeps getting SUI right.
+  const at = (day: number) => new Date(day * DAY);
+  const history = [
+    ...[0, 1, 2, 3].map((d) => call({ id: 10 + d, author_id: "1", subject: "WAL", status: "loss", made_at: at(d), resolved_at: at(d + 0.5) })),
+    ...[0, 1, 2, 3].map((d) => call({ id: 20 + d, author_id: "2", subject: "SUI", status: "win", made_at: at(d), resolved_at: at(d + 0.5) })),
+  ];
+
+  it("only uses what was known when each call was made", () => {
+    const s = scoreMemory(history);
+    assert.equal(s.calls, 8);
+    // The first call of each author had no record yet.
+    assert.equal(s.withRecord, 6);
+  });
+  it("beats a bot that forgets when records are telling, and flags the weak spots", () => {
+    const s = scoreMemory(history);
+    assert.ok(s.brierMemory! < s.brierForgetful!);
+    assert.equal(s.spots.weak.hits, 0);
+    assert.ok(s.spots.weak.calls >= 2);
+    assert.equal(s.spots.strong.hits, s.spots.strong.calls);
+    assert.match(scorecardLine(s)!, /vs 0\.250 for a bot that forgets/);
+  });
+  it("stays quiet until there is enough to say", () => {
+    assert.equal(scorecardLine(scoreMemory(history.slice(0, 3))), null);
   });
 });
 

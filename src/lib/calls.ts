@@ -29,6 +29,7 @@ export interface CallRow {
   status: Status;
   final_price: number | null;
   result_note: string | null;
+  resolved_at: Date | null;
   hidden: boolean;
   price_source: PriceSource | null;
   entry_proof: PoolRead[] | null;

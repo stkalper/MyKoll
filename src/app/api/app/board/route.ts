@@ -2,6 +2,7 @@ import { callsBy, chatTitle, leaderboard, reasonsFor, recentCalls, type Standing
 import { habitsView } from "@/lib/habits";
 import { insightLine, trackRecords, type TrackRecord } from "@/lib/learning";
 import { toView } from "@/lib/receipts";
+import { memoryScorecard } from "@/lib/scorecard";
 import { chatMember } from "@/lib/telegramAuth";
 import type { BoardView, StandingView } from "@/lib/view";
 
@@ -25,6 +26,7 @@ export async function GET(req: Request) {
     trackRecords(chatId),
     habitsView(chatId, user.id),
   ]);
+  const memoryCheck = await memoryScorecard(chatId);
   const mineLearned = records.get(String(user.id));
   const reasons = await reasonsFor([...new Set([...recent, ...mine].map((c) => c.id))]);
   const view: BoardView = {
@@ -42,6 +44,7 @@ export async function GET(req: Request) {
       weak: mineLearned.weak,
     },
     habits,
+    memoryCheck: memoryCheck.calls ? memoryCheck : undefined,
   };
   return Response.json(view);
 }

@@ -29,6 +29,7 @@ import { db } from "./db";
 import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
 import { noteForNewCall, trackRecords } from "./learning";
 import { shareUrl } from "./receipts";
+import { memoryScorecard, scorecardLine } from "./scorecard";
 import { proofLabel, proofUrl } from "./proof";
 import { DISAGREE, gap, sourceLabel } from "./tatum";
 
@@ -161,14 +162,18 @@ export function createBot(): Bot {
   });
 
   bot.command("board", async (ctx) => {
-    const [crypto, cs2] = await Promise.all([leaderboard(ctx.chat.id, "crypto"), leaderboard(ctx.chat.id, "cs2")]);
+    const [crypto, cs2, scorecard] = await Promise.all([leaderboard(ctx.chat.id, "crypto"), leaderboard(ctx.chat.id, "cs2"), memoryScorecard(ctx.chat.id)]);
+    const check = scorecardLine(scorecard);
     const section = (title: string, rows: typeof crypto) =>
       rows.length
         ? `<b>${title}</b>\n` + rows.map((r, i) => `${i + 1}. ${esc(r.author_name)} — ${Math.round((r.hits / r.calls) * 100)}% (${r.hits}/${r.calls})`).join("\n")
         : `<b>${title}</b>\nno settled calls yet`;
     // Groups can't host web_app buttons, so link to the bot's Main Mini App with the chat as start_param.
     const open = new InlineKeyboard().url("📊 Open the board", `https://t.me/${ctx.me.username}?startapp=${ctx.chat.id}`);
-    await ctx.reply(`🏆 Who calls it right\n\n${section("Crypto", crypto)}\n\n${section("CS2", cs2)}`, { parse_mode: "HTML", reply_markup: open });
+    await ctx.reply(`🏆 Who calls it right\n\n${section("Crypto", crypto)}\n\n${section("CS2", cs2)}${check ? `\n\n${esc(check)}` : ""}`, {
+      parse_mode: "HTML",
+      reply_markup: open,
+    });
   });
 
   bot.command("open", async (ctx) => {

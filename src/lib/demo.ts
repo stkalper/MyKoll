@@ -69,4 +69,11 @@ export const demoBoard: BoardView = {
     strong: [{ segment: "majors", hits: 9, calls: 10 }],
     weak: [{ segment: "Sui tokens", hits: 1, calls: 4 }],
   },
+  memoryCheck: {
+    calls: 124,
+    withRecord: 109,
+    brierMemory: 0.207,
+    brierForgetful: 0.25,
+    spots: { weak: { calls: 21, hits: 5 }, strong: { calls: 33, hits: 25 }, none: { calls: 70, hits: 39 } },
+  },
 };

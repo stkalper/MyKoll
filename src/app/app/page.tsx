@@ -3,6 +3,7 @@
 import Script from "next/script";
 import { useCallback, useState } from "react";
 import { MemberBadge } from "@/components/file/MemberBadge";
+import { MemoryCheck } from "@/components/file/MemoryCheck";
 import { Tally } from "@/components/file/Tally";
 import { ReceiptCard } from "@/components/ReceiptCard";
 import { demoBoard } from "@/lib/demo";
@@ -177,6 +178,7 @@ export default function MiniApp() {
               </li>
             )}
           </ol>
+          {view.memoryCheck && <MemoryCheck check={view.memoryCheck} className="mt-6 rotate-[-0.4deg]" />}
         </>
       )}
 

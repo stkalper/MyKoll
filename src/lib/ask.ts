@@ -3,15 +3,17 @@ import { llmEnabled } from "./config";
 import { trackRecords } from "./learning";
 import { complete } from "./llm";
 import { callIdsIn, recall } from "./memory";
+import { memoryScorecard, scorecardLine } from "./scorecard";
 
 /** Answers a question about the chat's past calls from its Walrus Memory. */
 export async function answer(chatId: number, question: string): Promise<string> {
-  const [memories, hidden, crypto, cs2, records] = await Promise.all([
+  const [memories, hidden, crypto, cs2, records, scorecard] = await Promise.all([
     recall(chatId, question, 12),
     hiddenIds(chatId),
     leaderboard(chatId, "crypto"),
     leaderboard(chatId, "cs2"),
     trackRecords(chatId),
+    memoryScorecard(chatId),
   ]);
   // Older track records are superseded by the current ones below, so they don't argue with them;
   // misreads are the bot's own mistakes, not something anyone said.
@@ -39,6 +41,7 @@ Reply in the language of the question.
 Settled calls so far — ${board("crypto", crypto)}; ${board("CS2", cs2)}.
 What you have learned about each member (current):
 ${learned}
+How good your memory has been at predicting who is right: ${scorecardLine(scorecard) ?? `too early to say (${scorecard.calls} settled calls)`}
 Today is ${when(new Date())}.
 
 Memories:

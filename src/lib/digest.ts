@@ -1,6 +1,7 @@
 import type { Bot } from "grammy";
 import { claim, usd, type CallRow } from "./calls";
 import { db } from "./db";
+import { memoryScorecard, scorecardLine } from "./scorecard";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -38,6 +39,8 @@ export async function weeklyDigest(chatId: number | string): Promise<string | nu
     );
   if (!settled.length) lines.push("No calls settled this week.");
   if (open) lines.push(`⏳ Still open: ${open} call${open === 1 ? "" : "s"}`);
+  const check = scorecardLine(await memoryScorecard(chatId));
+  if (check) lines.push("", esc(check));
   lines.push("", "Full board: /board");
   return lines.join("\n");
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MemberBadge } from "@/components/file/MemberBadge";
 import { ChatPreview } from "@/components/landing/ChatPreview";
 import { LivePrices } from "@/components/landing/LivePrices";
+import { LiveMemoryCheck } from "@/components/landing/LiveMemoryCheck";
 import { LiveStats } from "@/components/landing/LiveStats";
 import { PenTail } from "@/components/landing/PenTail";
 import { ScrollPen } from "@/components/landing/ScrollPen";
@@ -350,6 +351,7 @@ export default function Landing() {
             ))}
           </ul>
         </div>
+        <LiveMemoryCheck />
         <div className="grid gap-10 lg:grid-cols-2">
           <div className="grid gap-5 sm:grid-cols-2">
             {memoryPoints.map((p) => (

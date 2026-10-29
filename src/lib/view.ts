@@ -56,6 +56,17 @@ export interface BoardView {
   learned?: LearnedView;
   /** How the bot has adapted to the viewer: whether it still asks, and how many misreads it learned from. */
   habits?: { habit?: string; misreads: number };
+  /** Whether the memory is earning its keep in this chat (see scorecard.ts). */
+  memoryCheck?: MemoryCheckView;
+}
+
+/** The bot's trust, scored against outcomes, next to a bot that forgets. */
+export interface MemoryCheckView {
+  calls: number;
+  withRecord: number;
+  brierMemory: number | null;
+  brierForgetful: number | null;
+  spots: Record<"weak" | "strong" | "none", { calls: number; hits: number }>;
 }
 
 export const hitRate = (s: StandingView) => Math.round((s.hits / s.calls) * 100);
