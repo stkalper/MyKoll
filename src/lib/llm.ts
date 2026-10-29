@@ -11,21 +11,30 @@ export interface LlmMessage {
  */
 export async function complete(messages: LlmMessage[], opts: { temperature?: number; maxTokens?: number; json?: boolean } = {}) {
   if (!llmEnabled) throw new Error("LLM_API_KEY is not set");
-  const res = await fetch(`${config.llm.baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.llm.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.llm.model,
-      messages,
-      temperature: opts.temperature ?? 0.5,
-      max_tokens: opts.maxTokens ?? 700,
-      ...(opts.json ? { response_format: { type: "json_object" } } : {}),
-    }),
-    signal: AbortSignal.timeout(45_000),
-  });
+  const send = () =>
+    fetch(`${config.llm.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.llm.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.llm.model,
+        messages,
+        temperature: opts.temperature ?? 0.5,
+        max_tokens: opts.maxTokens ?? 700,
+        ...(opts.json ? { response_format: { type: "json_object" } } : {}),
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+  let res = await send();
+  // Free tiers cap tokens per minute; the provider says how long to wait, and a short wait
+  // beats dropping someone's call.
+  for (let attempt = 0; res.status === 429 && attempt < 2; attempt++) {
+    const wait = Math.min(8, Number(res.headers.get("retry-after")) || 2);
+    await new Promise((r) => setTimeout(r, wait * 1000));
+    res = await send();
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`LLM ${res.status}: ${body.slice(0, 300)}`);

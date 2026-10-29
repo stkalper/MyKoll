@@ -50,9 +50,15 @@ export interface Draft {
   target: number | null;
   deadline: string;
   quote: string;
+  /** The author's reasoning when it came in the same message as the call. */
+  why?: string | null;
 }
 
 const DAY = 86_400_000;
+/** Longest message the bot reads: a signal with its reasoning fits, an essay doesn't. */
+const MAX_MESSAGE = 1500;
+/** A receipt quotes the call itself, not a whole long message. */
+const MAX_QUOTE = 280;
 
 /* ---------- Spotting calls ---------- */
 
@@ -71,7 +77,7 @@ const PREDICTION =
 
 /** Cheap filter so the model only sees messages that could plausibly be a call. */
 export function mightBeCall(text: string): boolean {
-  if (text.length < 6 || text.length > 300 || text.startsWith("/")) return false;
+  if (text.length < 6 || text.length > MAX_MESSAGE || text.startsWith("/")) return false;
   return (CRYPTO.test(text) || TICKER.test(text) || CS2_TEAMS.test(text)) && PREDICTION.test(text);
 }
 
@@ -112,11 +118,13 @@ Reply with JSON only:
  "direction": "above" | "below" (crypto with a price level), "up" | "down" (crypto without a level), "win" (cs2),
  "target": price level in USD as a number, else null (expand "90k" to 90000),
  "in_minutes": minutes from now until the call is judged if the message says it relatively ("in 5 minutes", "in 2 hours", "within a day"), else null,
- "deadline": ISO 8601 with offset for when the call is judged if the message names a time or day, else null. "by Friday" / "до неділі" means the END of that day (23:59 local); "tonight" means 23:59 today}`,
+ "deadline": ISO 8601 with offset for when the call is judged if the message names a time or day, else null. "by Friday" / "до неділі" means the END of that day (23:59 local); "tonight" means 23:59 today,
+ "call_text": the part of the message that states the call itself, copied word for word (e.g. "TRX long, entry 0.33, TP 0.36"), else null,
+ "why": the author's reasons for the call if the message gives any (charts, news, levels, "because ..."), copied or lightly trimmed in the author's own words and language, else null}`,
       },
       { role: "user", content: text },
     ],
-    { temperature: 0, maxTokens: 300, json: true },
+    { temperature: 0, maxTokens: 600, json: true },
   );
 
   const r = parseJson<{
@@ -128,6 +136,8 @@ Reply with JSON only:
     target?: number | null;
     in_minutes?: number | null;
     deadline?: string | null;
+    call_text?: string | null;
+    why?: string | null;
   }>(reply);
   if (!r?.is_call || !r.subject || !r.market || !r.direction) return null;
   if (r.market !== "crypto" && r.market !== "cs2") return null;
@@ -151,8 +161,16 @@ Reply with JSON only:
     direction: r.direction,
     target: r.direction === "above" || r.direction === "below" ? Number(r.target) : null,
     deadline: deadline.toISOString(),
-    quote: text.trim(),
+    quote: quoteOf(text, r.call_text),
+    why: r.why?.trim().slice(0, 500) || null,
   };
+}
+
+/** The words a receipt quotes: the call as the model found it, if it really is in the message. */
+function quoteOf(text: string, callText?: string | null): string {
+  const call = callText?.trim();
+  const quote = call && text.includes(call) ? call : text.trim();
+  return quote.length > MAX_QUOTE ? `${quote.slice(0, MAX_QUOTE - 1)}…` : quote;
 }
 
 /* ---------- Describing calls ---------- */
@@ -230,6 +248,8 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
 
   // The deadline wake-up and the memory write don't depend on each other.
   const scheduled = wakeAt(call.id, call.deadline);
+  // Reasons given in the same message are filed like a /why, so the receipt shows them.
+  if (draft.why) await db(`insert into call_reasons (call_id, text) values ($1, $2)`, [call.id, draft.why]);
 
   const priceNote = q
     ? ` ${call.subject} was ${usd(q.price)} at the time (${sourcing(q)}).`
@@ -245,6 +265,7 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
       `[CALL #${call.id}] ${when(call.made_at)}: ${author.name} called "${call.quote}". Logged as ${claim(call)} by ${when(call.deadline)}.${priceNote}${recordNote}`,
     );
     if (job) await db(`update calls set memory_job = $1 where id = $2`, [job, call.id]);
+    if (draft.why) await remember(chat.id, `[REASON #${call.id}] ${author.name} explained the call "${call.quote}" (${claim(call)}): ${draft.why}`);
   });
   await scheduled;
   return call;

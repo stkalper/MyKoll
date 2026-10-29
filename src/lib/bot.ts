@@ -92,6 +92,9 @@ async function learnedAfter(call: CallRow): Promise<string[]> {
   return record ? [`📈 Updated record: ${record.summary}`] : [];
 }
 
+/** Reasons the author gave in the message itself, shown on the receipt as its first "why". */
+const reasonsIn = (d: Draft) => (d.why ? [d.why] : []);
+
 /** The call a bot message is the receipt of, if it is one. */
 const receiptIdIn = (text?: string) => Number(text?.match(/^🧾 Receipt #(\d+)/)?.[1]) || null;
 
@@ -170,7 +173,7 @@ export function createBot(): Bot {
     if ("reason" in draft) return ctx.reply(draft.reason);
     const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, author, draft);
     if ("error" in call) return ctx.reply(call.error);
-    await ctx.reply(receiptText(call, "logged ✍️", [], await learnedForNew(call)), { parse_mode: "HTML", reply_markup: receiptButtons(call) });
+    await ctx.reply(receiptText(call, "logged ✍️", reasonsIn(draft), await learnedForNew(call)), { parse_mode: "HTML", reply_markup: receiptButtons(call) });
   });
 
   bot.command("board", async (ctx) => {
@@ -276,7 +279,10 @@ export function createBot(): Bot {
     const call = await logCall({ id: ctx.chat!.id, title: "title" in ctx.chat! ? ctx.chat!.title : undefined }, authorOf(ctx), pending.draft);
     await ctx.answerCallbackQuery();
     if ("error" in call) return ctx.editMessageText(call.error);
-    await ctx.editMessageText(receiptText(call, "logged ✍️", [], await learnedForNew(call)), { parse_mode: "HTML", reply_markup: receiptButtons(call) });
+    await ctx.editMessageText(receiptText(call, "logged ✍️", reasonsIn(pending.draft), await learnedForNew(call)), {
+      parse_mode: "HTML",
+      reply_markup: receiptButtons(call),
+    });
     await recordFeedback(ctx.chat!.id, authorOf(ctx), true, pending.draft);
   });
 
@@ -336,7 +342,7 @@ export function createBot(): Bot {
       const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, author, draft);
       if ("error" in call) return ctx.reply(call.error, { reply_parameters: { message_id: ctx.message.message_id } });
       const why = mode === "ask" ? [`🤝 ${author.name} ${habitText.trusted.them}.`] : [];
-      return ctx.reply(receiptText(call, mode === "auto" ? "logged automatically ⚡" : "logged without asking ⚡", [], [...why, ...(await learnedForNew(call))]), {
+      return ctx.reply(receiptText(call, mode === "auto" ? "logged automatically ⚡" : "logged without asking ⚡", reasonsIn(draft), [...why, ...(await learnedForNew(call))]), {
         parse_mode: "HTML",
         reply_parameters: { message_id: ctx.message.message_id },
         reply_markup: receiptButtons(call, new InlineKeyboard().text("✗ Not a call", `undo:${call.id}`)),
