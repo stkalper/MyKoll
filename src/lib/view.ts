@@ -18,6 +18,10 @@ export interface ReceiptView {
   note?: string;
   /** "price-api" or "sui-onchain" for crypto calls. */
   priceSource?: string;
+  /** On-chain prices: the Sui transaction that set the pool price the call was judged by (or logged at). */
+  proofUrl?: string;
+  /** On-chain prices: the Price API's price for the same moment, and how far apart the two are (0.012 = 1.2%). */
+  check?: { price: number; apart: number };
   /** The author's own "why", added by replying to the receipt. */
   reasons?: string[];
   hidden?: boolean;

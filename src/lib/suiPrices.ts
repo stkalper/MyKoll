@@ -88,11 +88,20 @@ async function decimalsOf(coinType: string): Promise<number> {
 
 const sameType = (a: string, b: string) => a.replace(/^0x0*/, "") === b.replace(/^0x0*/, "");
 
+/** Which pool state a price was read from: anyone can open the transaction on a Sui explorer and check. */
+export interface PoolRead {
+  pool: string;
+  version: string;
+  /** The transaction that last changed the pool, i.e. the one that set this price. */
+  tx: string | null;
+}
+
 interface PoolPrice {
   coinA: string;
   coinB: string;
   /** How many B one A buys, in whole tokens. */
   aInB: number;
+  read: PoolRead;
 }
 
 /** Pool reads are cached briefly: a burst of calls on one token costs one request. */
@@ -109,32 +118,40 @@ function readPool(poolId: string): Promise<PoolPrice> {
 }
 
 async function fetchPool(poolId: string): Promise<PoolPrice> {
-  const { object } = await throttled(() => sui().core.getObject({ objectId: poolId, include: { json: true } }));
+  const { object } = await throttled(() => sui().core.getObject({ objectId: poolId, include: { json: true, previousTransaction: true } }));
   const [, coinA, coinB] = object.type.match(/::pool::Pool<(.+),\s*(.+)>$/) ?? [];
-  const sqrt = (object as { json?: { current_sqrt_price?: string } }).json?.current_sqrt_price;
+  const sqrt = (object.json as { current_sqrt_price?: string } | null)?.current_sqrt_price;
   if (!coinA || !coinB || !sqrt) throw new Error(`unexpected pool ${poolId}`);
   // Cetus keeps sqrt(price of A in B) as Q64.64 over raw units.
   const raw = (Number(BigInt(sqrt)) / 2 ** 64) ** 2;
   const [decA, decB] = await Promise.all([decimalsOf(coinA), decimalsOf(coinB)]);
-  return { coinA, coinB, aInB: raw * 10 ** (decA - decB) };
+  return { coinA, coinB, aInB: raw * 10 ** (decA - decB), read: { pool: poolId, version: object.version, tx: object.previousTransaction } };
 }
 
-/** USD price of a Sui token from its on-chain pool, or null if it isn't one we track. */
-export async function suiTokenPriceUsd(symbol: string): Promise<number | null> {
+/**
+ * USD price of a Sui token from its on-chain pool, with the pool states it was read from
+ * (the token's pool, plus SUI/USDC when the token trades against SUI). Null if we don't track it.
+ */
+export async function suiTokenQuote(symbol: string): Promise<{ price: number; reads: PoolRead[] } | null> {
   const poolId = POOLS[symbol.toUpperCase()];
   if (!poolId) return null;
   const pool = await readPool(poolId);
 
-  const usdOf = async (coinType: string): Promise<number | null> => {
-    if (sameType(coinType, USDC_TYPE)) return 1;
-    if (sameType(coinType, SUI_TYPE)) return symbol.toUpperCase() === "SUI" ? null : suiTokenPriceUsd("SUI");
+  const usdOf = async (coinType: string): Promise<{ price: number; reads: PoolRead[] } | null> => {
+    if (sameType(coinType, USDC_TYPE)) return { price: 1, reads: [] };
+    if (sameType(coinType, SUI_TYPE)) return symbol.toUpperCase() === "SUI" ? null : suiTokenQuote("SUI");
     return null;
   };
 
   // The token is whichever side isn't the quote; for SUI itself the quote is USDC.
   const quoteB = await usdOf(pool.coinB);
-  if (quoteB !== null && !sameType(pool.coinA, USDC_TYPE)) return pool.aInB * quoteB;
+  if (quoteB !== null && !sameType(pool.coinA, USDC_TYPE)) return { price: pool.aInB * quoteB.price, reads: [pool.read, ...quoteB.reads] };
   const quoteA = await usdOf(pool.coinA);
-  if (quoteA !== null) return quoteA / pool.aInB;
+  if (quoteA !== null) return { price: quoteA.price / pool.aInB, reads: [pool.read, ...quoteA.reads] };
   return null;
 }
+
+export const suiTokenPriceUsd = async (symbol: string) => (await suiTokenQuote(symbol))?.price ?? null;
+
+/** A Sui explorer page for the transaction that set a pool's price. */
+export const proofUrl = (read: PoolRead) => (read.tx ? `https://suiscan.xyz/mainnet/tx/${read.tx}` : `https://suiscan.xyz/mainnet/object/${read.pool}`);

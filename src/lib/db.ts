@@ -33,6 +33,11 @@ create table if not exists calls (
   memory_job    text
 );
 alter table calls add column if not exists price_source text;
+-- On-chain prices: the pool states they were read from, and the Price API's price for the same token as a cross-check.
+alter table calls add column if not exists entry_proof jsonb;
+alter table calls add column if not exists entry_check double precision;
+alter table calls add column if not exists final_proof jsonb;
+alter table calls add column if not exists final_check double precision;
 create index if not exists calls_chat_idx on calls (chat_id, made_at desc);
 create index if not exists calls_due_idx on calls (status, deadline);
 

@@ -4,7 +4,8 @@ import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
 import { remember } from "./memory";
 import { wakeAt } from "./schedule";
-import { quote, sourceLabel, type PriceSource } from "./tatum";
+import type { PoolRead } from "./suiPrices";
+import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
 
 export type Market = "crypto" | "cs2";
 export type Direction = "above" | "below" | "up" | "down" | "win";
@@ -30,6 +31,10 @@ export interface CallRow {
   result_note: string | null;
   hidden: boolean;
   price_source: PriceSource | null;
+  entry_proof: PoolRead[] | null;
+  entry_check: number | null;
+  final_proof: PoolRead[] | null;
+  final_check: number | null;
 }
 
 /** What the model reads out of a message before it becomes a call. */
@@ -177,27 +182,35 @@ export interface Author {
   name: string;
 }
 
+/** How a price was sourced, for memory: where it came from, the pool transaction behind it, and the cross-check. */
+function sourcing(q: Pick<Quote, "price" | "source" | "proof" | "check">): string {
+  const parts = [sourceLabel[q.source]];
+  if (q.proof?.[0]?.tx) parts.push(`pool state from Sui tx ${q.proof[0].tx}`);
+  if (q.check) parts.push(`Tatum Price API said ${usd(q.check)}${gap(q.price, q.check) > DISAGREE ? ", the sources disagree" : ""}`);
+  return parts.join("; ");
+}
+
 export async function logCall(chat: { id: number; title?: string }, author: Author, draft: Draft): Promise<CallRow | { error: string }> {
-  let entry: number | null = null;
-  let source: PriceSource | null = null;
+  let q: Quote | null = null;
   if (draft.market === "crypto") {
-    const q = await quote(draft.subject);
+    q = await quote(draft.subject);
     if (!q) return { error: `Tatum has no price for ${draft.subject}, so I can't keep score on it.` };
-    entry = q.price;
-    source = q.source;
-    if (draft.direction === "above" && entry >= draft.target!) return { error: `${draft.subject} is already at ${usd(entry)}, above ${usd(draft.target!)}.` };
-    if (draft.direction === "below" && entry <= draft.target!) return { error: `${draft.subject} is already at ${usd(entry)}, below ${usd(draft.target!)}.` };
+    if (draft.direction === "above" && q.price >= draft.target!) return { error: `${draft.subject} is already at ${usd(q.price)}, above ${usd(draft.target!)}.` };
+    if (draft.direction === "below" && q.price <= draft.target!) return { error: `${draft.subject} is already at ${usd(q.price)}, below ${usd(draft.target!)}.` };
   }
 
   const [call] = await db<CallRow>(
-    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, quote, deadline)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) returning *`,
-    [chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target, entry, source, draft.quote, draft.deadline],
+    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, quote, deadline)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) returning *`,
+    [
+      chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target,
+      q?.price ?? null, q?.source ?? null, q?.proof ? JSON.stringify(q.proof) : null, q?.check ?? null, draft.quote, draft.deadline,
+    ],
   );
 
   await wakeAt(call.id, call.deadline);
 
-  const priceNote = entry !== null ? ` ${call.subject} was ${usd(entry)} at the time (${sourceLabel[source!]}).` : "";
+  const priceNote = q ? ` ${call.subject} was ${usd(q.price)} at the time (${sourcing(q)}).` : "";
   const record = (await trackRecords(chat.id).catch(() => new Map())).get(String(author.id));
   const recordNote = record ? ` Their record at the time: ${record.summary}` : "";
   const job = await remember(
@@ -224,7 +237,7 @@ export interface Resolution {
 export async function resolveDue(): Promise<Resolution[]> {
   const open = await db<CallRow>(`select * from calls where status = 'open' order by deadline`);
   const out: Resolution[] = [];
-  const prices = new Map<string, number | null>();
+  const prices = new Map<string, Quote | null>();
   const now = Date.now();
 
   for (const call of open) {
@@ -237,9 +250,10 @@ export async function resolveDue(): Promise<Resolution[]> {
       continue;
     }
 
-    if (!prices.has(call.subject)) prices.set(call.subject, (await quote(call.subject))?.price ?? null);
-    const price = prices.get(call.subject);
-    if (price == null) continue;
+    if (!prices.has(call.subject)) prices.set(call.subject, await quote(call.subject).catch(() => null));
+    const q = prices.get(call.subject);
+    if (!q) continue;
+    const price = q.price;
 
     let outcome: "win" | "loss" | null = null;
     if (call.direction === "above" && price >= call.target!) outcome = "win";
@@ -252,22 +266,22 @@ export async function resolveDue(): Promise<Resolution[]> {
     if (!outcome) continue;
 
     const note = due ? `${call.subject} was ${usd(price)} at the deadline` : `${call.subject} hit ${usd(price)} before the deadline`;
-    const settled = await settle(call, outcome, note, price);
+    const settled = await settle(call, outcome, note, q);
     if (settled) out.push({ call: settled });
   }
   return out;
 }
 
-async function settle(call: CallRow, outcome: "win" | "loss", note: string, price: number | null): Promise<CallRow | null> {
+async function settle(call: CallRow, outcome: "win" | "loss", note: string, q: Quote | null): Promise<CallRow | null> {
   const [row] = await db<CallRow>(
-    `update calls set status = $2, result_note = $3, final_price = $4, resolved_at = now()
+    `update calls set status = $2, result_note = $3, final_price = $4, final_proof = $5, final_check = $6, resolved_at = now()
      where id = $1 and status in ('open', 'awaiting_score') returning *`,
-    [call.id, outcome, note, price],
+    [call.id, outcome, note, q?.price ?? null, q?.proof ? JSON.stringify(q.proof) : null, q?.check ?? null],
   );
   if (!row) return null;
   await remember(
     row.chat_id,
-    `[RESULT #${row.id}] ${row.author_name}'s call "${row.quote}" (${claim(row)}) was ${outcome === "win" ? "RIGHT" : "WRONG"}: ${note}.`,
+    `[RESULT #${row.id}] ${row.author_name}'s call "${row.quote}" (${claim(row)}) was ${outcome === "win" ? "RIGHT" : "WRONG"}: ${note}${q ? ` (${sourcing(q)})` : ""}.`,
   ).catch((err) => console.error("memory write failed", err));
   await learnFrom(row).catch((err) => console.error("learning failed", err));
   return row;

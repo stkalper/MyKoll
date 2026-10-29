@@ -38,6 +38,16 @@ export function ReceiptCard({
       <p className="mt-3 font-mono text-xs text-ink-muted">
         {call.claim} · by {call.deadline}
         {price && <span className="block">{price}</span>}
+        {call.check && (
+          <span className={`block ${call.check.apart > 0.02 ? "text-stamp-loss" : ""}`}>
+            Price API {call.check.apart > 0.02 ? "disagrees" : "agrees"}: {usd(call.check.price)} ({(call.check.apart * 100).toFixed(1)}% apart)
+          </span>
+        )}
+        {call.proofUrl && (
+          <a href={call.proofUrl} target="_blank" rel="noreferrer" className="block underline decoration-dotted underline-offset-2">
+            check the price on Sui ↗
+          </a>
+        )}
       </p>
 
       {call.reasons?.map((r, i) => (

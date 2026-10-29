@@ -85,7 +85,16 @@ Every crypto call is judged by a price from Tatum, and each receipt records whic
 | BTC, ETH, SOL and other majors | **Tatum Price API** | `GET /v4/data/rate/symbol` |
 | SUI, WAL, DEEP, CETUS, HAEDAL, NAVX, NS, IKA, HIPPO, SCA, LOFI | **Tatum Sui RPC (gRPC)** | Reads the token’s deepest **Cetus CLMM pool on Sui mainnet** and converts `current_sqrt_price` (Q64.64) to USD |
 
-Why on-chain matters: the Price API returns nothing for WAL, DEEP, NS or HIPPO. For the tokens a Sui chat actually talks about, the pool on Sui is the only honest price.
+Why on-chain matters: on our plan the Price API covers SUI but answers `402` for WAL, DEEP, NS, HIPPO and the other Sui tokens. For the tokens a Sui chat actually talks about, the pool on Sui is the only price there is.
+
+**Every on-chain price can be checked.** The bot reads each pool together with the transaction that last changed it, which is the transaction that set the price. The receipt keeps that digest for the price at logging and the price at the deadline. In the chat a **🔎 Check the price on Sui** button opens it on Suiscan, and the Mini App and share pages link to it too. For a token quoted in SUI, both pool reads are kept (token/SUI and SUI/USDC).
+
+**Two sources, compared.** When the Price API also covers a token (SUI), the bot asks both and shows how far apart they are. Above 2% the receipt flags it, and the on-chain price is the one that counts:
+```
+SUI was $0.9519 when called · on-chain Cetus pool via Tatum Sui RPC
+✓ Tatum Price API agrees: $0.9535 (0.2% apart)
+```
+Both go into Walrus Memory with the call (`… pool state from Sui tx 4stnGpxc…; Tatum Price API said $0.9535`), so `/ask` can say where a verdict came from.
 
 Notes from building it:
 
@@ -93,7 +102,7 @@ Notes from building it:
 - **The gateway speaks native gRPC, not gRPC-web,** so `SuiGrpcClient` from `@mysten/sui` runs over `@protobuf-ts/grpc-transport` and `@grpc/grpc-js`, with the API key in metadata.
 - **Requests are throttled and retried on 429**, and pool reads are cached for 20 s, so the bot stays inside the free plan’s rate limit.
 
-Code: [`src/lib/suiPrices.ts`](src/lib/suiPrices.ts), [`src/lib/tatum.ts`](src/lib/tatum.ts), [`scripts/check-tatum.mjs`](scripts/check-tatum.mjs).
+Code: [`src/lib/suiPrices.ts`](src/lib/suiPrices.ts), [`src/lib/tatum.ts`](src/lib/tatum.ts). Checks: [`scripts/try-prices.mts`](scripts/try-prices.mts) prints each price with its source, cross-check and Suiscan link; [`scripts/try-settle.mts`](scripts/try-settle.mts) logs and settles a call end to end.
 
 ## Commands
 

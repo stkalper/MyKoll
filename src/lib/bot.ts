@@ -29,7 +29,8 @@ import { db } from "./db";
 import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
 import { noteForNewCall, trackRecords } from "./learning";
 import { shareUrl } from "./receipts";
-import { sourceLabel } from "./tatum";
+import { proofUrl } from "./suiPrices";
+import { DISAGREE, gap, sourceLabel } from "./tatum";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -38,16 +39,38 @@ const authorOf = (ctx: Context) => ({
   name: ctx.from!.username ? `@${ctx.from!.username}` : ctx.from!.first_name,
 });
 
+/** The Price API's view of an on-chain price, flagged when the two sources disagree. */
+function crossCheck(price: number | null, check: number | null): string | null {
+  if (price === null || check === null) return null;
+  const apart = gap(price, check);
+  return apart > DISAGREE
+    ? `⚠️ Tatum Price API says ${usd(check)}, ${(apart * 100).toFixed(1)}% apart. The on-chain price is the one that counts.`
+    : `✓ Tatum Price API agrees: ${usd(check)} (${(apart * 100).toFixed(1)}% apart)`;
+}
+
 function receiptText(call: CallRow, headline: string, reasons: string[] = [], learned: string[] = []): string {
   const lines = [`🧾 <b>Receipt #${call.id}</b> · ${headline}`, `${esc(call.author_name)}: “${esc(call.quote)}”`, ""];
   lines.push(`<i>${esc(claim(call))}</i> · judged ${esc(when(call.deadline))}`);
-  if (call.entry_price !== null && call.status === "open")
+  const settled = call.status === "win" || call.status === "loss";
+  if (call.entry_price !== null && !settled)
     lines.push(`${call.subject} was ${usd(call.entry_price)} when called · ${sourceLabel[call.price_source ?? "price-api"]}`);
   if (call.result_note) lines.push(esc(call.result_note));
+  const cross = settled ? crossCheck(call.final_price, call.final_check) : crossCheck(call.entry_price, call.entry_check);
+  if (cross) lines.push(cross);
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
   if (learned.length) lines.push("", ...learned.map(esc));
   if (call.status === "open" && !reasons.length) lines.push("", "<i>Reply to this receipt to add why you think so.</i>");
   return lines.join("\n");
+}
+
+/**
+ * Buttons under a receipt: whatever the message needs, plus a link to the Sui transaction
+ * that set the pool price it was judged by, so anyone in the chat can check it.
+ */
+function receiptButtons(call: CallRow, kb = new InlineKeyboard()): InlineKeyboard | undefined {
+  const proof = (call.status === "win" || call.status === "loss" ? call.final_proof : call.entry_proof)?.[0];
+  if (proof) (kb.inline_keyboard.flat().length ? kb.row() : kb).url("🔎 Check the price on Sui", proofUrl(proof));
+  return kb.inline_keyboard.flat().length ? kb : undefined;
 }
 
 /** What the bot has learned that bears on this call: shown when it's made, and after it settles. */
@@ -84,7 +107,10 @@ export async function announceResolutions(bot: Bot) {
       );
     } else {
       const share = config.publicUrl ? new InlineKeyboard().url("🔗 Share this receipt", shareUrl(call.id)) : undefined;
-      await bot.api.sendMessage(call.chat_id, receiptText(call, outcomeHeadline(call), reasons.get(call.id), await learnedAfter(call)), { parse_mode: "HTML", reply_markup: share });
+      await bot.api.sendMessage(call.chat_id, receiptText(call, outcomeHeadline(call), reasons.get(call.id), await learnedAfter(call)), {
+        parse_mode: "HTML",
+        reply_markup: receiptButtons(call, share),
+      });
     }
   }
 }
@@ -131,7 +157,7 @@ export function createBot(): Bot {
     if ("reason" in draft) return ctx.reply(draft.reason);
     const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, author, draft);
     if ("error" in call) return ctx.reply(call.error);
-    await ctx.reply(receiptText(call, "logged ✍️", [], await learnedForNew(call)), { parse_mode: "HTML" });
+    await ctx.reply(receiptText(call, "logged ✍️", [], await learnedForNew(call)), { parse_mode: "HTML", reply_markup: receiptButtons(call) });
   });
 
   bot.command("board", async (ctx) => {
@@ -233,7 +259,7 @@ export function createBot(): Bot {
     const call = await logCall({ id: ctx.chat!.id, title: "title" in ctx.chat! ? ctx.chat!.title : undefined }, authorOf(ctx), pending.draft);
     await ctx.answerCallbackQuery();
     if ("error" in call) return ctx.editMessageText(call.error);
-    await ctx.editMessageText(receiptText(call, "logged ✍️", [], await learnedForNew(call)), { parse_mode: "HTML" });
+    await ctx.editMessageText(receiptText(call, "logged ✍️", [], await learnedForNew(call)), { parse_mode: "HTML", reply_markup: receiptButtons(call) });
     await recordFeedback(ctx.chat!.id, authorOf(ctx), true, pending.draft);
   });
 
@@ -290,7 +316,7 @@ export function createBot(): Bot {
       return ctx.reply(receiptText(call, mode === "auto" ? "logged automatically ⚡" : "logged without asking ⚡", [], [...why, ...(await learnedForNew(call))]), {
         parse_mode: "HTML",
         reply_parameters: { message_id: ctx.message.message_id },
-        reply_markup: new InlineKeyboard().text("✗ Not a call", `undo:${call.id}`),
+        reply_markup: receiptButtons(call, new InlineKeyboard().text("✗ Not a call", `undo:${call.id}`)),
       });
     }
 
