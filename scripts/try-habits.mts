@@ -45,10 +45,10 @@ console.log("\n— misreads, recalled from Walrus Memory —");
 const similar = draft("BTC", "below", 88000, "x");
 const different = draft("SUI", "above", 5, "x");
 for (let i = 0; i < 12; i++) {
-  const n = await misreadsLike(chat.id, ola.name, similar);
+  const n = await misreadsLike(chat.id, ola, similar);
   if (n >= 2) break;
   await new Promise((r) => setTimeout(r, 10_000));
 }
-console.log("like 'BTC below $88,000':", await misreadsLike(chat.id, ola.name, similar));
-console.log("like 'SUI above $5':", await misreadsLike(chat.id, ola.name, different));
+console.log("like 'BTC below $88,000':", await misreadsLike(chat.id, ola, similar));
+console.log("like 'SUI above $5':", await misreadsLike(chat.id, ola, different));
 process.exit(0);

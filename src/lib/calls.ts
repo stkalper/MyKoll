@@ -1,3 +1,4 @@
+import { inBackground } from "./background";
 import { config } from "./config";
 import { db } from "./db";
 import { complete, parseJson } from "./llm";
@@ -227,23 +228,25 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
     ],
   );
 
-  await wakeAt(call.id, call.deadline);
+  // The deadline wake-up and the memory write don't depend on each other.
+  const scheduled = wakeAt(call.id, call.deadline);
 
   const priceNote = q
     ? ` ${call.subject} was ${usd(q.price)} at the time (${sourcing(q)}).`
     : market
       ? ` Polymarket had ${market.outcome} at ${Math.round(market.prob * 100)}% to win (Tatum Prediction Market API, market ${market.marketId}).`
       : "";
-  const record = (await trackRecords(chat.id).catch(() => new Map())).get(String(author.id));
-  const recordNote = record ? ` Their record at the time: ${record.summary}` : "";
-  const job = await remember(
-    chat.id,
-    `[CALL #${call.id}] ${when(call.made_at)}: ${author.name} called "${call.quote}". Logged as ${claim(call)} by ${when(call.deadline)}.${priceNote}${recordNote}`,
-  ).catch((err) => {
-    console.error("memory write failed", err);
-    return null;
+  // The receipt doesn't need the memory write, so it goes out first and the write follows.
+  inBackground(async () => {
+    const record = (await trackRecords(chat.id).catch(() => new Map())).get(String(author.id));
+    const recordNote = record ? ` Their record at the time: ${record.summary}` : "";
+    const job = await remember(
+      chat.id,
+      `[CALL #${call.id}] ${when(call.made_at)}: ${author.name} called "${call.quote}". Logged as ${claim(call)} by ${when(call.deadline)}.${priceNote}${recordNote}`,
+    );
+    if (job) await db(`update calls set memory_job = $1 where id = $2`, [job, call.id]);
   });
-  if (job) await db(`update calls set memory_job = $1 where id = $2`, [job, call.id]);
+  await scheduled;
   return call;
 }
 

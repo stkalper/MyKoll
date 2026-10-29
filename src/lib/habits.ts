@@ -67,8 +67,14 @@ export async function recordFeedback(chatId: number | string, author: Author, ac
   for (const note of notes) await remember(chatId, note).catch((err) => console.error("memory write failed", err));
 }
 
-/** How many times the author said a reading like this one wasn't a call, recalled from Walrus Memory. */
-export async function misreadsLike(chatId: number | string, authorName: string, draft: Draft): Promise<number> {
+/**
+ * How many times the author said a reading like this one wasn't a call, recalled from Walrus
+ * Memory. Recall takes a second or more, so it only runs for authors who ever said "not a call".
+ */
+export async function misreadsLike(chatId: number | string, author: Author, draft: Draft): Promise<number> {
+  const [row] = await db<{ n: number }>(`select count(*)::int as n from call_feedback where chat_id = $1 and author_id = $2 and not accepted`, [chatId, author.id]);
+  if (!row?.n) return 0;
+  const authorName = author.name;
   const memories = await recall(chatId, `[NOT A CALL] ${authorName}: ${claim({ ...draft, entry_price: null })} (${angle(draft)})`, 10).catch(() => []);
   return memories.filter((m) => m.text.startsWith(`[NOT A CALL] ${authorName}:`) && m.text.includes(`(${angle(draft)})`)).length;
 }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { config } from "./config";
 
 /**
@@ -125,7 +126,15 @@ async function connect(): Promise<Query> {
     query = async (text, params = []) => (await db.query(text, params)).rows as never;
     exec = (text) => db.exec(text);
   }
-  await exec(SCHEMA);
+  // Neon's HTTP driver sends the schema one statement at a time (~25 round trips), which a cold
+  // start can't afford on every message, so it only runs when the schema text changed.
+  const hash = createHash("sha256").update(SCHEMA).digest("hex").slice(0, 16);
+  const applied = await query<{ hash: string }>(`select hash from schema_meta where id = 1`).catch(() => []);
+  if (applied[0]?.hash !== hash) {
+    await exec(SCHEMA);
+    await exec(`create table if not exists schema_meta (id int primary key, hash text not null)`);
+    await query(`insert into schema_meta (id, hash) values (1, $1) on conflict (id) do update set hash = excluded.hash`, [hash]);
+  }
   return query;
 }
 

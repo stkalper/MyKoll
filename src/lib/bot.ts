@@ -324,10 +324,12 @@ export function createBot(): Bot {
     });
     console.log("spotted candidate", { chat: ctx.chat.id, length: text.length, result: draft ? ("reason" in draft ? draft.reason : "call") : "not a call" });
     if (!draft || "reason" in draft) return;
+    // Pricing, memory and the receipt take a few seconds; show the chat the bot is on it.
+    void ctx.replyWithChatAction("typing").catch(() => {});
 
     // What the bot has learned about this member can override the chat's mode, and it says so.
     const author = authorOf(ctx);
-    const [mode, habit, misreads] = await Promise.all([chatMode(ctx.chat.id), habitFor(ctx.chat.id, author.id), misreadsLike(ctx.chat.id, author.name, draft)]);
+    const [mode, habit, misreads] = await Promise.all([chatMode(ctx.chat.id), habitFor(ctx.chat.id, author.id), misreadsLike(ctx.chat.id, author, draft)]);
     if (misreads >= 2) return console.log("skipped: the author said this reading wasn't a call before", { chat: ctx.chat.id, misreads });
 
     if (!misreads && (habit === "trusted" || (mode === "auto" && habit !== "unsure"))) {

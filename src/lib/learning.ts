@@ -138,7 +138,16 @@ export const insightLine = (r: TrackRecord) =>
  * and their most similar past call, recalled from the chat's Walrus Memory by meaning.
  */
 export async function noteForNewCall(call: CallRow): Promise<string[]> {
-  const record = (await trackRecords(call.chat_id)).get(String(call.author_id));
+  // Recall takes a second or more, so it only runs when the author has a settled call on this coin or team to recall.
+  const [records, [past], room] = await Promise.all([
+    trackRecords(call.chat_id),
+    db<{ n: number }>(
+      `select count(*)::int as n from calls where chat_id = $1 and author_id = $2 and subject = $3 and status in ('win', 'loss') and not hidden and id <> $4`,
+      [call.chat_id, call.author_id, call.subject, call.id],
+    ),
+    roomNote(call).catch(() => [] as string[]),
+  ]);
+  const record = records.get(String(call.author_id));
   const lines: string[] = [];
 
   if (record) {
@@ -154,7 +163,7 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
     lines.push(`📊 ${call.author_name}'s record: ${relevant.length ? relevant.map(fmt).join(" · ") : `${record.hits}/${record.calls} overall`}${spot}`);
   }
 
-  const memories = await recall(call.chat_id, `${call.author_name} ${call.subject} ${call.quote}`, 8).catch(() => []);
+  const memories = past?.n ? await recall(call.chat_id, `${call.author_name} ${call.subject} ${call.quote}`, 8).catch(() => []) : [];
   const similar = memories.find(
     (m) => m.text.startsWith("[RESULT #") && m.text.includes(call.author_name) && m.text.includes(call.subject) && !m.text.startsWith(`[RESULT #${call.id}]`),
   );
@@ -163,7 +172,7 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
     const quote = similar.text.match(/call "([^"]+)"/)?.[1];
     if (quote) lines.push(`↩ Last time: “${quote}” — ${verdict}`);
   }
-  return [...lines, ...(await roomNote(call).catch(() => []))];
+  return [...lines, ...room];
 }
 
 /* ---------- Whom to trust ---------- */
