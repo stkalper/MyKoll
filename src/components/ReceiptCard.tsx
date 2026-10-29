@@ -19,7 +19,9 @@ export function ReceiptCard({
 }) {
   const source =
     call.market === "cs2"
-      ? "score confirmed in chat"
+      ? call.polymarket
+        ? "Polymarket via Tatum"
+        : "score confirmed in chat"
       : call.priceSource === "sui-onchain"
         ? "on-chain · Tatum Sui RPC"
         : call.priceSource === "robinhood-onchain"
@@ -49,6 +51,14 @@ export function ReceiptCard({
           <span className={`block ${call.check.apart > 0.02 ? "text-stamp-loss" : ""}`}>
             Price API {call.check.apart > 0.02 ? "disagrees" : "agrees"}: {usd(call.check.price)} ({(call.check.apart * 100).toFixed(1)}% apart)
           </span>
+        )}
+        {call.polymarket && (
+          <a href={call.polymarket.url} target="_blank" rel="noreferrer" className="block underline decoration-dotted underline-offset-2">
+            {call.outcome === "win" && call.polymarket.prob < 0.45
+              ? `called the upset: Polymarket had ${call.polymarket.team} at ${Math.round(call.polymarket.prob * 100)}%`
+              : `Polymarket gave ${call.polymarket.team} ${Math.round(call.polymarket.prob * 100)}% when called`}{" "}
+            ↗
+          </a>
         )}
         {call.proofUrl && (
           <a href={call.proofUrl} target="_blank" rel="noreferrer" className="block underline decoration-dotted underline-offset-2">

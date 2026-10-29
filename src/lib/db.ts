@@ -38,6 +38,8 @@ alter table calls add column if not exists entry_proof jsonb;
 alter table calls add column if not exists entry_check double precision;
 alter table calls add column if not exists final_proof jsonb;
 alter table calls add column if not exists final_check double precision;
+-- CS2 calls: the Polymarket match-winner market they were matched to, with the pick's price then.
+alter table calls add column if not exists market_ref jsonb;
 create index if not exists calls_chat_idx on calls (chat_id, made_at desc);
 create index if not exists calls_due_idx on calls (status, deadline);
 

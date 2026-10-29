@@ -58,6 +58,15 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
   if (call.result_note) lines.push(esc(call.result_note));
   const cross = settled ? crossCheck(call.final_price, call.final_check) : crossCheck(call.entry_price, call.entry_check);
   if (cross) lines.push(cross);
+  if (call.market_ref) {
+    const pct = Math.round(call.market_ref.prob * 100);
+    const team = esc(call.market_ref.outcome);
+    lines.push(
+      call.status === "win" && pct < 45
+        ? `🎯 Called the upset: Polymarket had ${team} at ${pct}%`
+        : `📈 Polymarket gave ${team} ${pct}% when called${pct < 45 ? " — an underdog pick" : ""} (via Tatum)`,
+    );
+  }
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
   if (learned.length) lines.push("", ...learned.map(esc));
   if (call.status === "open" && !reasons.length) lines.push("", "<i>Reply to this receipt to add why you think so.</i>");
@@ -70,7 +79,9 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
  */
 function receiptButtons(call: CallRow, kb = new InlineKeyboard()): InlineKeyboard | undefined {
   const proof = (call.status === "win" || call.status === "loss" ? call.final_proof : call.entry_proof)?.[0];
-  if (proof) (kb.inline_keyboard.flat().length ? kb.row() : kb).url(`🔎 Check the price on ${proofLabel(proof)}`, proofUrl(proof));
+  const next = () => (kb.inline_keyboard.flat().length ? kb.row() : kb);
+  if (proof) next().url(`🔎 Check the price on ${proofLabel(proof)}`, proofUrl(proof));
+  if (call.market_ref) next().url("📈 The match on Polymarket", call.market_ref.url);
   return kb.inline_keyboard.flat().length ? kb : undefined;
 }
 
@@ -103,7 +114,8 @@ export async function announceResolutions(bot: Bot) {
         .text("Match cancelled", `score:${call.id}:void`);
       await bot.api.sendMessage(
         call.chat_id,
-        `⏰ <b>${esc(call.subject)} vs ${esc(call.opponent!)}</b> should be over.\n${esc(call.author_name)} called “${esc(call.quote)}”.\nWho won? (anyone but ${esc(call.author_name)} can confirm)`,
+        `⏰ <b>${esc(call.subject)} vs ${esc(call.opponent!)}</b> should be over.\n${esc(call.author_name)} called “${esc(call.quote)}”.\nWho won? (anyone but ${esc(call.author_name)} can confirm)` +
+          (call.market_ref ? "\n<i>Polymarket hasn't resolved it yet; if it does first, I'll settle it from there.</i>" : ""),
         { parse_mode: "HTML", reply_markup: kb },
       );
     } else {
@@ -275,7 +287,11 @@ export function createBot(): Bot {
     const winner = pick === "a" ? call.subject : pick === "b" ? call.opponent! : "void";
     const res = await voteScore(call.id, authorOf(ctx), winner);
     await ctx.answerCallbackQuery({ text: res.message });
-    if (res.call) await ctx.editMessageText(receiptText(res.call, outcomeHeadline(res.call), [], await learnedAfter(res.call)), { parse_mode: "HTML" });
+    if (res.call)
+      await ctx.editMessageText(receiptText(res.call, outcomeHeadline(res.call), [], await learnedAfter(res.call)), {
+        parse_mode: "HTML",
+        reply_markup: receiptButtons(res.call),
+      });
     else if (winner === "void" && res.message.startsWith("Marked")) await ctx.editMessageText(`Call #${call.id} is void: match cancelled.`);
   });
 

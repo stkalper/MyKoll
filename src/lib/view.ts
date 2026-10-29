@@ -22,6 +22,8 @@ export interface ReceiptView {
   proofUrl?: string;
   /** Which chain that page is on: "Sui" or "Robinhood Chain". */
   proofChain?: string;
+  /** CS2 calls matched on Polymarket: the pick as Polymarket names it, its price when called, and the market. */
+  polymarket?: { team: string; prob: number; url: string };
   /** On-chain prices: the Price API's price for the same moment, and how far apart the two are (0.012 = 1.2%). */
   check?: { price: number; apart: number };
   /** The author's own "why", added by replying to the receipt. */

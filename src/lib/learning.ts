@@ -15,8 +15,14 @@ const MAJORS = new Set(["BTC", "ETH", "SOL", "XRP", "BNB", "DOGE", "ADA", "TON",
 const DAY = 86_400_000;
 
 /** The groups a call counts towards, e.g. "Sui tokens", "bullish calls", "NaVi picks". */
-export function segmentsOf(c: Pick<CallRow, "market" | "subject" | "direction" | "made_at" | "deadline">): string[] {
-  if (c.market === "cs2") return ["CS2 picks", `${c.subject} picks`];
+export function segmentsOf(c: Pick<CallRow, "market" | "subject" | "direction" | "made_at" | "deadline"> & { market_ref?: CallRow["market_ref"] }): string[] {
+  if (c.market === "cs2") {
+    const out = ["CS2 picks", `${c.subject} picks`];
+    // What the market thought of the pick when it was made.
+    if (c.market_ref && c.market_ref.prob < 0.45) out.push("underdog picks");
+    else if (c.market_ref && c.market_ref.prob > 0.55) out.push("favourite picks");
+    return out;
+  }
   const out = ["crypto calls", `${c.subject} calls`];
   const robinhood = robinhoodKind(c.subject);
   if (isSuiToken(c.subject) && c.subject !== "SUI") out.push("Sui tokens");
@@ -44,6 +50,8 @@ export interface TrackRecord {
   weak: SegmentRecord[];
   /** Per segment, for picking the ones relevant to a new call. */
   segments: SegmentRecord[];
+  /** CS2 picks with Polymarket odds: hit rate minus the market's average price for them. */
+  marketEdge?: number;
   summary: string;
 }
 
@@ -87,7 +95,15 @@ export function trackRecordOf(settled: CallRow[]): TrackRecord | null {
   const crypto = bySegment.get("crypto calls")?.calls ?? 0;
   if (crypto >= 4 && bullish / crypto >= 0.75) parts.push("and mostly calls pumps");
 
-  return { authorName: name, hits, calls: settled.length, strong, weak, segments, summary: parts.join("; ") + "." };
+  // Against the market: how much more often their CS2 picks came true than Polymarket gave them.
+  const priced = settled.filter((c) => c.market_ref);
+  const marketEdge = priced.length >= 2 ? priced.reduce((sum, c) => sum + (c.status === "win" ? 1 : 0) - c.market_ref!.prob, 0) / priced.length : undefined;
+  if (marketEdge !== undefined) {
+    const pts = Math.round(marketEdge * 100);
+    parts.push(pts >= 0 ? `beats Polymarket by ${pts} pts on CS2` : `trails Polymarket by ${-pts} pts on CS2`);
+  }
+
+  return { authorName: name, hits, calls: settled.length, strong, weak, segments, marketEdge, summary: parts.join("; ") + "." };
 }
 
 /** Recomputes the author's track record after a result, stores it, and adds it to memory. */

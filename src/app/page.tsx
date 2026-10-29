@@ -38,7 +38,7 @@ const features = [
   },
   {
     title: "Settles on time, on its own",
-    text: "Each call schedules its own wake-up for the deadline. Crypto settles on price, CS2 on the score the chat confirms.",
+    text: "Each call schedules its own wake-up for the deadline. Crypto settles on price, CS2 on the Polymarket result for the match (from HLTV), or on the score the chat confirms.",
   },
   {
     title: "Remembers the why",
@@ -421,7 +421,9 @@ export default function Landing() {
           PONS, come from their Uniswap pool on Robinhood Chain through
           Tatum&apos;s Robinhood Chain RPC. Each on-chain price links to where it
           was read, and where two sources cover a token, the receipt shows how
-          far apart they are. Live right now:
+          far apart they are. CS2 calls get the match&apos;s Polymarket odds and
+          settle from its result, through Tatum&apos;s Prediction Market API.
+          Live right now:
         </p>
         <div data-pen="5" data-pen-points="0.12,0.5">
           <LivePrices />

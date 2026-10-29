@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { claim, mightBeCall, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
+import { teamKey, teamsOf } from "./polymarket";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
 import { scorecardLine, scoreMemory } from "./scorecard";
 import { poolPrice } from "./suiPrices";
@@ -15,7 +16,7 @@ const call = (over: Partial<CallRow>): CallRow =>
   ({
     id: 1, chat_id: "-1", chat_title: null, author_id: "7", author_name: "@ivan", market: "crypto", subject: "SUI", opponent: null,
     direction: "up", target: null, entry_price: 1, quote: "", made_at: new Date(0), deadline: new Date(3 * DAY), status: "open",
-    final_price: null, result_note: null, resolved_at: null, hidden: false, price_source: null, entry_proof: null, entry_check: null, final_proof: null, final_check: null,
+    final_price: null, result_note: null, resolved_at: null, hidden: false, price_source: null, entry_proof: null, entry_check: null, final_proof: null, final_check: null, market_ref: null,
     ...over,
   }) as CallRow;
 
@@ -68,6 +69,31 @@ describe("the learning loop", () => {
     const record = trackRecordOf([call({ status: "win" }), call({ status: "win" }), call({ status: "win" }), call({ subject: "BTC", status: "loss" })])!;
     assert.deepEqual(trustOn(record, call({})), { weight: 4 / 5, basis: "3/3 on SUI calls" });
     assert.deepEqual(trustOn(undefined, call({})), { weight: 0.5, basis: "no record yet" });
+  });
+});
+
+describe("CS2 on Polymarket", () => {
+  it("matches team names across spellings, without mixing up academy teams", () => {
+    assert.equal(teamKey("Team Vitality"), teamKey("VITALITY"));
+    assert.equal(teamKey("NaVi"), teamKey("Natus Vincere"));
+    assert.equal(teamKey("Na'Vi"), "navi");
+    assert.notEqual(teamKey("NAVI Junior"), teamKey("NaVi"));
+    assert.equal(teamKey("FURIA Esports"), teamKey("FURIA"));
+  });
+  it("reads both teams from a Polymarket match title", () => {
+    assert.deepEqual(teamsOf("Counter-Strike: MOUZ vs FURIA (BO3) - PGL Masters Bucharest Playoffs"), ["MOUZ", "FURIA"]);
+    assert.equal(teamsOf("Counter-Strike: MOUZ vs FURIA - Map 1 Winner"), null);
+  });
+  it("learns whether a member beats the market", () => {
+    const ref = (prob: number) => ({ platform: "polymarket" as const, eventId: "1", marketId: "m", title: "", url: "", outcome: "X", prob });
+    const picks = [
+      call({ market: "cs2", subject: "FURIA", opponent: "MOUZ", direction: "win", status: "win", market_ref: ref(0.4) }),
+      call({ market: "cs2", subject: "B8", opponent: "FaZe", direction: "win", status: "win", market_ref: ref(0.3) }),
+    ];
+    assert.ok(segmentsOf(picks[0]).includes("underdog picks"));
+    const record = trackRecordOf(picks)!;
+    assert.equal(Math.round(record.marketEdge! * 100), 65);
+    assert.match(record.summary, /beats Polymarket by 65 pts on CS2/);
   });
 });
 

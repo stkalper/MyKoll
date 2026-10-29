@@ -108,7 +108,17 @@ Notes from building it:
 - **The gateway speaks native gRPC, not gRPC-web,** so `SuiGrpcClient` from `@mysten/sui` runs over `@protobuf-ts/grpc-transport` and `@grpc/grpc-js`, with the API key in metadata.
 - **Requests are throttled and retried on 429**, and pool reads are cached for 20 s, so the bot stays inside the free plan’s rate limit.
 
-Code: [`src/lib/suiPrices.ts`](src/lib/suiPrices.ts), [`src/lib/tatum.ts`](src/lib/tatum.ts). Checks: [`scripts/try-prices.mts`](scripts/try-prices.mts) prints each price with its source, cross-check and Suiscan link; [`scripts/try-settle.mts`](scripts/try-settle.mts) logs and settles a call end to end.
+Code: [`src/lib/suiPrices.ts`](src/lib/suiPrices.ts), [`src/lib/robinhoodPrices.ts`](src/lib/robinhoodPrices.ts), [`src/lib/tatum.ts`](src/lib/tatum.ts). Checks: [`scripts/try-prices.mts`](scripts/try-prices.mts) prints each price with its source, cross-check and explorer link; [`scripts/try-settle.mts`](scripts/try-settle.mts) logs and settles a call end to end.
+
+### CS2 against the market: Tatum Prediction Market API
+
+A CS2 call is matched to the **Polymarket match-winner market** for the same two teams, through Tatum’s Prediction Market API (`/v4/data/prediction`). Team names are compared exactly after normalising (“Team Vitality” = “VITALITY”, “Natus Vincere” = “NaVi”, but “NAVI Junior” is not NaVi).
+
+- **The receipt shows the market’s view:** `📈 Polymarket gave FURIA 43% when called — an underdog pick`, with a button to the market. A pick the market already prices at 97%+ is refused: that match is decided.
+- **The call settles from Polymarket’s resolution** (Polymarket resolves CS2 from HLTV) the moment it resolves, so nobody has to confirm the score. Until then, the chat’s one-tap confirmation still works.
+- **The bot learns who beats the market.** Picks are filed as *underdog picks* (under 45%) or *favourite picks* (over 55%), and each member’s record gets an edge against the market: their hit rate minus the average price Polymarket gave their picks (`beats Polymarket by 12 pts on CS2`). A win the market had under 45% comes back as `🎯 Called the upset`.
+
+Code: [`src/lib/polymarket.ts`](src/lib/polymarket.ts). Checks: [`scripts/try-polymarket.mts`](scripts/try-polymarket.mts) maps calls to upcoming matches; [`scripts/try-cs2.mts`](scripts/try-cs2.mts) logs a call with its odds and settles one from a played match.
 
 ## Commands
 
@@ -122,7 +132,7 @@ Code: [`src/lib/suiPrices.ts`](src/lib/suiPrices.ts), [`src/lib/tatum.ts`](src/l
 | `/hide 12` | Take your call off the board and out of the bot’s answers |
 | `/mode` | Admins choose *ask first* or *auto* logging |
 
-CS2 calls settle when someone other than the author confirms the winner with one tap.
+CS2 calls settle from Polymarket when the match is listed there (see below); otherwise, or until Polymarket resolves it, someone other than the author confirms the winner with one tap.
 
 ## Architecture
 

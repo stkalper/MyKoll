@@ -4,6 +4,7 @@ import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
 import { remember } from "./memory";
 import { wakeAt } from "./schedule";
+import { findMatch, marketWinner, teamKey, type MarketRef } from "./polymarket";
 import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
 
@@ -36,6 +37,7 @@ export interface CallRow {
   entry_check: number | null;
   final_proof: PoolRead[] | null;
   final_check: number | null;
+  market_ref: MarketRef | null;
 }
 
 /** What the model reads out of a message before it becomes a call. */
@@ -203,18 +205,34 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
     if (draft.direction === "below" && q.price <= draft.target!) return { error: `${draft.subject} is already at ${usd(q.price)}, below ${usd(draft.target!)}.` };
   }
 
+  // CS2: the same match on Polymarket, when there is one, for its odds and its result.
+  let market: MarketRef | null = null;
+  if (draft.market === "cs2" && draft.opponent) {
+    market = await findMatch(draft.subject, draft.opponent, new Date(draft.deadline)).catch((err) => {
+      console.error("Polymarket lookup failed", err);
+      return null;
+    });
+    if (market && (market.prob >= 0.97 || market.prob <= 0.03))
+      return { error: `Polymarket already has ${market.outcome} at ${Math.round(market.prob * 100)}%: that match looks decided.` };
+  }
+
   const [call] = await db<CallRow>(
-    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, quote, deadline)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) returning *`,
+    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) returning *`,
     [
       chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target,
-      q?.price ?? null, q?.source ?? null, q?.proof ? JSON.stringify(q.proof) : null, q?.check ?? null, draft.quote, draft.deadline,
+      q?.price ?? null, q?.source ?? null, q?.proof ? JSON.stringify(q.proof) : null, q?.check ?? null, market ? JSON.stringify(market) : null,
+      draft.quote, draft.deadline,
     ],
   );
 
   await wakeAt(call.id, call.deadline);
 
-  const priceNote = q ? ` ${call.subject} was ${usd(q.price)} at the time (${sourcing(q)}).` : "";
+  const priceNote = q
+    ? ` ${call.subject} was ${usd(q.price)} at the time (${sourcing(q)}).`
+    : market
+      ? ` Polymarket had ${market.outcome} at ${Math.round(market.prob * 100)}% to win (Tatum Prediction Market API, market ${market.marketId}).`
+      : "";
   const record = (await trackRecords(chat.id).catch(() => new Map())).get(String(author.id));
   const recordNote = record ? ` Their record at the time: ${record.summary}` : "";
   const job = await remember(
@@ -235,11 +253,15 @@ export interface Resolution {
 }
 
 /**
- * Settles every open crypto call whose target was hit or whose deadline passed, and moves
- * CS2 calls past their deadline to "awaiting_score". Safe to run as often as you like.
+ * Settles every open crypto call whose target was hit or whose deadline passed, and every
+ * CS2 call whose Polymarket market has resolved. CS2 calls past their deadline with no result
+ * yet move to "awaiting_score", where the chat can confirm the score (and Polymarket can still
+ * settle them first). Safe to run as often as you like.
  */
 export async function resolveDue(): Promise<Resolution[]> {
-  const open = await db<CallRow>(`select * from calls where status = 'open' order by deadline`);
+  const open = await db<CallRow>(
+    `select * from calls where status = 'open' or (status = 'awaiting_score' and market_ref is not null) order by deadline`,
+  );
   const out: Resolution[] = [];
   const prices = new Map<string, Quote | null>();
   const now = Date.now();
@@ -248,7 +270,14 @@ export async function resolveDue(): Promise<Resolution[]> {
     const due = new Date(call.deadline).getTime() <= now;
 
     if (call.market === "cs2") {
-      if (!due) continue;
+      const winner = call.market_ref ? await marketWinner(call.market_ref.marketId).catch(() => null) : null;
+      if (winner) {
+        const outcome = teamKey(winner) === teamKey(call.market_ref!.outcome) ? "win" : "loss";
+        const settled = await settle(call, outcome, `${winner} won (resolved by Polymarket from HLTV)`, null);
+        if (settled) out.push({ call: settled });
+        continue;
+      }
+      if (!due || call.status !== "open") continue;
       const [moved] = await db<CallRow>(`update calls set status = 'awaiting_score' where id = $1 and status = 'open' returning *`, [call.id]);
       if (moved) out.push({ call: moved, askScore: true });
       continue;
@@ -285,7 +314,8 @@ async function settle(call: CallRow, outcome: "win" | "loss", note: string, q: Q
   if (!row) return null;
   await remember(
     row.chat_id,
-    `[RESULT #${row.id}] ${row.author_name}'s call "${row.quote}" (${claim(row)}) was ${outcome === "win" ? "RIGHT" : "WRONG"}: ${note}${q ? ` (${sourcing(q)})` : ""}.`,
+    `[RESULT #${row.id}] ${row.author_name}'s call "${row.quote}" (${claim(row)}) was ${outcome === "win" ? "RIGHT" : "WRONG"}: ${note}${q ? ` (${sourcing(q)})` : ""}.` +
+      (row.market_ref ? ` Polymarket had ${row.market_ref.outcome} at ${Math.round(row.market_ref.prob * 100)}% when it was called.` : ""),
   ).catch((err) => console.error("memory write failed", err));
   await learnFrom(row).catch((err) => console.error("learning failed", err));
   return row;

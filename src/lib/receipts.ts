@@ -17,6 +17,7 @@ export function toView(c: CallRow, reasons: Map<number, string[]>): ReceiptView 
   return {
     proofUrl: proof ? proofUrl(proof) : undefined,
     proofChain: proof ? proofLabel(proof) : undefined,
+    polymarket: c.market_ref ? { team: c.market_ref.outcome, prob: c.market_ref.prob, url: c.market_ref.url } : undefined,
     check: price && check ? { price: check, apart: gap(price, check) } : undefined,
     id: c.id,
     author: c.author_name,
