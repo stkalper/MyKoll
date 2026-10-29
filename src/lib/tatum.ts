@@ -15,9 +15,13 @@ export const sourceLabel: Record<PriceSource, string> = {
   "robinhood-onchain": "on-chain Uniswap pool on Robinhood Chain via Tatum RPC",
 };
 
+/** Tickers the Price API knows under another symbol. */
+const API_SYMBOL: Record<string, string> = { TRX: "TRON" };
+
 /** USD price of a ticker from Tatum's Price API, or null if Tatum doesn't know the symbol. */
 export async function priceUsd(symbol: string): Promise<number | null> {
-  const url = `https://api.tatum.io/v4/data/rate/symbol?symbol=${encodeURIComponent(symbol.toUpperCase())}&basePair=USD`;
+  const ticker = symbol.toUpperCase();
+  const url = `https://api.tatum.io/v4/data/rate/symbol?symbol=${encodeURIComponent(API_SYMBOL[ticker] ?? ticker)}&basePair=USD`;
   const get = () => fetch(url, { headers: { "x-api-key": config.tatum.apiKey }, signal: AbortSignal.timeout(6_000) });
   // The first request from a cold function now and then hangs; a second try goes through.
   const res = await get().catch(get);
