@@ -1,5 +1,6 @@
 // End-to-end without Telegram: log calls, settle them, ask the memory.
 //   npx tsx --env-file=.env.local scripts/try-flow.mts
+import "./local-db.mts";
 import { answer } from "../src/lib/ask";
 import { extractCall, leaderboard, logCall, resolveDue } from "../src/lib/calls";
 import { db } from "../src/lib/db";

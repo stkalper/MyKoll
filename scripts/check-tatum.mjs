@@ -1,5 +1,5 @@
-// Smoke test for the Tatum endpoints Receipts relies on. Run: node --env-file=.env.local scripts/check-tatum.mjs
-import { ChannelCredentials, Metadata } from "@grpc/grpc-js";
+// Smoke test for the Tatum endpoints MyKoll relies on. Run: node --env-file=.env.local scripts/check-tatum.mjs
+import { ChannelCredentials } from "@grpc/grpc-js";
 import { GrpcTransport } from "@protobuf-ts/grpc-transport";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 

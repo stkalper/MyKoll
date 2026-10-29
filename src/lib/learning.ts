@@ -52,6 +52,11 @@ export async function computeTrackRecord(chatId: number | string, authorId: numb
     `select * from calls where chat_id = $1 and author_id = $2 and status in ('win', 'loss') and not hidden order by resolved_at`,
     [chatId, authorId],
   );
+  return trackRecordOf(settled);
+}
+
+/** The track record behind a list of one author's settled calls, oldest first. */
+export function trackRecordOf(settled: CallRow[]): TrackRecord | null {
   if (!settled.length) return null;
 
   const bySegment = new Map<string, SegmentRecord>();
@@ -156,7 +161,7 @@ const sameQuestion = (a: CallRow, b: CallRow) =>
  * How far the bot trusts an author on a call: their hit rate on the closest kind of call
  * (this coin or team first, then its group, then overall), smoothed so 1/1 isn't 100%.
  */
-function trustOn(record: TrackRecord | undefined, c: CallRow): { weight: number; basis: string } {
+export function trustOn(record: TrackRecord | undefined, c: CallRow): { weight: number; basis: string } {
   if (!record) return { weight: 0.5, basis: "no record yet" };
   const own = `${c.subject} ${c.market === "cs2" ? "picks" : "calls"}`;
   const kinds = segmentsOf(c).filter((s) => s !== "crypto calls").sort((a, b) => Number(b === own) - Number(a === own));

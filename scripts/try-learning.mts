@@ -1,5 +1,6 @@
 // The learning loop without Telegram: settle a few calls, then see what the bot says on the next one.
-//   DATABASE_URL= npx tsx --env-file=.env.local scripts/try-learning.mts
+//   npx tsx --env-file=.env.local scripts/try-learning.mts
+import "./local-db.mts";
 import { logCall, type CallRow, type Draft } from "../src/lib/calls";
 import { db } from "../src/lib/db";
 import { computeTrackRecord, learnFrom, noteForNewCall } from "../src/lib/learning";

@@ -33,7 +33,8 @@ async function lastAnswers(chatId: number | string, authorId: number | string): 
   return rows.map((r) => r.accepted);
 }
 
-function habitOf(answers: boolean[]): Habit {
+/** The habit behind a member's latest answers, newest first. */
+export function habitOf(answers: boolean[]): Habit {
   if (answers.length === STREAK && answers.every(Boolean)) return "trusted";
   if (answers.filter((a) => !a).length >= MISSES) return "unsure";
   return null;

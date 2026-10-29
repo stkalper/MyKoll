@@ -43,6 +43,20 @@ export async function recall(chatId: number | string, query: string, limit = 10)
   return result.results.map((r) => ({ text: r.text, blobId: r.blob_id, distance: r.distance }));
 }
 
+/** How many memories each chat holds on Walrus, keyed by chat id, as the relayer counts them. */
+export async function memoryCounts(): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!memwalEnabled) return out;
+  const prefix = chatNamespace("");
+  let cursor: string | undefined;
+  do {
+    const page = await memwal().listNamespaces({ cursor, limit: 500 });
+    for (const n of page.namespaces) if (n.name.startsWith(prefix)) out.set(n.name.slice(prefix.length), n.memory_count);
+    cursor = page.has_more ? (page.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+  return out;
+}
+
 /** Call ids referenced by a memory entry, e.g. "[CALL #12]" → 12. */
 export function callIdsIn(text: string): number[] {
   return [...text.matchAll(/#(\d+)\]/g)].map((m) => Number(m[1]));

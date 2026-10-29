@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MemberBadge } from "@/components/file/MemberBadge";
 import { ChatPreview } from "@/components/landing/ChatPreview";
 import { LivePrices } from "@/components/landing/LivePrices";
+import { LiveStats } from "@/components/landing/LiveStats";
 import { PenTail } from "@/components/landing/PenTail";
 import { ScrollPen } from "@/components/landing/ScrollPen";
 import { ReceiptCard, Taped } from "@/components/ReceiptCard";
@@ -81,6 +82,35 @@ const memoryEntries = [
     tag: "HABIT",
     color: "border-ink-muted text-ink-muted",
     text: "@max confirmed their last 3 calls, so I log theirs without asking.",
+  },
+];
+
+/** The same chat, with a bot that forgets and with one that remembers. */
+const withMemory = [
+  {
+    moment: "Ivan: “SUI to $5 by Friday”",
+    without: "Logs it.",
+    with: "Logs it with his record: 1/4 on Sui tokens, a weak spot. His last call like it, “WAL to 5 cents”, missed.",
+  },
+  {
+    moment: "Max: “nah, SUI bleeds”",
+    without: "One more opinion.",
+    with: "Weighs both: Max is 3/3 on SUI, so the chat leans his way, even though more people side with Ivan.",
+  },
+  {
+    moment: "Friday, 23:59",
+    without: "SUI is $3.80.",
+    with: "❌ Ivan missed, with the pool transaction to check it on Sui. Both records update.",
+  },
+  {
+    moment: "A week later: “who’s good on SUI?”",
+    without: "No idea.",
+    with: "Max, 4/4, with his exact words and dates.",
+  },
+  {
+    moment: "Ola’s jokes keep reading as calls",
+    without: "Keeps asking.",
+    with: "She said “not a call” twice, so it stops asking about that kind of message.",
   },
 ];
 
@@ -236,6 +266,7 @@ export default function Landing() {
             How it works
           </a>
         </div>
+        <LiveStats />
 
         {/* Receipts taped straight onto the desk. The pen's route starts at the first one. */}
         <div className="mt-16 grid items-start gap-10 md:grid-cols-3">
@@ -294,6 +325,31 @@ export default function Landing() {
       </Section>
 
       <Section id="memory" tab="Walrus Memory" title="Why it needs a memory.">
+        <div className="paper mb-14 rounded-sm p-5 sm:p-6">
+          <div className="hidden grid-cols-[1fr_1fr_2fr] gap-6 border-b-2 border-ink pb-2 sm:grid">
+            <span className="field-label">In the chat</span>
+            <span className="field-label">A bot that forgets</span>
+            <span className="field-label">MyKoll, with Walrus Memory</span>
+          </div>
+          <ul>
+            {withMemory.map((r) => (
+              <li
+                key={r.moment}
+                className="grid gap-1 border-b border-dashed border-rule py-3 last:border-b-0 sm:grid-cols-[1fr_1fr_2fr] sm:gap-6"
+              >
+                <span className="font-hand text-xl leading-tight">{r.moment}</span>
+                <span className="font-mono text-xs leading-relaxed text-ink-muted">
+                  <span className="field-label mr-2 sm:hidden">Forgets:</span>
+                  {r.without}
+                </span>
+                <span className="font-mono text-xs leading-relaxed">
+                  <span className="field-label mr-2 sm:hidden">MyKoll:</span>
+                  {r.with}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
         <div className="grid gap-10 lg:grid-cols-2">
           <div className="grid gap-5 sm:grid-cols-2">
             {memoryPoints.map((p) => (

@@ -1,6 +1,7 @@
 // Log an on-chain priced call, move its deadline into the past and settle it: both ends
 // should carry the pool transaction they were priced from and the Price API cross-check.
-//   DATABASE_URL= npx tsx --env-file=.env.local scripts/try-settle.mts
+//   npx tsx --env-file=.env.local scripts/try-settle.mts
+import "./local-db.mts";
 import { logCall, resolveDue, type CallRow } from "../src/lib/calls";
 import { db } from "../src/lib/db";
 import { toView } from "../src/lib/receipts";

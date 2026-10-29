@@ -122,11 +122,12 @@ async function fetchPool(poolId: string): Promise<PoolPrice> {
   const [, coinA, coinB] = object.type.match(/::pool::Pool<(.+),\s*(.+)>$/) ?? [];
   const sqrt = (object.json as { current_sqrt_price?: string } | null)?.current_sqrt_price;
   if (!coinA || !coinB || !sqrt) throw new Error(`unexpected pool ${poolId}`);
-  // Cetus keeps sqrt(price of A in B) as Q64.64 over raw units.
-  const raw = (Number(BigInt(sqrt)) / 2 ** 64) ** 2;
   const [decA, decB] = await Promise.all([decimalsOf(coinA), decimalsOf(coinB)]);
-  return { coinA, coinB, aInB: raw * 10 ** (decA - decB), read: { pool: poolId, version: object.version, tx: object.previousTransaction } };
+  return { coinA, coinB, aInB: poolPrice(sqrt, decA, decB), read: { pool: poolId, version: object.version, tx: object.previousTransaction } };
 }
+
+/** Cetus keeps sqrt(price of A in B) as Q64.64 over raw units; this is the price in whole tokens. */
+export const poolPrice = (sqrtQ64: string, decA: number, decB: number) => (Number(BigInt(sqrtQ64)) / 2 ** 64) ** 2 * 10 ** (decA - decB);
 
 /**
  * USD price of a Sui token from its on-chain pool, with the pool states it was read from

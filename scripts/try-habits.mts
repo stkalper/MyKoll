@@ -1,6 +1,7 @@
 // Memory changing what the bot does, without Telegram: whom to trust on a shared call, and
 // how answers to spotted calls change whether it asks.
-//   DATABASE_URL= npx tsx --env-file=.env.local scripts/try-habits.mts
+//   npx tsx --env-file=.env.local scripts/try-habits.mts
+import "./local-db.mts";
 import { logCall, type CallRow, type Draft } from "../src/lib/calls";
 import { db } from "../src/lib/db";
 import { habitFor, misreadsLike, recordFeedback } from "../src/lib/habits";
