@@ -21,20 +21,41 @@ type Stop = { start: Point; end: Point; letters: HTMLElement[]; lenStart: number
 /** Scroll distance the pen spends writing at a stop, and how long it takes to catch up after. */
 const DWELL = 220;
 const CATCH_UP = 360;
-/** Easing per frame: the nib slows down over letters, so the endings are written, not flicked on. */
-const GLIDE = 0.1;
-const WRITE = 0.045;
+/**
+ * How the nib follows the scroll: spring stiffness (per second) and top speed (px of line per
+ * second), in the open and over letters, so the endings are written, not flicked on.
+ */
+const FOLLOW = { glide: 6, write: 2.4 };
+const TOP_SPEED = { glide: 6000, write: 560 };
+/** Seconds to ease into and out of writing, and to settle the pen's lean. */
+const WRITE_EASE = 0.3;
+const TILT_EASE = 0.15;
 
-/** A smooth curve through the points (Catmull-Rom turned into cubic Béziers). */
+/**
+ * A smooth curve through the points: centripetal Catmull-Rom turned into cubic Béziers. Unlike
+ * the uniform kind it doesn't loop or kink where points are unevenly spaced, so the pen
+ * doesn't jerk at those spots.
+ */
 function smoothPath(pts: Point[]): string {
+  // Squared centripetal knot spacing, i.e. the plain distance between the points.
+  const gap = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
+  const control = (from: Point, at: Point, to: Point, before: number, after: number): Point => {
+    if (before < 1e-6) return at;
+    const a = Math.sqrt(before);
+    const b = Math.sqrt(after);
+    const k = 2 * before + 3 * a * b + after;
+    const den = 3 * a * (a + b);
+    return { x: (before * to.x - after * from.x + k * at.x) / den, y: (before * to.y - after * from.y + k * at.y) / den };
+  };
   let d = `M ${pts[0].x} ${pts[0].y}`;
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] ?? pts[i];
     const p1 = pts[i];
     const p2 = pts[i + 1];
     const p3 = pts[i + 2] ?? p2;
-    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
-    const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+    const mid = gap(p1, p2);
+    const c1 = control(p0, p1, p2, gap(p0, p1), mid);
+    const c2 = control(p3, p2, p1, gap(p2, p3), mid);
     d += ` C ${c1.x.toFixed(1)} ${c1.y.toFixed(1)}, ${c2.x.toFixed(1)} ${c2.y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
   }
   return d;
@@ -43,14 +64,15 @@ function smoothPath(pts: Point[]): string {
 /** A closing flourish after the last point: a loop and a long underline, like the end of a signature. */
 function flourish(width: number): string {
   const w = Math.min(320, width * 0.3);
-  return ` c 40 30, 20 70, -20 50 c -30 -15, 10 -40, 50 -10 c 40 30, ${(w * 0.6).toFixed(0)} 20, ${w.toFixed(0)} -6`;
+  // Starts level, the way the signature ends, so there's no corner where they meet.
+  return ` c 40 4, 26 66, -18 50 c -30 -15, 10 -40, 50 -10 c 40 30, ${(w * 0.6).toFixed(0)} 20, ${w.toFixed(0)} -6`;
 }
 
 /** The route's points, top to bottom, and the writing stops along it, relative to the overlay. */
 function route(root: HTMLElement): { pts: Point[]; stops: Omit<Stop, "lenStart" | "lenEnd">[] } {
   const base = root.getBoundingClientRect();
   const rel = (x: number, y: number): Point => ({ x: x - base.left, y: y - base.top });
-  const pts: (Point & { order: number })[] = [];
+  const pts: (Point & { order: number; wrote?: boolean })[] = [];
   const stops: Omit<Stop, "lenStart" | "lenEnd">[] = [];
 
   document.querySelectorAll<HTMLElement>("[data-pen]").forEach((el) => {
@@ -62,7 +84,7 @@ function route(root: HTMLElement): { pts: Point[]; stops: Omit<Stop, "lenStart" 
       const last = rects[rects.length - 1];
       const start = rel(first.left, first.top + first.height * 0.78);
       const end = rel(last.right, last.top + last.height * 0.78);
-      pts.push({ ...start, order: pts.length }, { ...end, y: start.y + 0.01, order: pts.length + 1 });
+      pts.push({ ...start, order: pts.length }, { ...end, y: start.y + 0.01, order: pts.length + 1, wrote: true });
       stops.push({ start, end, letters: [...el.querySelectorAll<HTMLElement>("[data-pen-letter]")] });
       return;
     }
@@ -74,7 +96,15 @@ function route(root: HTMLElement): { pts: Point[]; stops: Omit<Stop, "lenStart" 
 
   pts.sort((a, b) => a.y - b.y || a.order - b.order);
   stops.sort((a, b) => a.start.y - b.start.y);
-  return { pts, stops };
+  // After writing, the nib trails off down and to the right before heading on, so it turns in
+  // a curve instead of snapping back over the letters it just wrote.
+  const out: Point[] = [];
+  pts.forEach((p, i) => {
+    out.push(p);
+    const next = pts[i + 1];
+    if (p.wrote && next) out.push({ x: p.x + 14, y: p.y + Math.min(34, (next.y - p.y) / 2) });
+  });
+  return { pts: out, stops };
 }
 
 const PEN = (
@@ -115,8 +145,11 @@ export function ScrollPen() {
 
     let length = 0;
     let stops: Stop[] = [];
-    /** Path length at sampled points, to find how much to draw for a given scroll depth. */
-    let table: { len: number; x: number; y: number }[] = [];
+    /**
+     * Path length at sampled points, to find how much to draw for a given scroll depth. ym is the
+     * lowest the path has reached so far, which only grows, so it can be searched and interpolated.
+     */
+    let table: { len: number; x: number; y: number; ym: number }[] = [];
 
     const layout = () => {
       if (getComputedStyle(ink).display === "none") return;
@@ -128,10 +161,14 @@ export function ScrollPen() {
       el.setAttribute("d", smoothPath(r.pts) + flourish(ink.clientWidth));
       length = el.getTotalLength();
       el.style.strokeDasharray = `${length}`;
-      table = Array.from({ length: 1201 }, (_, i) => {
-        const len = (length * i) / 1200;
+      // About one sample every 4px of line, so the target moves in small steps.
+      const samples = Math.max(1200, Math.ceil(length / 4));
+      let ym = -Infinity;
+      table = Array.from({ length: samples + 1 }, (_, i) => {
+        const len = (length * i) / samples;
         const p = el.getPointAtLength(len);
-        return { len, x: p.x, y: p.y };
+        ym = Math.max(ym, p.y);
+        return { len, x: p.x, y: p.y, ym };
       });
       // Where each stop's start and end fall on the path, walking forward along it.
       let from = 0;
@@ -177,23 +214,63 @@ export function ScrollPen() {
         floor = s.lenEnd;
       }
       const y = tipY - lag;
-      const hit = table.find((t) => t.len >= floor && t.y >= y);
-      return hit ? hit.len : length;
+      if (!Number.isFinite(y)) return length;
+      // First sample past the floor whose depth reaches y, then interpolate between it and the one before.
+      let hi = table.length - 1;
+      let lo = Math.min(hi, Math.ceil((floor / length) * hi));
+      if (table[hi].ym < y) return length;
+      if (table[lo].ym >= y) return table[lo].len;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (table[mid].ym >= y) hi = mid;
+        else lo = mid;
+      }
+      const a = table[lo];
+      const b = table[hi];
+      return a.len + (b.len - a.len) * ((y - a.ym) / (b.ym - a.ym));
     };
 
     let shown = 0;
+    let vel = 0;
+    let writing = 0;
+    let tilt = 24;
+    let last = performance.now();
     let frame = 0;
-    const tick = () => {
+    const tick = (now: number) => {
+      // Seconds since the last frame, so the motion is the same at 60 and 120 Hz; capped so a
+      // tab coming back from the background doesn't fling the pen.
+      const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
+      last = now;
       if (length) {
-        // Ease after the scroll position so the pen glides instead of jumping.
-        const writing = stops.some((s) => shown > s.lenStart - 2 && shown < s.lenEnd);
-        shown += (target() - shown) * (writing ? WRITE : GLIDE);
+        // Slow down a little before a stop and speed up gently after it, instead of braking.
+        const atStop = stops.some((s) => shown > s.lenStart - 40 && shown < s.lenEnd + 10);
+        writing += (Number(atStop) - writing) * (1 - Math.exp(-dt / WRITE_EASE));
+        const omega = FOLLOW.glide + (FOLLOW.write - FOLLOW.glide) * writing;
+        const top = TOP_SPEED.glide + (TOP_SPEED.write - TOP_SPEED.glide) * writing;
+
+        // A critically damped spring towards the scroll target: it starts and stops smoothly
+        // and never overshoots, even when a wheel notch moves the target in one jump.
+        const goal = target();
+        const off = shown - goal;
+        const decay = Math.exp(-omega * dt);
+        const pull = vel + omega * off;
+        let step = goal + (off + pull * dt) * decay - shown;
+        vel = (vel - omega * pull * dt) * decay;
+        if (Math.abs(step) > top * dt) {
+          step = Math.sign(step) * top * dt;
+          vel = step / dt;
+        }
+        shown = Math.min(length, Math.max(0, shown + step));
+
         el.style.strokeDashoffset = `${length - shown}`;
         const p = el.getPointAtLength(Math.max(shown, 0.01));
-        const ahead = el.getPointAtLength(Math.min(shown + 8, length));
-        const lean = Math.atan2(ahead.x - p.x, ahead.y - p.y) * (180 / Math.PI);
+        const ahead = el.getPointAtLength(Math.min(shown + 24, length));
+        // Lean with the stroke's sideways direction. Up and down strokes lean the same way, so
+        // the pen never flips over on the loops, and the lean itself settles smoothly.
+        const lean = Math.atan2(ahead.x - p.x, Math.abs(ahead.y - p.y)) * (180 / Math.PI);
+        tilt += (24 - lean * 0.2 - tilt) * (1 - Math.exp(-dt / TILT_EASE));
         pen.style.opacity = shown > 2 ? "1" : "0";
-        pen.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${24 - lean * 0.2}deg)`;
+        pen.style.transform = `translate(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px) rotate(${tilt.toFixed(2)}deg)`;
         // Letters appear as the nib passes over them.
         for (const s of stops) {
           const w = Math.min(1, Math.max(0, (shown - s.lenStart) / (s.lenEnd - s.lenStart)));
