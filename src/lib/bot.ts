@@ -5,10 +5,12 @@ import {
   chatMode,
   claim,
   extractCall,
+  finishedSlate,
   hideCall,
   leaderboard,
   addReason,
   logCall,
+  logSlate,
   mightBeCall,
   openCalls,
   reasonsFor,
@@ -23,6 +25,8 @@ import {
   type CallRow,
   type ChatMode,
   type Draft,
+  type Slate,
+  type SlateResult,
 } from "./calls";
 import { config, llmEnabled } from "./config";
 import { db } from "./db";
@@ -104,11 +108,66 @@ function draftSummary(d: Draft): string {
   return claim({ ...d, entry_price: null }) + ` by ${when(d.deadline)}`;
 }
 
+/* ---------- Slates: several CS2 picks in one message ---------- */
+
+function slateOffer(s: Slate): string {
+  const n = s.picks.length;
+  const lines = [`📋 Sounds like picks on ${n} match${n === 1 ? "" : "es"}:`, ""];
+  s.picks.forEach((p, i) => lines.push(`${i + 1}. <b>${esc(p.subject)}</b> to beat ${esc(p.opponent!)} · ${esc(when(p.deadline))}`));
+  if (s.skipped.length) lines.push("", `<i>Left out: ${esc(s.skipped.join("; "))}</i>`);
+  lines.push("", `Log ${n === 1 ? "it" : `all ${n}`} as calls? I'll post who won once the last match is over.`);
+  return lines.join("\n");
+}
+
+function slateLogged(author: string, s: Slate, calls: CallRow[], errors: string[]): string {
+  const lines = [`🧾 <b>${calls.length} pick${calls.length === 1 ? "" : "s"} logged</b> · ${esc(author)}: “${esc(s.quote)}”`, ""];
+  for (const c of calls) {
+    const odds = c.market_ref ? ` · Polymarket ${Math.round(c.market_ref.prob * 100)}%` : "";
+    lines.push(`#${c.id} ${esc(c.subject)} to beat ${esc(c.opponent!)}${odds}`);
+  }
+  if (errors.length) lines.push("", `<i>Not logged: ${esc(errors.join("; "))}</i>`);
+  if (s.why) lines.push("", `💭 why: ${esc(s.why)}`);
+  lines.push("", "<i>I'll post who won once the last match is over.</i>");
+  return lines.join("\n");
+}
+
+function slateText(s: SlateResult): string {
+  const scored = s.calls.filter((c) => c.status === "win" || c.status === "loss");
+  const hits = scored.filter((c) => c.status === "win").length;
+  const lines = [`🏁 <b>All matches are over</b> · ${esc(s.author_name)} went <b>${hits}/${scored.length}</b>`, `“${esc(s.quote)}”`, ""];
+  for (const c of s.calls) {
+    if (c.status === "void") {
+      lines.push(`➖ #${c.id} ${esc(c.subject)} vs ${esc(c.opponent!)}: cancelled`);
+      continue;
+    }
+    const won = c.status === "win";
+    const pct = c.market_ref ? Math.round(c.market_ref.prob * 100) : null;
+    const upset = won && pct !== null && pct < 45 ? ` 🎯 upset, Polymarket had ${pct}%` : "";
+    lines.push(`${won ? "✅" : "❌"} #${c.id} <b>${esc(won ? c.subject : c.opponent!)}</b> beat ${esc(won ? c.opponent! : c.subject)}${upset}`);
+  }
+  if (scored.length && hits === scored.length) lines.push("", "Clean sweep 🧹");
+  return lines.join("\n");
+}
+
+/** Posts a slate's results if this call was the last of it to settle. */
+async function announceSlate(bot: Bot, call: CallRow) {
+  if (!call.slate_id) return;
+  const slate = await finishedSlate(call.slate_id);
+  if (!slate) return;
+  const learned = await learnedAfter(call);
+  await bot.api.sendMessage(call.chat_id, slateText(slate) + (learned.length ? `\n\n${learned.map(esc).join("\n")}` : ""), { parse_mode: "HTML" });
+}
+
 /** Posts results for calls that were just settled, and asks the chat for CS2 scores. */
 export async function announceResolutions(bot: Bot) {
   const settled = await resolveDue();
   const reasons = await reasonsFor(settled.map((r) => r.call.id));
   for (const { call, askScore } of settled) {
+    // A pick in a slate is reported with the rest of it, once the last match is over.
+    if (call.slate_id && !askScore) {
+      await announceSlate(bot, call);
+      continue;
+    }
     if (askScore) {
       const kb = new InlineKeyboard()
         .text(call.subject, `score:${call.id}:a`)
@@ -171,7 +230,13 @@ export function createBot(): Bot {
     const draft = await extractCall(text);
     if (!draft) return ctx.reply("That doesn't read like a checkable call. Try: /call BTC under 90k by Sunday, or /call Spirit beat Vitality.");
     if ("reason" in draft) return ctx.reply(draft.reason);
-    const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, author, draft);
+    const chat = { id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined };
+    if ("picks" in draft) {
+      const { calls, errors } = await logSlate(chat, author, draft);
+      if (!calls.length) return ctx.reply(errors.join("\n"));
+      return ctx.reply(slateLogged(author.name, draft, calls, errors), { parse_mode: "HTML" });
+    }
+    const call = await logCall(chat, author, draft);
     if ("error" in call) return ctx.reply(call.error);
     await ctx.reply(receiptText(call, "logged ✍️", reasonsIn(draft), await learnedForNew(call)), { parse_mode: "HTML", reply_markup: receiptButtons(call) });
   });
@@ -267,16 +332,28 @@ export function createBot(): Bot {
 
   bot.callbackQuery(/^(log|nolog):(\w+)$/, async (ctx) => {
     const [, action, pendingId] = ctx.match!;
-    const [pending] = await db<{ chat_id: string; author_id: string; draft: Draft }>(`select * from pending_calls where id = $1`, [pendingId]);
+    const [pending] = await db<{ chat_id: string; author_id: string; draft: Draft | Slate }>(`select * from pending_calls where id = $1`, [pendingId]);
     if (!pending) return ctx.answerCallbackQuery({ text: "This one expired." });
     if (String(pending.author_id) !== String(ctx.from.id)) return ctx.answerCallbackQuery({ text: "Only the author can log their call.", show_alert: true });
     await db(`delete from pending_calls where id = $1`, [pendingId]);
+    const chat = { id: ctx.chat!.id, title: "title" in ctx.chat! ? ctx.chat!.title : undefined };
+    if ("picks" in pending.draft) {
+      const slate = pending.draft;
+      if (action === "nolog") {
+        await ctx.answerCallbackQuery({ text: "Not logged." });
+        return ctx.deleteMessage().catch(() => {});
+      }
+      await ctx.answerCallbackQuery();
+      const { calls, errors } = await logSlate(chat, authorOf(ctx), slate);
+      if (!calls.length) return ctx.editMessageText(errors.join("\n"));
+      return ctx.editMessageText(slateLogged(authorOf(ctx).name, slate, calls, errors), { parse_mode: "HTML" });
+    }
     if (action === "nolog") {
       await ctx.answerCallbackQuery({ text: "Not logged. I'll remember that." });
       await ctx.deleteMessage().catch(() => {});
       return recordFeedback(ctx.chat!.id, authorOf(ctx), false, pending.draft);
     }
-    const call = await logCall({ id: ctx.chat!.id, title: "title" in ctx.chat! ? ctx.chat!.title : undefined }, authorOf(ctx), pending.draft);
+    const call = await logCall(chat, authorOf(ctx), pending.draft);
     await ctx.answerCallbackQuery();
     if ("error" in call) return ctx.editMessageText(call.error);
     await ctx.editMessageText(receiptText(call, "logged ✍️", reasonsIn(pending.draft), await learnedForNew(call)), {
@@ -299,6 +376,7 @@ export function createBot(): Bot {
         reply_markup: receiptButtons(res.call),
       });
     else if (winner === "void" && res.message.startsWith("Marked")) await ctx.editMessageText(`Call #${call.id} is void: match cancelled.`);
+    await announceSlate(bot, call);
   });
 
   bot.on("message:text", async (ctx) => {
@@ -333,6 +411,17 @@ export function createBot(): Bot {
     // Most reasons stay quiet in a passive read; a clear pick the bot can't place is worth saying.
     if ("reason" in draft)
       return draft.speak ? ctx.reply(draft.reason, { reply_parameters: { message_id: ctx.message.message_id } }) : undefined;
+    // Several picks at once always get asked about, whatever the chat's mode: it's a lot to log on a guess.
+    if ("picks" in draft) {
+      const id = randomBytes(6).toString("hex");
+      await db(`insert into pending_calls (id, chat_id, author_id, draft) values ($1, $2, $3, $4)`, [id, ctx.chat.id, ctx.from.id, JSON.stringify(draft)]);
+      const n = draft.picks.length;
+      return ctx.reply(slateOffer(draft), {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message.message_id },
+        reply_markup: new InlineKeyboard().text(n === 1 ? "🧾 Log it" : `🧾 Log all ${n}`, `log:${id}`).text("No", `nolog:${id}`),
+      });
+    }
     // Pricing, memory and the receipt take a few seconds; show the chat the bot is on it.
     void ctx.replyWithChatAction("typing").catch(() => {});
 

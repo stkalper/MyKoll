@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { inBackground } from "./background";
 import { config } from "./config";
 import { db } from "./db";
@@ -40,7 +41,26 @@ export interface CallRow {
   final_proof: PoolRead[] | null;
   final_check: number | null;
   market_ref: MarketRef | null;
+  slate_id: string | null;
 }
+
+/** Several CS2 picks in one message ("NaVi, Vitality, FURIA"), each on its team's next match. */
+export interface Slate {
+  picks: Draft[];
+  /** Picks the bot couldn't place, and why. */
+  skipped: string[];
+  quote: string;
+  why?: string | null;
+}
+
+/** A call the bot can't keep score on, and why; `speak` when it's worth saying even in a passive read. */
+export interface Unplaced {
+  reason: string;
+  speak?: boolean;
+}
+
+/** Most picks one message can hold. */
+const MAX_PICKS = 12;
 
 /** What the model reads out of a message before it becomes a call. */
 export interface Draft {
@@ -71,14 +91,17 @@ const CS2_TEAMS = word(
 const CRYPTO = word(
   "\\$[a-z]{2,8}|navx|haedal|ika|hippo|lofi|scallop|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|trx|tron|трон\\p{L}*|трх|ltc|bch|atom|algo|xlm|matic|vet|cro|chz|tsla|tesla|тесл\\p{L}*|nvda|nvidia|нвід\\p{L}*|aapl|msft|amzn|googl|pons|понс|cashcat|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|бтс|бтц|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
 );
+const CS2_TEAMS_ALL = new RegExp(CS2_TEAMS.source, "giu");
 /** Any ticker written in caps, e.g. "APT" or "WAL". */
 const TICKER = /(?<![\p{L}\d])[A-Z]{2,6}(?![\p{L}])/u;
 const PREDICTION =
-  /\d|\b(will|gonna|by|to|until|pump|dump|moon|long|short|win|wins|beat|beats|take|takes|crash|ath|tp|sl|entry|target|signal|over|under|above|below|tomorrow|tmrw|tonight|next week|hours?|hrs?|mins?|dollars?|bucks?|cents?|vs|easy|ez|fav|underdog)\b|\+\s?на|плюс на|изи|ізі|ставл|ставк|проти|против|перемож|перемог|победи|фаворит|андердог|буд|вищ|вище|нижч|завтра|годин|хвилин|бакс|долар|цент|пі[дй]д|впад|вирос|вигра|візьм|рознес|злет|пойд|упад|вырас|выигр|возьм|разнес|порв|лонг|шорт|тейк|стоп|вхід|вход|ціль|цель|сигнал|памп|дамп|зрост|рост|пада/iu;
+  /\d|\b(will|gonna|by|to|until|pump|dump|moon|long|short|win|wins|beat|beats|take|takes|crash|ath|tp|sl|entry|target|signal|over|under|above|below|tomorrow|tmrw|tonight|next week|hours?|hrs?|mins?|dollars?|bucks?|cents?|vs|easy|ez|fav|favou?rite|underdog|bet|betting|backing|picks?|locks?|stomps?|smash(es)?|clears?|tonight)\b|\+\s?(на|1)|плюс на|изи|ізі|ставл|ставк|проти|против|перемож|перемог|победи|фаворит|андердог|буд|вищ|вище|нижч|завтра|годин|хвилин|бакс|долар|цент|пі[дй]д|впад|вирос|вигра|візьм|рознес|злет|пойд|упад|вырас|выигр|возьм|разнес|порв|лонг|шорт|тейк|стоп|вхід|вход|ціль|цель|сигнал|памп|дамп|зрост|рост|пада/iu;
 
 /** Cheap filter so the model only sees messages that could plausibly be a call. */
 export function mightBeCall(text: string): boolean {
   if (text.length < 6 || text.length > MAX_MESSAGE || text.startsWith("/")) return false;
+  // A bare list of teams is a set of picks: "наві, віталіті, мауз, фуріа".
+  if ((text.match(CS2_TEAMS_ALL) ?? []).length >= 2) return true;
   return (CRYPTO.test(text) || TICKER.test(text) || CS2_TEAMS.test(text)) && PREDICTION.test(text);
 }
 
@@ -96,7 +119,7 @@ function nowInZone(): string {
  * into a structured draft. Returns null for chatter, jokes and questions, and a reason
  * when it is a call the bot can't keep score on.
  */
-export async function extractCall(text: string): Promise<Draft | { reason: string; speak?: boolean } | null> {
+export async function extractCall(text: string): Promise<Draft | Slate | Unplaced | null> {
   const reply = await complete(
     [
       {
@@ -110,9 +133,10 @@ A call is either:
 - cs2: a team winning its match. Example: "NaVi take FaZe tonight", "Spirit beats Vitality".
   Any CS2 team counts, big or small (fnatic, Eternal Fire, Nemiga, BC.Game...).
   A bare "X beat Y" / "X beats Y" is a call on their coming match, not a past result: chats talk about matches ahead, so "Fnatic beat Eternal Fire" and "Spirit beat Vitality, easy" are calls. Only skip it when the message clearly talks about a match already played ("yesterday", "did you see", "gg wp").
-  A team name with a word of confidence is a call on that team, even in two words: "фнатік ізі", "ez fnatic", "изи для X", "+ на X", "X фаворит", "ставлю на X проти Y", "X vs Y, X".
+  A team name with a word of confidence is a call on that team, even in two words, in any language: "фнатік ізі", "ez fnatic", "easy for X", "изи для X", "+ на X", "+1 X", "X фаворит", "X is the fav", "X lock", "my pick X", "backing X", "ставлю на X проти Y", "betting on X vs Y", "X vs Y, X" (all of these pick X), "X stomps Y".
   A predicted score is a call on the team with more maps: "FaZe 2-0 G2" picks FaZe, "2:1 G2 vs FaZe" picks G2.
   The opponent may go unnamed ("изи для НАВІ завтра", "NaVi easy tomorrow"): then opponent is null.
+  Several teams picked at once are a set of picks, one per team: a bare list ("наві, віталіті, мауз, фуріа", "NaVi Vitality MOUZ FURIA tomorrow"), "my picks: X, Y, Z", or several "X over Y" in one message. Put every pick in "picks".
 Not calls: questions, jokes, sarcasm, other people's predictions, vague moods ("sol looks good").
 
 Now is ${nowInZone()} in ${config.timezone}.
@@ -122,6 +146,7 @@ Reply with JSON only:
  "market": "crypto" | "cs2",
  "subject": ticker in caps for crypto (BTC, SUI, SOL, TSLA...) or the team picked to WIN for cs2 (team names in their usual English spelling: "наві" is NaVi, "фурію" is FURIA),
  "opponent": the other team for cs2 if the message names it, else null,
+ "picks": for a set of cs2 picks, every pick in order as {"team": the team picked to win, "opponent": the team it plays if named, else null}; else null,
  "direction": "above" | "below" (crypto with a price level and a side: above, over, to, pump, вище, до, памп...), "to" (a price level with no side said, e.g. "BTC 102k tomorrow"), "up" | "down" (crypto without a level), "win" (cs2),
  "target": price level in USD as a number, else null (expand "90k" / "90к" to 90000; "1 бакс" / "a buck" / "a dollar" is 1, "50 cents" is 0.5),
  "in_minutes": minutes from now until the call is judged if the message says it relatively ("in 5 minutes", "in 2 hours", "через 5 годин" = 300, "через пів години" = 30, "within a day"), else null,
@@ -145,47 +170,112 @@ Reply with JSON only:
     deadline?: string | null;
     call_text?: string | null;
     why?: string | null;
+    picks?: Array<{ team?: string; opponent?: string | null }> | null;
   }>(reply);
-  if (!r?.is_call || !r.subject || !r.market || !r.direction) return null;
+  if (!r?.is_call) return null;
+
+  // Relative times are counted here, not by the model.
+  const minutes = Number(r.in_minutes);
+  const told = minutes > 0 ? new Date(Date.now() + minutes * 60_000) : r.deadline ? new Date(r.deadline) : null;
+  const said = told && !Number.isNaN(told.getTime()) ? told : null;
+  const quoted = quoteOf(text, r.call_text);
+  const why = r.why?.trim().slice(0, 500) || null;
+
+  const picks = (r.picks ?? []).filter((p) => p.team?.trim());
+  if (picks.length >= 2) return slateOf(picks, said, quoted, why);
+
+  if (!r.subject || !r.market || !r.direction) return null;
   if (r.market !== "crypto" && r.market !== "cs2") return null;
   if (r.market === "cs2" && r.direction !== "win") return null;
   if (r.market === "crypto" && !["above", "below", "up", "down", "to"].includes(r.direction)) return null;
   if (hasLevel(r.direction) && !(Number(r.target) > 0)) return null;
 
-  // Relative times are counted here, not by the model. No deadline said: a CS2 match is
-  // usually within a day, a price call gets a week.
-  const minutes = Number(r.in_minutes);
-  const said = minutes > 0 ? new Date(Date.now() + minutes * 60_000) : r.deadline ? new Date(r.deadline) : null;
-  let deadline = said && !Number.isNaN(said.getTime()) ? said : new Date(Date.now() + (r.market === "cs2" ? DAY : 7 * DAY));
+  if (r.market === "cs2") {
+    const placed = await placePick(r.subject, r.opponent, said);
+    if ("reason" in placed) return placed;
+    return { market: "cs2", ...placed, direction: "win", target: null, quote: quoted, why };
+  }
 
-  // A pick with no opponent is on the team's next match, as Polymarket lists it.
-  let subject = r.subject;
-  let opponent = r.opponent?.trim() || null;
-  if (r.market === "cs2" && !opponent) {
+  // No deadline said: a price call gets a week.
+  const deadline = said ?? new Date(Date.now() + 7 * DAY);
+  const late = tooLate(deadline);
+  if (late) return late;
+  return {
+    market: r.market,
+    subject: r.subject.replace(/^\$/, "").toUpperCase(),
+    opponent: null,
+    direction: r.direction,
+    target: hasLevel(r.direction) ? Number(r.target) : null,
+    deadline: deadline.toISOString(),
+    quote: quoted,
+    why,
+  };
+}
+
+function tooLate(deadline: Date): Unplaced | null {
+  if (deadline.getTime() < Date.now() + 60_000) return { reason: "That deadline is already here. Give it at least a couple of minutes." };
+  if (deadline.getTime() > Date.now() + 120 * DAY) return { reason: "I only keep score on calls that settle within 120 days." };
+  return null;
+}
+
+/**
+ * Where a CS2 pick lands: a pick with no opponent is on the team's next match as Polymarket lists
+ * it, judged a few hours after it starts. With an opponent and no time said, a match is usually
+ * within a day.
+ */
+async function placePick(
+  team: string,
+  rival: string | null | undefined,
+  said: Date | null,
+): Promise<{ subject: string; opponent: string; deadline: string } | Unplaced> {
+  let subject = team.trim();
+  let opponent = rival?.trim() || null;
+  let deadline = said ?? new Date(Date.now() + DAY);
+  if (!opponent) {
     const next = await nextMatch(subject, said ?? undefined).catch((err) => {
       console.error("Polymarket next-match lookup failed", err);
       return null;
     });
-    if (!next) return { reason: `I can't find ${subject}'s next match. Name the opponent, e.g. "${subject} beat FaZe".`, speak: true };
+    if (!next) return { reason: `I can't find a match ${subject} plays this week that hasn't started yet. Name the opponent, e.g. "${subject} beat FaZe".`, speak: true };
     ({ team: subject, opponent } = next);
-    // Judged once the match is over: a few hours after it starts, even if the author said an earlier day.
     const over = next.at.getTime() + 4 * 3_600_000;
     if (!said || deadline.getTime() < over) deadline = new Date(over);
   }
+  return tooLate(deadline) ?? { subject, opponent, deadline: deadline.toISOString() };
+}
 
-  if (deadline.getTime() < Date.now() + 60_000) return { reason: "That deadline is already here. Give it at least a couple of minutes." };
-  if (deadline.getTime() > Date.now() + 120 * DAY) return { reason: "I only keep score on calls that settle within 120 days." };
+/**
+ * A set of CS2 picks from one message. Each lands on its team's match; picks the bot can't place,
+ * repeats, and two picks on the same match (both sides can't win) are left out and listed.
+ */
+async function slateOf(
+  raw: Array<{ team?: string; opponent?: string | null }>,
+  said: Date | null,
+  quote: string,
+  why: string | null,
+): Promise<Slate | Draft | Unplaced> {
+  const placed = await Promise.all(raw.slice(0, MAX_PICKS).map((p) => placePick(p.team!, p.opponent, said)));
+  const skipped: string[] = [];
+  const picks: Draft[] = [];
+  placed.forEach((p, i) => {
+    if ("reason" in p) skipped.push(`${raw[i].team}: no upcoming match found`);
+    else picks.push({ market: "cs2", ...p, direction: "win", target: null, quote, why });
+  });
+  if (raw.length > MAX_PICKS) skipped.push(`only the first ${MAX_PICKS} picks count`);
 
-  return {
-    market: r.market,
-    subject: r.market === "crypto" ? subject.replace(/^\$/, "").toUpperCase() : subject,
-    opponent: r.market === "cs2" ? opponent : null,
-    direction: r.direction,
-    target: hasLevel(r.direction) ? Number(r.target) : null,
-    deadline: deadline.toISOString(),
-    quote: quoteOf(text, r.call_text),
-    why: r.why?.trim().slice(0, 500) || null,
-  };
+  const matchOf = (d: Draft) => [teamKey(d.subject), teamKey(d.opponent!)].sort().join("|");
+  const seen = new Map<string, Draft[]>();
+  for (const d of picks) seen.set(matchOf(d), [...(seen.get(matchOf(d)) ?? []), d]);
+  const kept: Draft[] = [];
+  for (const same of seen.values()) {
+    const sides = new Set(same.map((d) => teamKey(d.subject)));
+    if (sides.size > 1) skipped.push(`${same[0].subject} and ${same[0].opponent} play each other, so pick one`);
+    else kept.push(same[0]);
+  }
+
+  if (!kept.length) return { reason: `I couldn't place any of those picks (${skipped.join("; ")}).`, speak: true };
+  if (kept.length === 1 && !skipped.length) return kept[0];
+  return { picks: kept, skipped, quote, why };
 }
 
 /** The words a receipt quotes: the call as the model found it, if it really is in the message. */
@@ -245,7 +335,7 @@ function sourcing(q: Pick<Quote, "price" | "source" | "proof" | "check">): strin
   return parts.join("; ");
 }
 
-export async function logCall(chat: { id: number; title?: string }, author: Author, draft: Draft): Promise<CallRow | { error: string }> {
+export async function logCall(chat: { id: number; title?: string }, author: Author, draft: Draft, slateId: string | null = null): Promise<CallRow | { error: string }> {
   let q: Quote | null = null;
   if (draft.market === "crypto") {
     q = await quote(draft.subject);
@@ -267,12 +357,12 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
   }
 
   const [call] = await db<CallRow>(
-    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) returning *`,
+    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) returning *`,
     [
       chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target,
       q?.price ?? null, q?.source ?? null, q?.proof ? JSON.stringify(q.proof) : null, q?.check ?? null, market ? JSON.stringify(market) : null,
-      draft.quote, draft.deadline,
+      draft.quote, draft.deadline, slateId,
     ],
   );
 
@@ -299,6 +389,45 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
   });
   await scheduled;
   return call;
+}
+
+/** Logs every pick of a slate as its own call, tied together so they're reported together. */
+export async function logSlate(
+  chat: { id: number; title?: string },
+  author: Author,
+  slate: Slate,
+): Promise<{ calls: CallRow[]; errors: string[] }> {
+  const id = randomBytes(6).toString("hex");
+  await db(`insert into slates (id, chat_id, author_id, author_name, quote) values ($1, $2, $3, $4, $5)`, [id, chat.id, author.id, author.name, slate.quote]);
+  // One at a time: each call schedules its own wake-up and memory write.
+  const calls: CallRow[] = [];
+  const errors: string[] = [];
+  for (const pick of slate.picks) {
+    const call = await logCall(chat, author, pick, id);
+    if ("error" in call) errors.push(`${pick.subject}: ${call.error}`);
+    else calls.push(call);
+  }
+  return { calls, errors };
+}
+
+export interface SlateResult {
+  author_name: string;
+  quote: string;
+  calls: CallRow[];
+}
+
+/**
+ * The whole slate once its last match is settled, or null while any is still running. Only the
+ * first caller gets it, so the summary goes out once however many sweeps race to settle it.
+ */
+export async function finishedSlate(slateId: string): Promise<SlateResult | null> {
+  const calls = await db<CallRow>(`select * from calls where slate_id = $1 order by id`, [slateId]);
+  if (!calls.length || calls.some((c) => c.status === "open" || c.status === "awaiting_score")) return null;
+  const [slate] = await db<{ author_name: string; quote: string }>(
+    `update slates set announced_at = now() where id = $1 and announced_at is null returning author_name, quote`,
+    [slateId],
+  );
+  return slate ? { ...slate, calls } : null;
 }
 
 export interface Resolution {

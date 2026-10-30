@@ -41,8 +41,21 @@ alter table calls add column if not exists final_proof jsonb;
 alter table calls add column if not exists final_check double precision;
 -- CS2 calls: the Polymarket match-winner market they were matched to, with the pick's price then.
 alter table calls add column if not exists market_ref jsonb;
+-- CS2 picks made together in one message ("NaVi, Vitality, FURIA"), reported together once the last match ends.
+alter table calls add column if not exists slate_id text;
 create index if not exists calls_chat_idx on calls (chat_id, made_at desc);
 create index if not exists calls_due_idx on calls (status, deadline);
+create index if not exists calls_slate_idx on calls (slate_id) where slate_id is not null;
+
+create table if not exists slates (
+  id            text primary key,
+  chat_id       bigint not null,
+  author_id     bigint not null,
+  author_name   text not null,
+  quote         text not null,
+  created_at    timestamptz not null default now(),
+  announced_at  timestamptz
+);
 
 -- A call spotted in conversation, waiting for its author to tap "log it".
 create table if not exists pending_calls (

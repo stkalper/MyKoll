@@ -22,7 +22,7 @@ const call = (over: Partial<CallRow>): CallRow =>
 
 describe("spotting calls", () => {
   it("lets through predictions in English, Ukrainian and Russian", () => {
-    for (const text of ["SUI to $5 by Friday", "btc dumps under 90k this week", "біток до 90к до неділі", "NaVi рознесуть FaZe сьогодні", "эфир упадет до 2000", "WAL 0.05 by friday", "тесла до 450 до пʼятниці", "PONS to 50 cents", "trx лонг", "TRX long, entry 0.33, TP 0.36", "трх шорт тейк 0.30", "сигнал по трону", "БТС 102к завтра", "СУІ вище 1 бакса через 5 годин", "BTC 102k tomorrow", "SUI above 1 buck in 5 hours", "sui over a dollar tomorrow", "суі вище бакса завтра", "изи для НАВІ завтра", "ставлю на віталіті проти спіріт", "vitality vs spirit, vitality", "Fnatic beat NIP", "фнатік фаворит"])
+    for (const text of ["SUI to $5 by Friday", "btc dumps under 90k this week", "біток до 90к до неділі", "NaVi рознесуть FaZe сьогодні", "эфир упадет до 2000", "WAL 0.05 by friday", "тесла до 450 до пʼятниці", "PONS to 50 cents", "trx лонг", "TRX long, entry 0.33, TP 0.36", "трх шорт тейк 0.30", "сигнал по трону", "БТС 102к завтра", "СУІ вище 1 бакса через 5 годин", "BTC 102k tomorrow", "SUI above 1 buck in 5 hours", "sui over a dollar tomorrow", "суі вище бакса завтра", "изи для НАВІ завтра", "ставлю на віталіті проти спіріт", "vitality vs spirit, vitality", "Fnatic beat NIP", "фнатік фаворит", "наві, віталіті, мауз, фуріа", "NaVi Vitality MOUZ FURIA", "betting on fnatic", "+1 vitality", "ez fnatic"])
       assert.equal(mightBeCall(text), true, text);
   });
   it("skips chatter, commands and coins without a prediction", () => {

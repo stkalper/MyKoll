@@ -10,7 +10,7 @@ const ivan = { id: 111, name: "@ivan_test" };
 
 for (const text of ["SUI to $5 by Friday", "BTC up by tomorrow evening"]) {
   const draft = await extractCall(text);
-  const call = draft && !("reason" in draft) && (await logCall(chat, ivan, draft));
+  const call = draft && !("reason" in draft) && !("picks" in draft) && (await logCall(chat, ivan, draft));
   console.log("logged:", call && !("error" in call) ? `#${call.id} ${call.subject} ${call.direction} entry=${call.entry_price}` : call);
 }
 

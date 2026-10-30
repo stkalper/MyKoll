@@ -114,21 +114,41 @@ function upcomingEvents(): Promise<Event[]> {
   return value;
 }
 
+/**
+ * Open CS2 events for one team. The newest-first listing above misses matches that were put up
+ * long before they're played, so a team's own matches are also searched by name.
+ */
+async function teamEvents(team: string): Promise<Event[]> {
+  const [listed, found] = await Promise.all([
+    upcomingEvents(),
+    get<{ data?: { events?: Event[] } }>(`/search?q=${encodeURIComponent(`Counter-Strike: ${team}`)}`)
+      .then((r) => (r.data?.events ?? []).filter((e) => e.status === "active" && teamsOf(e.title)))
+      .catch(() => [] as Event[]),
+  ]);
+  const ids = new Set(listed.map((e) => e.id));
+  return [...listed, ...found.filter((e) => !ids.has(e.id))];
+}
+
 /** How many upcoming CS2 matches Polymarket lists (for the health check). */
 export const upcomingCs2Matches = async () => (await upcomingEvents()).filter((e) => new Date(e.closeTime).getTime() > Date.now()).length;
 
 /**
  * A team's next match on Polymarket, for a call that names only the team ("изи для НАВІ завтра"):
- * the match nearest the day the author named, else the soonest one this week. Names are spelled
- * the way Polymarket spells them.
+ * the first one in the day before the time the author named ("завтра" is 23:59 tomorrow), else
+ * the one nearest it, else the soonest one this week. Names are spelled the way Polymarket spells them.
  */
-export async function nextMatch(team: string, near?: Date): Promise<{ team: string; opponent: string; at: Date } | null> {
+export async function nextMatch(team: string, by?: Date): Promise<{ team: string; opponent: string; at: Date } | null> {
   const key = teamKey(team);
   const now = Date.now();
-  const games = (await upcomingEvents())
+  const miss = (at: Date) => {
+    if (!by) return 0;
+    const t = at.getTime();
+    return t <= by.getTime() && t > by.getTime() - 86_400_000 ? 0 : Math.abs(t - by.getTime());
+  };
+  const games = (await teamEvents(team))
     .map((e) => ({ teams: teamsOf(e.title)!, at: new Date(e.closeTime) }))
     .filter((g) => g.teams.some((t) => teamKey(t) === key) && g.at.getTime() > now - 3 * 3_600_000 && g.at.getTime() < now + 7 * 86_400_000)
-    .sort((a, b) => (near ? Math.abs(a.at.getTime() - near.getTime()) - Math.abs(b.at.getTime() - near.getTime()) : a.at.getTime() - b.at.getTime()));
+    .sort((a, b) => miss(a.at) - miss(b.at) || a.at.getTime() - b.at.getTime());
   const game = games[0];
   if (!game) return null;
   const [ours, theirs] = teamKey(game.teams[0]) === key ? game.teams : [game.teams[1], game.teams[0]];
@@ -148,7 +168,7 @@ async function matchWinner(eventId: string): Promise<Market | null> {
 export async function findMatch(team: string, opponent: string, deadline: Date): Promise<MarketRef | null> {
   const want = [teamKey(team), teamKey(opponent)].sort().join("|");
   const now = Date.now();
-  const candidates = (await upcomingEvents())
+  const candidates = (await teamEvents(team))
     .filter((e) => {
       const teams = teamsOf(e.title)!;
       const close = new Date(e.closeTime).getTime();
