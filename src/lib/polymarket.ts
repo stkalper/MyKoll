@@ -179,7 +179,7 @@ function sides(e: Event, key: string): [string, string] {
 
 /**
  * A match of this team (against this opponent, if named) that is being played right now: past
- * its start and not yet resolved. Calls on it would be made watching the score, so they aren't taken.
+ * its start and not yet resolved. A pick on the team now is a pick on this match.
  */
 export async function startedMatch(team: string, opponent?: string | null): Promise<{ team: string; opponent: string; at: Date } | null> {
   const key = teamKey(team);
@@ -259,28 +259,36 @@ async function matchWinner(eventId: string): Promise<Market | null> {
 }
 
 /**
- * The Polymarket market for a CS2 call: the same two teams, in a match that hasn't started and
- * plays this week, the one before the call's deadline first. Null when Polymarket has no such match.
+ * The Polymarket market for a CS2 call: the same two teams, in a match being played now or coming
+ * this week and not yet resolved, the one before the call's deadline first. The price is the
+ * market's at that moment, live if the match is on. Null when Polymarket has no such match.
  */
 export async function findMatch(team: string, opponent: string, deadline: Date): Promise<MarketRef | null> {
   const want = [teamKey(team), teamKey(opponent)].sort().join("|");
-  const event = (await teamEvents(team))
-    .filter((e) => ahead(e) && teamsOf(e.title)!.map(teamKey).sort().join("|") === want)
-    .sort(byTime(deadline))[0];
-  if (!event) return null;
+  const now = Date.now();
+  const [listed, ours, theirs] = await Promise.all([teamEvents(team), searchTeam(team), searchTeam(opponent)]);
+  const events = [...new Map([...listed, ...ours, ...theirs].map((e) => [e.id, e])).values()]
+    .filter((e) => {
+      const start = startOf(e).getTime();
+      return start > now - 8 * 3_600_000 && start < now + 7 * 86_400_000 && teamsOf(e.title)!.map(teamKey).sort().join("|") === want;
+    })
+    .sort(byTime(deadline));
 
-  const market = await matchWinner(event.id);
-  const pick = market?.outcomes.find((o) => teamKey(o.name) === teamKey(team));
-  if (!market || !pick) return null;
-  return {
-    platform: "polymarket",
-    eventId: event.id,
-    marketId: market.id,
-    title: market.question,
-    url: market.source?.url ?? event.source?.url ?? "https://polymarket.com",
-    outcome: pick.name,
-    prob: pick.price,
-  };
+  for (const event of events) {
+    const market = await matchWinner(event.id);
+    const pick = market?.outcomes.find((o) => teamKey(o.name) === teamKey(team));
+    if (!market || !pick || market.status === "resolved" || market.resolution?.outcome) continue;
+    return {
+      platform: "polymarket",
+      eventId: event.id,
+      marketId: market.id,
+      title: market.question,
+      url: market.source?.url ?? event.source?.url ?? "https://polymarket.com",
+      outcome: pick.name,
+      prob: pick.price,
+    };
+  }
+  return null;
 }
 
 /** Who won, once Polymarket has resolved the market; null while it's still open. */

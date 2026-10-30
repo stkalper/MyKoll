@@ -276,22 +276,17 @@ async function placePick(
       return null;
     });
 
-  // A match being played now can't be called: the author could be watching the score. Unless they
-  // named a later day, that's the match they mean, so say so instead of moving the pick elsewhere.
+  // A match being played right now is the one the author means, unless they named a later day.
+  // Polymarket trades CS2 live, so the receipt shows the odds at the moment of the call.
   const [live, next] = await Promise.all([lookup(startedMatch(subject, opponent)), opponent ? null : lookup(nextMatch(subject, said ?? undefined))]);
-  if (live && (!said || live.at.getTime() > said.getTime() - DAY)) {
-    const then = next ? ` Their next one is against ${next.opponent} (${when(next.at)}): say "${next.team} beat ${next.opponent}" to call it.` : "";
-    return {
-      reason: `${live.team} vs ${live.opponent} has already started, and calls only count before a match begins.${then}`,
-      short: `${live.team} vs ${live.opponent} has already started`,
-      speak: true,
-    };
-  }
-  if (!opponent) {
-    if (!next) return { reason: `I can't find a match ${subject} plays this week that hasn't started yet. Name the opponent, e.g. "${subject} beat FaZe".`, short: `no upcoming match for ${subject}`, speak: true };
-    ({ team: subject, opponent } = next);
-    const over = next.at.getTime() + 4 * 3_600_000;
+  const match = live && (!said || live.at.getTime() > said.getTime() - DAY) ? live : next;
+  if (match) {
+    ({ team: subject, opponent } = match);
+    // Judged once the match is over: a few hours after it starts, and at least an hour from now.
+    const over = Math.max(match.at.getTime() + 4 * 3_600_000, Date.now() + 3_600_000);
     if (!said || deadline.getTime() < over) deadline = new Date(over);
+  } else if (!opponent) {
+    return { reason: `I can't find a match ${subject} plays this week. Name the opponent, e.g. "${subject} beat FaZe".`, short: `no match found for ${subject}`, speak: true };
   }
   return tooLate(deadline) ?? { subject, opponent, deadline: deadline.toISOString() };
 }
@@ -400,9 +395,6 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
   // CS2: the same match on Polymarket, when there is one, for its odds and its result.
   let market: MarketRef | null = null;
   if (draft.market === "cs2" && draft.opponent) {
-    // The author may tap "Log it" after the match began.
-    const live = await startedMatch(draft.subject, draft.opponent).catch(() => null);
-    if (live) return { error: `${live.team} vs ${live.opponent} has already started, and calls only count before a match begins.` };
     market = await findMatch(draft.subject, draft.opponent, new Date(draft.deadline)).catch((err) => {
       console.error("Polymarket lookup failed", err);
       return null;
