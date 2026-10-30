@@ -10,7 +10,8 @@ import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
 
 export type Market = "crypto" | "cs2";
-export type Direction = "above" | "below" | "up" | "down" | "win";
+/** "to" is a bare price level ("BTC 102k tomorrow"): only on a draft, it becomes above/below once the price is known. */
+export type Direction = "above" | "below" | "up" | "down" | "win" | "to";
 export type Status = "open" | "awaiting_score" | "win" | "loss" | "void";
 
 export interface CallRow {
@@ -68,7 +69,7 @@ const CS2_TEAMS = word(
   "navi|na'vi|нави|наві|faze|фейз|vitality|віталіті|spirit|спіріт|спирит|g2|mouz|falcons|liquid|astralis|heroic|furia|mongolz|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|parivision|legacy|mibr|imperial|og",
 );
 const CRYPTO = word(
-  "\\$[a-z]{2,8}|navx|haedal|ika|hippo|lofi|scallop|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|trx|tron|трон\\p{L}*|трх|ltc|bch|atom|algo|xlm|matic|vet|cro|chz|tsla|tesla|тесл\\p{L}*|nvda|nvidia|нвід\\p{L}*|aapl|msft|amzn|googl|pons|понс|cashcat|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
+  "\\$[a-z]{2,8}|navx|haedal|ika|hippo|lofi|scallop|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|trx|tron|трон\\p{L}*|трх|ltc|bch|atom|algo|xlm|matic|vet|cro|chz|tsla|tesla|тесл\\p{L}*|nvda|nvidia|нвід\\p{L}*|aapl|msft|amzn|googl|pons|понс|cashcat|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|бтс|бтц|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
 );
 /** Any ticker written in caps, e.g. "APT" or "WAL". */
 const TICKER = /(?<![\p{L}\d])[A-Z]{2,6}(?![\p{L}])/u;
@@ -103,6 +104,7 @@ export async function extractCall(text: string): Promise<Draft | { reason: strin
         content: `You read messages from a Telegram group chat about crypto and Counter-Strike 2 and decide if a message is a CALL: a concrete, checkable prediction the author makes themselves.
 A call is either:
 - crypto: a coin's price going above/below a level, or up/down, by some time. Example: "SUI to $5 by Friday", "btc dumps under 90k this week", "sol up by tomorrow".
+  A coin with a price and a time is a call even without a side: "BTC 102k tomorrow" / "БТС 102к завтра" means BTC gets to 102000 by tomorrow.
   A trading signal is a call too: "TRX long, entry 0.33, TP 0.36, SL 0.31" / "лонг TRX, тейк 0.36" means TRX above the first take-profit (short: below it).
   This also covers stock tokens on Robinhood Chain (TSLA, NVDA, AAPL, SPY, MSFT, AMZN, GOOGL, META, COIN) and its memecoins (PONS, CASHCAT): "tesla to 450 by Friday" is subject TSLA.
 - cs2: a team winning a match. Example: "NaVi take FaZe tonight", "Spirit beats Vitality".
@@ -115,10 +117,10 @@ Reply with JSON only:
  "market": "crypto" | "cs2",
  "subject": ticker in caps for crypto (BTC, SUI, SOL, TSLA...) or the team picked to WIN for cs2,
  "opponent": the other team for cs2, else null,
- "direction": "above" | "below" (crypto with a price level), "up" | "down" (crypto without a level), "win" (cs2),
- "target": price level in USD as a number, else null (expand "90k" to 90000),
- "in_minutes": minutes from now until the call is judged if the message says it relatively ("in 5 minutes", "in 2 hours", "within a day"), else null,
- "deadline": ISO 8601 with offset for when the call is judged if the message names a time or day, else null. "by Friday" / "до неділі" means the END of that day (23:59 local); "tonight" means 23:59 today,
+ "direction": "above" | "below" (crypto with a price level and a side: above, over, to, pump, вище, до, памп...), "to" (a price level with no side said, e.g. "BTC 102k tomorrow"), "up" | "down" (crypto without a level), "win" (cs2),
+ "target": price level in USD as a number, else null (expand "90k" / "90к" to 90000; "1 бакс" / "a buck" is 1),
+ "in_minutes": minutes from now until the call is judged if the message says it relatively ("in 5 minutes", "in 2 hours", "через 5 годин" = 300, "через пів години" = 30, "within a day"), else null,
+ "deadline": ISO 8601 with offset for when the call is judged if the message names a time or day, else null. "by Friday" / "до неділі" means the END of that day (23:59 local); "tonight" means 23:59 today; "tomorrow" / "завтра" means 23:59 tomorrow,
  "call_text": the part of the message that states the call itself, copied word for word (e.g. "TRX long, entry 0.33, TP 0.36"), else null,
  "why": the author's reasons for the call if the message gives any (charts, news, levels, "because ..."), copied or lightly trimmed in the author's own words and language, else null}`,
       },
@@ -142,8 +144,8 @@ Reply with JSON only:
   if (!r?.is_call || !r.subject || !r.market || !r.direction) return null;
   if (r.market !== "crypto" && r.market !== "cs2") return null;
   if (r.market === "cs2" && (!r.opponent || r.direction !== "win")) return null;
-  if (r.market === "crypto" && !["above", "below", "up", "down"].includes(r.direction)) return null;
-  if ((r.direction === "above" || r.direction === "below") && !(Number(r.target) > 0)) return null;
+  if (r.market === "crypto" && !["above", "below", "up", "down", "to"].includes(r.direction)) return null;
+  if (hasLevel(r.direction) && !(Number(r.target) > 0)) return null;
 
   // Relative times are counted here, not by the model. No deadline said: a CS2 match is
   // usually within a day, a price call gets a week.
@@ -159,7 +161,7 @@ Reply with JSON only:
     subject: r.market === "crypto" ? r.subject.replace(/^\$/, "").toUpperCase() : r.subject,
     opponent: r.market === "cs2" ? (r.opponent ?? null) : null,
     direction: r.direction,
-    target: r.direction === "above" || r.direction === "below" ? Number(r.target) : null,
+    target: hasLevel(r.direction) ? Number(r.target) : null,
     deadline: deadline.toISOString(),
     quote: quoteOf(text, r.call_text),
     why: r.why?.trim().slice(0, 500) || null,
@@ -174,6 +176,13 @@ function quoteOf(text: string, callText?: string | null): string {
 }
 
 /* ---------- Describing calls ---------- */
+
+const hasLevel = (d: Direction) => d === "above" || d === "below" || d === "to";
+
+/** A bare level is a call on the move it takes to get there: above if the price is under it, below if over. */
+export function sideOf(direction: Direction, target: number | null, price: number): Direction {
+  return direction === "to" && target !== null ? (target > price ? "above" : "below") : direction;
+}
 
 export function usd(n: number): string {
   if (n >= 1000) return `$${Math.round(n).toLocaleString("en-US")}`;
@@ -195,7 +204,7 @@ export function when(d: Date | string): string {
 /** "SUI above $5.00", "NaVi to beat FaZe", "SOL up from $186.40". */
 export function claim(c: Pick<CallRow, "market" | "subject" | "opponent" | "direction" | "target" | "entry_price">): string {
   if (c.market === "cs2") return `${c.subject} to beat ${c.opponent}`;
-  if (c.direction === "above" || c.direction === "below") return `${c.subject} ${c.direction} ${usd(c.target!)}`;
+  if (hasLevel(c.direction)) return `${c.subject} ${c.direction} ${usd(c.target!)}`;
   return `${c.subject} ${c.direction}${c.entry_price ? ` from ${usd(c.entry_price)}` : ""}`;
 }
 
@@ -221,6 +230,7 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
   if (draft.market === "crypto") {
     q = await quote(draft.subject);
     if (!q) return { error: `Tatum has no price for ${draft.subject}, so I can't keep score on it.` };
+    draft = { ...draft, direction: sideOf(draft.direction, draft.target, q.price) };
     if (draft.direction === "above" && q.price >= draft.target!) return { error: `${draft.subject} is already at ${usd(q.price)}, above ${usd(draft.target!)}.` };
     if (draft.direction === "below" && q.price <= draft.target!) return { error: `${draft.subject} is already at ${usd(q.price)}, below ${usd(draft.target!)}.` };
   }

@@ -2,7 +2,7 @@
 //   npm test
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { claim, mightBeCall, usd, type CallRow } from "./calls";
+import { claim, mightBeCall, sideOf, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { teamKey, teamsOf } from "./polymarket";
@@ -22,7 +22,7 @@ const call = (over: Partial<CallRow>): CallRow =>
 
 describe("spotting calls", () => {
   it("lets through predictions in English, Ukrainian and Russian", () => {
-    for (const text of ["SUI to $5 by Friday", "btc dumps under 90k this week", "біток до 90к до неділі", "NaVi рознесуть FaZe сьогодні", "эфир упадет до 2000", "WAL 0.05 by friday", "тесла до 450 до пʼятниці", "PONS to 50 cents", "trx лонг", "TRX long, entry 0.33, TP 0.36", "трх шорт тейк 0.30", "сигнал по трону"])
+    for (const text of ["SUI to $5 by Friday", "btc dumps under 90k this week", "біток до 90к до неділі", "NaVi рознесуть FaZe сьогодні", "эфир упадет до 2000", "WAL 0.05 by friday", "тесла до 450 до пʼятниці", "PONS to 50 cents", "trx лонг", "TRX long, entry 0.33, TP 0.36", "трх шорт тейк 0.30", "сигнал по трону", "БТС 102к завтра", "СУІ вище 1 бакса через 5 годин"])
       assert.equal(mightBeCall(text), true, text);
   });
   it("skips chatter, commands and coins without a prediction", () => {
@@ -35,6 +35,12 @@ describe("describing calls", () => {
     assert.equal(claim(call({ direction: "above", target: 90000, subject: "BTC" })), "BTC above $90,000");
     assert.equal(claim(call({ direction: "up", entry_price: 186.4, subject: "SOL" })), "SOL up from $186.40");
     assert.equal(claim(call({ market: "cs2", subject: "NaVi", opponent: "FaZe", direction: "win" })), "NaVi to beat FaZe");
+    assert.equal(claim(call({ direction: "to", target: 102000, subject: "BTC" })), "BTC to $102,000");
+  });
+  it("reads a bare price level as up or down from where the price is now", () => {
+    assert.equal(sideOf("to", 102000, 96000), "above");
+    assert.equal(sideOf("to", 90000, 96000), "below");
+    assert.equal(sideOf("below", 1, 0.5), "below");
   });
   it("formats small and large prices", () => {
     assert.equal(usd(81705.4), "$81,705");
