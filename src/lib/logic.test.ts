@@ -2,7 +2,7 @@
 //   npm test
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { claim, mightBeCall, sideOf, usd, type CallRow } from "./calls";
+import { claim, mightBeCall, sideOf, teamsNamed, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { teamKey, teamsOf } from "./polymarket";
@@ -27,6 +27,16 @@ describe("spotting calls", () => {
   });
   it("skips chatter, commands and coins without a prediction", () => {
     for (const text of ["good morning everyone", "/call SUI to $5", "BTC", "lol", "дивимось наві ввечері?"]) assert.equal(mightBeCall(text), false, text);
+  });
+});
+
+describe("teams beyond the fixed list", () => {
+  it("finds teams on Polymarket's current matches in a message", () => {
+    const listed = new Set(["bcgame", "lynnvision", "metizport", "og"]);
+    assert.deepEqual([...teamsNamed("easy for bcgame", listed)], ["bcgame"]);
+    assert.deepEqual([...teamsNamed("BC.Game Esports tonight", listed)], ["bcgame"]);
+    assert.deepEqual([...teamsNamed("Lynn Vision, Metizport", listed)].sort(), ["lynnvision", "metizport"]);
+    assert.deepEqual([...teamsNamed("og bro", listed)], []);
   });
 });
 

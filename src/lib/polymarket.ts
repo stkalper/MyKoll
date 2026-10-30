@@ -129,6 +129,22 @@ async function teamEvents(team: string): Promise<Event[]> {
   return [...listed, ...found.filter((e) => !ids.has(e.id))];
 }
 
+let knownTeams: Set<string> | undefined;
+
+/**
+ * Every team with a CS2 match listed on Polymarket, as team keys, so the call filter knows teams
+ * beyond its own list ("easy for bcgame"). Only the first call on an instance waits for the
+ * listing; after that it answers from the last one and refreshes behind it.
+ */
+export async function listedTeams(): Promise<Set<string>> {
+  const load = upcomingEvents().then((events) => (knownTeams = new Set(events.flatMap((e) => teamsOf(e.title)!.map(teamKey)))));
+  if (knownTeams) {
+    load.catch(() => {});
+    return knownTeams;
+  }
+  return load.catch(() => new Set<string>());
+}
+
 /** How many upcoming CS2 matches Polymarket lists (for the health check). */
 export const upcomingCs2Matches = async () => (await upcomingEvents()).filter((e) => new Date(e.closeTime).getTime() > Date.now()).length;
 

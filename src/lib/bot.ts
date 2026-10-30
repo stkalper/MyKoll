@@ -11,7 +11,7 @@ import {
   addReason,
   logCall,
   logSlate,
-  mightBeCall,
+  mightBeCallNow,
   openCalls,
   reasonsFor,
   resolveDue,
@@ -401,7 +401,7 @@ export function createBot(): Bot {
     }
 
     if (ctx.chat.type === "private" || !llmEnabled) return;
-    if (!mightBeCall(text)) return console.log("skipped by prefilter", { chat: ctx.chat.id, length: text.length });
+    if (!(await mightBeCallNow(text))) return console.log("skipped by prefilter", { chat: ctx.chat.id, length: text.length });
     const draft = await extractCall(text).catch((err) => {
       console.error("call extraction failed", err);
       return null;

@@ -6,7 +6,7 @@ import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
 import { remember } from "./memory";
 import { wakeAt } from "./schedule";
-import { findMatch, marketWinner, nextMatch, teamKey, type MarketRef } from "./polymarket";
+import { findMatch, listedTeams, marketWinner, nextMatch, teamKey, type MarketRef } from "./polymarket";
 import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
 
@@ -103,6 +103,31 @@ export function mightBeCall(text: string): boolean {
   // A bare list of teams is a set of picks: "наві, віталіті, мауз, фуріа".
   if ((text.match(CS2_TEAMS_ALL) ?? []).length >= 2) return true;
   return (CRYPTO.test(text) || TICKER.test(text) || CS2_TEAMS.test(text)) && PREDICTION.test(text);
+}
+
+/** Listed teams named in a message, by team key: one to three words at a time, e.g. "BC.Game", "Lynn Vision". */
+export function teamsNamed(text: string, teams: Set<string>): Set<string> {
+  const words = text.split(/[\s,;:!?()"«»/+]+/).filter(Boolean);
+  const found = new Set<string>();
+  for (let i = 0; i < words.length; i++)
+    for (let n = 1; n <= 3 && i + n <= words.length; n++) {
+      const key = teamKey(words.slice(i, i + n).join(" "));
+      // Short keys ("og", "big") are too easily ordinary words; the fixed list covers those teams.
+      if (key.length >= 4 && teams.has(key)) found.add(key);
+    }
+  return found;
+}
+
+/**
+ * The filter with teams on Polymarket's current CS2 matches added to its own list, so a pick on a
+ * smaller team ("easy for bcgame") isn't dropped before the model sees it.
+ */
+export async function mightBeCallNow(text: string): Promise<boolean> {
+  if (mightBeCall(text)) return true;
+  if (text.length < 6 || text.length > MAX_MESSAGE || text.startsWith("/")) return false;
+  const named = teamsNamed(text, await listedTeams());
+  for (const m of text.match(CS2_TEAMS_ALL) ?? []) named.add(teamKey(m));
+  return named.size >= 2 || (named.size >= 1 && PREDICTION.test(text));
 }
 
 /** "Tuesday 28 October 2026 at 14:05 (GMT+02:00)" in the chat's zone, so the model can resolve "by Friday". */
