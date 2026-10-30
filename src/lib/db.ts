@@ -43,6 +43,9 @@ alter table calls add column if not exists final_check double precision;
 alter table calls add column if not exists market_ref jsonb;
 -- CS2 picks made together in one message ("NaVi, Vitality, FURIA"), reported together once the last match ends.
 alter table calls add column if not exists slate_id text;
+-- Calls shared from a post on X or Telegram: the post (author, link, time) and the member who shared it.
+alter table calls add column if not exists source jsonb;
+alter table calls add column if not exists shared_by_id bigint;
 create index if not exists calls_chat_idx on calls (chat_id, made_at desc);
 create index if not exists calls_due_idx on calls (status, deadline);
 create index if not exists calls_slate_idx on calls (slate_id) where slate_id is not null;

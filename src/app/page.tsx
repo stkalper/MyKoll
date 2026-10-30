@@ -34,7 +34,7 @@ const steps = [
 const features = [
   {
     title: "Logs calls from plain talk",
-    text: "No commands, no format to learn. Price levels, trading signals, betting slang, a list of teams, in English, Ukrainian and more. Ask-first or auto mode, chosen by group admins.",
+    text: "No commands, no format to learn. Price levels, trading signals, betting slang, a list of teams, a link to a post on X or Telegram, in English, Ukrainian and more. Ask-first or auto mode, chosen by group admins.",
   },
   {
     title: "Settles on time, on its own",
@@ -99,6 +99,11 @@ const callFormats = [
     kind: "Several",
     says: "NaVi, Vitality, FURIA, fnatic",
     files: "Picks on four matches, logged with one tap. When the last one ends it posts every winner and the score: 3/4.",
+  },
+  {
+    kind: "A post",
+    says: "x.com/cryptoguru/status/… or t.me/channel/…",
+    files: "Reads the post and files its call under @cryptoguru, timed from when it was posted. The accounts your chat quotes get a track record too.",
   },
 ];
 

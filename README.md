@@ -41,6 +41,7 @@ People don’t write calls in a format, so the bot reads them the way they are s
 | `FaZe 2-0 G2` · `ставлю на віталіті проти мауз` · `+1 FURIA` | A predicted score or betting slang is a pick on the winner |
 | `bcgame ez` while the match is on | The match being played counts, at Polymarket’s live odds |
 | `NaVi, Vitality, FURIA, fnatic` | **Several picks at once** (see below) |
+| `https://x.com/cryptoguru/status/…` · `https://t.me/channel/123` | **A call from a post** (see below) |
 
 Left alone: questions, jokes, other people’s predictions, vague moods (“sol looks good”) and talk about matches already played (“did you see NaVi beat FaZe yesterday?”).
 
@@ -54,6 +55,8 @@ Left alone: questions, jokes, other people’s predictions, vague moods (“sol 
 ❌ #33 Nemiga beat FURIA
 ✅ #34 fnatic beat Eternal Fire 🎯 upset, Polymarket had 38%
 ```
+
+**Calls from posts on X and Telegram.** Chats argue about what someone posted as much as about their own takes. Share a link to a post on X or in a public Telegram channel and the bot reads it (X through the public fxtwitter API with vxtwitter as a fallback, Telegram through the channel’s embed widget; no API keys), finds the call in it, and asks the member who shared it whether to keep score. The call is filed under the post’s author (`@cryptoguru on X`), so outside accounts build a track record in the chat like members do and show up on the board. Times are read from when the post went up, so “by Friday” in a Wednesday post means that Friday; if the deadline has already passed, the bot says so instead of filing it. The price is taken when the link is shared, and the receipt links the original post and names who shared it. The member who shared it can hide or undo it, and it doesn’t count toward their own habits.
 
 **A cheap filter goes first.** Most chat messages never reach the LLM: a regex looks for a coin or a team next to a prediction word, a number or a list of teams. Beyond its fixed list of teams, it knows every team on Polymarket’s current CS2 matches, refreshed every 10 minutes, so “easy for bcgame” isn’t dropped. Those team names are passed to the LLM too, so “BC.Game” reads as a team, not a casino.
 
@@ -159,7 +162,7 @@ Code: [`src/lib/polymarket.ts`](src/lib/polymarket.ts). Checks: [`scripts/try-po
 
 | Command | What it does |
 |---|---|
-| `/call SUI to $5 by Friday` | Log a call (or just say it in the chat) |
+| `/call SUI to $5 by Friday` | Log a call (or just say it in the chat); `/call <link to a post>` files the call in that post |
 | `/why 12 ETF inflows` | Add your reasoning to call #12 (or reply to its receipt) |
 | `/ask what did Max say about SOL?` | Answer from the chat’s memory (or mention the bot) |
 | `/board` | Leaderboard, plus a button that opens the Mini App |

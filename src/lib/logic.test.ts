@@ -6,6 +6,7 @@ import { claim, mightBeCall, sideOf, teamsNamed, usd, type CallRow } from "./cal
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { startOf, teamKey, teamsOf } from "./polymarket";
+import { justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
 import { scorecardLine, scoreMemory } from "./scorecard";
 import { poolPrice } from "./suiPrices";
@@ -27,6 +28,31 @@ describe("spotting calls", () => {
   });
   it("skips chatter, commands and coins without a prediction", () => {
     for (const text of ["good morning everyone", "/call SUI to $5", "BTC", "lol", "дивимось наві ввечері?"]) assert.equal(mightBeCall(text), false, text);
+  });
+});
+
+describe("calls shared from posts", () => {
+  it("finds links to posts on X and public Telegram channels", () => {
+    assert.deepEqual(postLinkIn("look https://x.com/CryptoGuru/status/1985341984679469056?s=20"), {
+      kind: "x", url: "https://x.com/CryptoGuru/status/1985341984679469056", handle: "CryptoGuru", id: "1985341984679469056",
+    });
+    assert.equal(postLinkIn("https://twitter.com/abc/status/123")?.kind, "x");
+    assert.equal(postLinkIn("https://t.me/s/whale_alerts/4521")?.url, "https://t.me/whale_alerts/4521");
+    assert.equal(postLinkIn("https://t.me/c/1234567/89"), null);
+    assert.equal(postLinkIn("https://x.com/abc"), null);
+  });
+  it("tells a shared link from a link inside a longer message", () => {
+    const link = postLinkIn("https://x.com/abc/status/123")!;
+    assert.equal(justTheLink("https://x.com/abc/status/123", link), true);
+    assert.equal(justTheLink("check this https://x.com/abc/status/123", link), true);
+    assert.equal(justTheLink("he says btc goes to 120k, I think it dumps first https://x.com/abc/status/123", link), false);
+  });
+  it("gives each outside account one stable id, apart from Telegram users", () => {
+    const id = sourceId({ kind: "x", handle: "CryptoGuru" });
+    assert.equal(id, sourceId({ kind: "x", handle: "cryptoguru" }));
+    assert.notEqual(id, sourceId({ kind: "telegram", handle: "cryptoguru" }));
+    assert.ok(id < 0);
+    assert.equal(sourceName({ kind: "x", handle: "CryptoGuru" }), "@CryptoGuru on X");
   });
 });
 

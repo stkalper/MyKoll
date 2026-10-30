@@ -7,6 +7,7 @@ import { learnFrom, trackRecords } from "./learning";
 import { remember } from "./memory";
 import { wakeAt } from "./schedule";
 import { findMatch, listedTeams, marketWinner, nextMatch, startedMatch, teamKey, type MarketRef } from "./polymarket";
+import { sourceId, sourceName, type PostSource } from "./posts";
 import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
 
@@ -42,6 +43,9 @@ export interface CallRow {
   final_check: number | null;
   market_ref: MarketRef | null;
   slate_id: string | null;
+  /** Set when the call came from a post on X or Telegram that someone shared; the author is the post's. */
+  source: PostSource | null;
+  shared_by_id: string | null;
 }
 
 /** Several CS2 picks in one message ("NaVi, Vitality, FURIA"), each on its team's next match. */
@@ -51,6 +55,7 @@ export interface Slate {
   skipped: string[];
   quote: string;
   why?: string | null;
+  source?: PostSource;
 }
 
 /** A call the bot can't keep score on, and why; `speak` when it's worth saying even in a passive read. */
@@ -75,6 +80,8 @@ export interface Draft {
   quote: string;
   /** The author's reasoning when it came in the same message as the call. */
   why?: string | null;
+  /** The post the call came from, when it was shared from X or Telegram. */
+  source?: PostSource;
 }
 
 const DAY = 86_400_000;
@@ -143,8 +150,7 @@ export async function mightBeCallNow(text: string): Promise<boolean> {
 }
 
 /** "Tuesday 28 October 2026 at 14:05 (GMT+02:00)" in the chat's zone, so the model can resolve "by Friday". */
-function nowInZone(): string {
-  const now = new Date();
+function nowInZone(now = new Date()): string {
   const offset = new Intl.DateTimeFormat("en-US", { timeZone: config.timezone, timeZoneName: "longOffset" })
     .formatToParts(now)
     .find((p) => p.type === "timeZoneName")?.value;
@@ -156,7 +162,7 @@ function nowInZone(): string {
  * into a structured draft. Returns null for chatter, jokes and questions, and a reason
  * when it is a call the bot can't keep score on.
  */
-export async function extractCall(text: string): Promise<Draft | Slate | Unplaced | null> {
+export async function extractCall(text: string, posted?: Date): Promise<Draft | Slate | Unplaced | null> {
   const teams = [...(await teamWords(text)).values()];
   const reply = await complete(
     [
@@ -177,7 +183,7 @@ A call is either:
   Several teams picked at once are a set of picks, one per team: a bare list ("наві, віталіті, мауз, фуріа", "NaVi Vitality MOUZ FURIA tomorrow"), "my picks: X, Y, Z", or several "X over Y" in one message. Put every pick in "picks".
 Not calls: questions, jokes, sarcasm, other people's predictions, vague moods ("sol looks good").
 
-Now is ${nowInZone()} in ${config.timezone}.${teams.length ? `
+${posted ? `This was posted on ${nowInZone(posted)} in ${config.timezone}; read every time in it from that moment. Now is ${nowInZone()}.` : `Now is ${nowInZone()} in ${config.timezone}.`}${teams.length ? `
 These words in the message are CS2 team names: ${teams.map((t) => `"${t}"`).join(", ")}.` : ""}
 
 Reply with JSON only:
@@ -215,7 +221,7 @@ Reply with JSON only:
 
   // Relative times are counted here, not by the model.
   const minutes = Number(r.in_minutes);
-  const told = minutes > 0 ? new Date(Date.now() + minutes * 60_000) : r.deadline ? new Date(r.deadline) : null;
+  const told = minutes > 0 ? new Date((posted ?? new Date()).getTime() + minutes * 60_000) : r.deadline ? new Date(r.deadline) : null;
   const said = told && !Number.isNaN(told.getTime()) ? told : null;
   const quoted = quoteOf(text, r.call_text);
   const why = r.why?.trim().slice(0, 500) || null;
@@ -252,7 +258,7 @@ Reply with JSON only:
 }
 
 function tooLate(deadline: Date): Unplaced | null {
-  if (deadline.getTime() < Date.now() + 60_000) return { reason: "That deadline is already here. Give it at least a couple of minutes." };
+  if (deadline.getTime() < Date.now() + 60_000) return { reason: `That deadline (${when(deadline)}) is already here, so there's nothing left to judge.`, short: "its deadline has passed" };
   if (deadline.getTime() > Date.now() + 120 * DAY) return { reason: "I only keep score on calls that settle within 120 days." };
   return null;
 }
@@ -382,7 +388,11 @@ function sourcing(q: Pick<Quote, "price" | "source" | "proof" | "check">): strin
   return parts.join("; ");
 }
 
-export async function logCall(chat: { id: number; title?: string }, author: Author, draft: Draft, slateId: string | null = null): Promise<CallRow | { error: string }> {
+/** Who a call belongs to: the post's author when it was shared from one, else whoever said it. */
+export const ownerOf = (said: Author, d: Pick<Draft, "source">): Author => (d.source ? { id: sourceId(d.source), name: sourceName(d.source) } : said);
+
+export async function logCall(chat: { id: number; title?: string }, sharer: Author, draft: Draft, slateId: string | null = null): Promise<CallRow | { error: string }> {
+  const author = ownerOf(sharer, draft);
   let q: Quote | null = null;
   if (draft.market === "crypto") {
     q = await quote(draft.subject);
@@ -404,12 +414,12 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
   }
 
   const [call] = await db<CallRow>(
-    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) returning *`,
+    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id, source, shared_by_id)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) returning *`,
     [
       chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target,
       q?.price ?? null, q?.source ?? null, q?.proof ? JSON.stringify(q.proof) : null, q?.check ?? null, market ? JSON.stringify(market) : null,
-      draft.quote, draft.deadline, slateId,
+      draft.quote, draft.deadline, slateId, draft.source ? JSON.stringify(draft.source) : null, draft.source ? sharer.id : null,
     ],
   );
 
@@ -418,8 +428,11 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
   // Reasons given in the same message are filed like a /why, so the receipt shows them.
   if (draft.why) await db(`insert into call_reasons (call_id, text) values ($1, $2)`, [call.id, draft.why]);
 
+  const fromPost = draft.source
+    ? ` It was posted ${when(draft.source.postedAt)} (${draft.source.url}) and shared in the chat by ${draft.source.sharedBy.name}.`
+    : "";
   const priceNote = q
-    ? ` ${call.subject} was ${usd(q.price)} at the time (${sourcing(q)}).`
+    ? ` ${call.subject} was ${usd(q.price)} ${draft.source ? "when it was shared" : "at the time"} (${sourcing(q)}).`
     : market
       ? ` Polymarket had ${market.outcome} at ${Math.round(market.prob * 100)}% to win (Tatum Prediction Market API, market ${market.marketId}).`
       : "";
@@ -429,7 +442,7 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
     const recordNote = record ? ` Their record at the time: ${record.summary}` : "";
     const job = await remember(
       chat.id,
-      `[CALL #${call.id}] ${when(call.made_at)}: ${author.name} called "${call.quote}". Logged as ${claim(call)} by ${when(call.deadline)}.${priceNote}${recordNote}`,
+      `[CALL #${call.id}] ${when(call.made_at)}: ${author.name} called "${call.quote}". Logged as ${claim(call)} by ${when(call.deadline)}.${fromPost}${priceNote}${recordNote}`,
     );
     if (job) await db(`update calls set memory_job = $1 where id = $2`, [job, call.id]);
     if (draft.why) await remember(chat.id, `[REASON #${call.id}] ${author.name} explained the call "${call.quote}" (${claim(call)}): ${draft.why}`);
@@ -441,16 +454,17 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
 /** Logs every pick of a slate as its own call, tied together so they're reported together. */
 export async function logSlate(
   chat: { id: number; title?: string },
-  author: Author,
+  sharer: Author,
   slate: Slate,
 ): Promise<{ calls: CallRow[]; errors: string[] }> {
   const id = randomBytes(6).toString("hex");
+  const author = ownerOf(sharer, slate);
   await db(`insert into slates (id, chat_id, author_id, author_name, quote) values ($1, $2, $3, $4, $5)`, [id, chat.id, author.id, author.name, slate.quote]);
   // One at a time: each call schedules its own wake-up and memory write.
   const calls: CallRow[] = [];
   const errors: string[] = [];
   for (const pick of slate.picks) {
-    const call = await logCall(chat, author, pick, id);
+    const call = await logCall(chat, sharer, slate.source ? { ...pick, source: slate.source } : pick, id);
     if ("error" in call) errors.push(`${pick.subject}: ${call.error}`);
     else calls.push(call);
   }
@@ -608,7 +622,8 @@ export async function callsBy(chatId: number | string, authorId: number | string
 
 /** Lets an author take a call off the board and out of the bot's answers, or bring it back. */
 export async function setHidden(callId: number, authorId: number, hidden: boolean): Promise<boolean> {
-  const rows = await db(`update calls set hidden = $3 where id = $1 and author_id = $2 returning id`, [callId, authorId, hidden]);
+  // A call shared from a post belongs to an outside account, so the member who shared it manages it.
+  const rows = await db(`update calls set hidden = $3 where id = $1 and (author_id = $2 or shared_by_id = $2) returning id`, [callId, authorId, hidden]);
   return rows.length > 0;
 }
 
@@ -644,7 +659,7 @@ export const UNDO_MINUTES = 15;
 /** Voids an auto-logged call its author says wasn't one; it leaves the board and the bot's answers. */
 export async function undoCall(callId: number, authorId: number): Promise<CallRow | "not_yours" | "too_late"> {
   const [call] = await db<CallRow>(`select * from calls where id = $1`, [callId]);
-  if (!call || String(call.author_id) !== String(authorId)) return "not_yours";
+  if (!call || (String(call.author_id) !== String(authorId) && String(call.shared_by_id) !== String(authorId))) return "not_yours";
   if (Date.now() - new Date(call.made_at).getTime() > UNDO_MINUTES * 60_000) return "too_late";
   await db(`update calls set status = 'void', hidden = true, result_note = 'not a call (undone by author)', resolved_at = now() where id = $1`, [callId]);
   return call;

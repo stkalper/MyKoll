@@ -11,6 +11,7 @@ import {
   addReason,
   logCall,
   logSlate,
+  ownerOf,
   mightBeCallNow,
   openCalls,
   reasonsFor,
@@ -27,6 +28,7 @@ import {
   type Draft,
   type Slate,
   type SlateResult,
+  type Unplaced,
 } from "./calls";
 import { config, llmEnabled } from "./config";
 import { db } from "./db";
@@ -34,6 +36,7 @@ import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
 import { noteForNewCall, trackRecords } from "./learning";
 import { shareUrl } from "./receipts";
 import { memoryScorecard, scorecardLine } from "./scorecard";
+import { justTheLink, postLinkIn, readPost, sourceName, type PostLink } from "./posts";
 import { proofLabel, proofUrl } from "./proof";
 import { DISAGREE, gap, sourceLabel } from "./tatum";
 
@@ -54,11 +57,13 @@ function crossCheck(price: number | null, check: number | null): string | null {
 }
 
 function receiptText(call: CallRow, headline: string, reasons: string[] = [], learned: string[] = []): string {
-  const lines = [`🧾 <b>Receipt #${call.id}</b> · ${headline}`, `${esc(call.author_name)}: “${esc(call.quote)}”`, ""];
-  lines.push(`<i>${esc(claim(call))}</i> · judged ${esc(when(call.deadline))}`);
+  const lines = [`🧾 <b>Receipt #${call.id}</b> · ${headline}`, `${esc(call.author_name)}: “${esc(call.quote)}”`];
+  if (call.source)
+    lines.push(`<i>📎 posted ${esc(when(call.source.postedAt))} · shared by ${esc(call.source.sharedBy.name)}</i>`);
+  lines.push("", `<i>${esc(claim(call))}</i> · judged ${esc(when(call.deadline))}`);
   const settled = call.status === "win" || call.status === "loss";
   if (call.entry_price !== null && !settled)
-    lines.push(`${call.subject} was ${usd(call.entry_price)} when called · ${sourceLabel[call.price_source ?? "price-api"]}`);
+    lines.push(`${call.subject} was ${usd(call.entry_price)} when ${call.source ? "shared" : "called"} · ${sourceLabel[call.price_source ?? "price-api"]}`);
   if (call.result_note) lines.push(esc(call.result_note));
   const cross = settled ? crossCheck(call.final_price, call.final_check) : crossCheck(call.entry_price, call.entry_check);
   if (cross) lines.push(cross);
@@ -73,7 +78,7 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
   }
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
   if (learned.length) lines.push("", ...learned.map(esc));
-  if (call.status === "open" && !reasons.length) lines.push("", "<i>Reply to this receipt to add why you think so.</i>");
+  if (call.status === "open" && !reasons.length && !call.source) lines.push("", "<i>Reply to this receipt to add why you think so.</i>");
   return lines.join("\n");
 }
 
@@ -86,6 +91,7 @@ function receiptButtons(call: CallRow, kb = new InlineKeyboard()): InlineKeyboar
   const next = () => (kb.inline_keyboard.flat().length ? kb.row() : kb);
   if (proof) next().url(`🔎 Check the price on ${proofLabel(proof)}`, proofUrl(proof));
   if (call.market_ref) next().url("📈 The match on Polymarket", call.market_ref.url);
+  if (call.source) next().url(`📎 The original post on ${call.source.kind === "x" ? "X" : "Telegram"}`, call.source.url);
   return kb.inline_keyboard.flat().length ? kb : undefined;
 }
 
@@ -98,6 +104,22 @@ async function learnedAfter(call: CallRow): Promise<string[]> {
 
 /** Reasons the author gave in the message itself, shown on the receipt as its first "why". */
 const reasonsIn = (d: Draft) => (d.why ? [d.why] : []);
+
+/**
+ * The call in a post someone shared from X or Telegram, read from the post's own text and time and
+ * filed under its author. Null when the post holds no checkable call.
+ */
+async function callFromPost(link: PostLink, sharer: { id: number; name: string }): Promise<Draft | Slate | Unplaced | null> {
+  const post = await readPost(link);
+  if (!post) return { reason: "I can't read that post. It may be deleted, or from a private account or channel.", speak: true };
+  if (!(await mightBeCallNow(post.text))) return null;
+  const found = await extractCall(post.text, post.postedAt).catch((err) => {
+    console.error("call extraction failed", err);
+    return null;
+  });
+  if (!found || "reason" in found) return found;
+  return { ...found, source: { kind: post.kind, url: post.url, handle: post.handle, postedAt: post.postedAt.toISOString(), sharedBy: sharer } };
+}
 
 /** The call a bot message is the receipt of, if it is one. */
 const receiptIdIn = (text?: string) => Number(text?.match(/^🧾 Receipt #(\d+)/)?.[1]) || null;
@@ -112,7 +134,10 @@ function draftSummary(d: Draft): string {
 
 function slateOffer(s: Slate): string {
   const n = s.picks.length;
-  const lines = [`📋 Sounds like picks on ${n} match${n === 1 ? "" : "es"}:`, ""];
+  const lines = [
+    s.source ? `📎 ${esc(sourceName(s.source))} picked ${n} match${n === 1 ? "" : "es"} (posted ${esc(when(s.source.postedAt))}):` : `📋 Sounds like picks on ${n} match${n === 1 ? "" : "es"}:`,
+    "",
+  ];
   s.picks.forEach((p, i) => lines.push(`${i + 1}. <b>${esc(p.subject)}</b> to beat ${esc(p.opponent!)} · ${esc(when(p.deadline))}`));
   if (s.skipped.length) lines.push("", `<i>Left out: ${esc(s.skipped.join("; "))}</i>`);
   lines.push("", `Log ${n === 1 ? "it" : `all ${n}`} as calls? I'll post who won once the last match is over.`);
@@ -227,14 +252,16 @@ export function createBot(): Bot {
     if (!text) return ctx.reply("Tell me the call, e.g. /call SOL above $300 by Friday — or reply /call to someone's message.");
     if (!llmEnabled) return ctx.reply("Call parsing needs an LLM key on the server.");
 
-    const draft = await extractCall(text);
+    // "/call <link>" files the call in that post under its author.
+    const link = postLinkIn(text);
+    const draft = link ? await callFromPost(link, authorOf(ctx)) : await extractCall(text);
     if (!draft) return ctx.reply("That doesn't read like a checkable call. Try: /call BTC under 90k by Sunday, or /call Spirit beat Vitality.");
     if ("reason" in draft) return ctx.reply(draft.reason);
     const chat = { id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined };
     if ("picks" in draft) {
       const { calls, errors } = await logSlate(chat, author, draft);
       if (!calls.length) return ctx.reply(errors.join("\n"));
-      return ctx.reply(slateLogged(author.name, draft, calls, errors), { parse_mode: "HTML" });
+      return ctx.reply(slateLogged(ownerOf(author, draft).name, draft, calls, errors), { parse_mode: "HTML" });
     }
     const call = await logCall(chat, author, draft);
     if ("error" in call) return ctx.reply(call.error);
@@ -346,12 +373,13 @@ export function createBot(): Bot {
       await ctx.answerCallbackQuery();
       const { calls, errors } = await logSlate(chat, authorOf(ctx), slate);
       if (!calls.length) return ctx.editMessageText(errors.join("\n"));
-      return ctx.editMessageText(slateLogged(authorOf(ctx).name, slate, calls, errors), { parse_mode: "HTML" });
+      return ctx.editMessageText(slateLogged(ownerOf(authorOf(ctx), slate).name, slate, calls, errors), { parse_mode: "HTML" });
     }
     if (action === "nolog") {
       await ctx.answerCallbackQuery({ text: "Not logged. I'll remember that." });
       await ctx.deleteMessage().catch(() => {});
-      return recordFeedback(ctx.chat!.id, authorOf(ctx), false, pending.draft);
+      // A shared post says nothing about how this member talks, so it doesn't train their habits.
+      return pending.draft.source ? undefined : recordFeedback(ctx.chat!.id, authorOf(ctx), false, pending.draft);
     }
     const call = await logCall(chat, authorOf(ctx), pending.draft);
     await ctx.answerCallbackQuery();
@@ -360,7 +388,7 @@ export function createBot(): Bot {
       parse_mode: "HTML",
       reply_markup: receiptButtons(call),
     });
-    await recordFeedback(ctx.chat!.id, authorOf(ctx), true, pending.draft);
+    if (!pending.draft.source) await recordFeedback(ctx.chat!.id, authorOf(ctx), true, pending.draft);
   });
 
   bot.callbackQuery(/^score:(\d+):(a|b|void)$/, async (ctx) => {
@@ -401,6 +429,33 @@ export function createBot(): Bot {
     }
 
     if (ctx.chat.type === "private" || !llmEnabled) return;
+
+    // A link to a post on X or Telegram: the call in it is filed under the post's author, once the
+    // member who shared it says so. A bare link is a request to look, so the bot answers even when
+    // there's nothing to file; a link inside a longer message is only offered when it holds a call.
+    const link = postLinkIn(text);
+    if (link) {
+      const asked = justTheLink(text, link);
+      if (asked) void ctx.replyWithChatAction("typing").catch(() => {});
+      const found = await callFromPost(link, authorOf(ctx));
+      const reply = (message: string) => (asked ? ctx.reply(message, { reply_parameters: { message_id: ctx.message.message_id } }) : undefined);
+      console.log("shared post", { chat: ctx.chat.id, kind: link.kind, result: found ? ("reason" in found ? found.reason : "call") : "not a call" });
+      if (!found) return reply(`I read @${link.handle}'s post but found no call in it I can check.`);
+      if ("reason" in found) return reply(found.reason);
+      const id = randomBytes(6).toString("hex");
+      await db(`insert into pending_calls (id, chat_id, author_id, draft) values ($1, $2, $3, $4)`, [id, ctx.chat.id, ctx.from.id, JSON.stringify(found)]);
+      const n = "picks" in found ? found.picks.length : 1;
+      const offer =
+        "picks" in found
+          ? slateOffer(found)
+          : `📎 <b>${esc(sourceName(found.source!))}</b> called it ${esc(when(found.source!.postedAt))}:\n“${esc(found.quote)}”\n\n<b>${esc(draftSummary(found))}</b>. Keep score on it?`;
+      return ctx.reply(offer, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message.message_id },
+        link_preview_options: { is_disabled: true },
+        reply_markup: new InlineKeyboard().text(n === 1 ? "🧾 Track it" : `🧾 Track all ${n}`, `log:${id}`).text("No", `nolog:${id}`),
+      });
+    }
     if (!(await mightBeCallNow(text))) return console.log("skipped by prefilter", { chat: ctx.chat.id, length: text.length });
     const draft = await extractCall(text).catch((err) => {
       console.error("call extraction failed", err);
