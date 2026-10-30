@@ -7,7 +7,7 @@
 - **Bot:** [@mykoll_bot](https://t.me/mykoll_bot). Add it to a group.
 - **Site:** https://mykoll.vercel.app (the landing page with a live demo of the Mini App)
 - **Live integration status:** https://mykoll.vercel.app/api/health
-- **Tests:** `npm test` covers call spotting, the learning loop, habits and pool pricing; CI runs lint, typecheck, tests and a build on every push.
+- **Tests:** `npm test` covers call spotting, price levels, CS2 team matching and match times, the learning loop, habits and pool pricing; CI runs lint, typecheck, tests and a build on every push.
 
 Built for the **Tatum × Walrus “Total Recall”** hackathon, track *Markets & Sports Prediction*.
 
@@ -19,12 +19,45 @@ Every crypto or esports chat has the same fight: *“you said it would pump!”*
 
 ## How it works
 
-1. **Someone makes a call** in a normal message or with `/call`. An LLM decides whether it is a checkable prediction and pulls out the asset, direction, target and deadline. It understands relative times (“in 2 hours”) and day names (“by Friday” means the end of Friday). It works in English, Ukrainian, Russian and other languages.
+1. **Someone makes a call** in a normal message or with `/call`. An LLM decides whether it is a checkable prediction and pulls out the asset, direction, target and deadline. It understands relative times (“in 2 hours”, “через 5 годин”) and day names (“by Friday” means the end of Friday). It works in English, Ukrainian, Russian and other languages. See [what counts as a call](#what-counts-as-a-call).
 2. **The bot keeps the receipt.** It stores who said it, the exact words, when, and the price at that moment, all from Tatum. In *ask* mode the author taps “Log it” first. In *auto* mode it is logged straight away, and the author can undo it.
 3. **The author can add the why** by replying to the receipt or with `/why`.
 4. **At the deadline the bot posts first.** It shows ✅ or ❌, the final price and the author’s reasoning, plus a link to a public card that can be shared.
 5. **Ask anything later.** Use `/ask` or mention the bot, and it answers from the chat’s memory, quoting people.
 6. **Every Sunday** the bot posts the week’s digest: sharpest caller, best call and biggest miss.
+
+### What counts as a call
+
+People don’t write calls in a format, so the bot reads them the way they are said:
+
+| In the chat | What the bot files |
+|---|---|
+| `SUI to $5 by Friday` | SUI above $5.00, judged at the end of Friday |
+| `BTC 102k tomorrow` | No side said, so it compares with the price now: BTC at $76,900 makes it a call for **up** (above $102,000) |
+| `СУІ вище 1 бакса через 5 годин` | SUI above $1.00, judged in exactly five hours |
+| `TRX long from 0.34, TP 0.37. Broke daily resistance on volume` | A trading signal: TRX above the first take-profit. The reasoning is filed as the call’s *why* |
+| `NaVi take FaZe tonight` · `Spirit beat Vitality` | A pick on the coming match |
+| `easy for Vitality` · `изи для НАВІ завтра` | No opponent named: the bot looks up the team’s next match on Polymarket (on the day named, if any) |
+| `FaZe 2-0 G2` · `ставлю на віталіті проти мауз` · `+1 FURIA` | A predicted score or betting slang is a pick on the winner |
+| `bcgame ez` while the match is on | The match being played counts, at Polymarket’s live odds |
+| `NaVi, Vitality, FURIA, fnatic` | **Several picks at once** (see below) |
+
+Left alone: questions, jokes, other people’s predictions, vague moods (“sol looks good”) and talk about matches already played (“did you see NaVi beat FaZe yesterday?”).
+
+**Several picks in one message.** A list of teams becomes one pick per team, each on that team’s next match. The bot always asks first, whatever the chat’s mode, and lists what it left out: a team with no match this week, a repeat, or two teams that play each other. One tap logs them all as separate calls. Their results aren’t posted one by one: when the last match ends, one message lists every winner and the author’s score, with any upset the market didn’t see coming.
+```
+🏁 All matches are over · @ivan went 3/4
+“NaVi, Vitality, FURIA, fnatic”
+
+✅ #31 NaVi beat FaZe
+✅ #32 Vitality beat MOUZ
+❌ #33 Nemiga beat FURIA
+✅ #34 fnatic beat Eternal Fire 🎯 upset, Polymarket had 38%
+```
+
+**A cheap filter goes first.** Most chat messages never reach the LLM: a regex looks for a coin or a team next to a prediction word, a number or a list of teams. Beyond its fixed list of teams, it knows every team on Polymarket’s current CS2 matches, refreshed every 10 minutes, so “easy for bcgame” isn’t dropped. Those team names are passed to the LLM too, so “BC.Game” reads as a team, not a casino.
+
+Code: [`src/lib/calls.ts`](src/lib/calls.ts). Try it: [`scripts/try-extract.mts`](scripts/try-extract.mts) runs sample messages through the filter and the LLM.
 
 <p>
   <img src="docs/mini-app.png" width="300" alt="Mini App board">
@@ -114,7 +147,9 @@ Code: [`src/lib/suiPrices.ts`](src/lib/suiPrices.ts), [`src/lib/robinhoodPrices.
 
 A CS2 call is matched to the **Polymarket match-winner market** for the same two teams, through Tatum’s Prediction Market API (`/v4/data/prediction`). Team names are compared exactly after normalising (“Team Vitality” = “VITALITY”, “Natus Vincere” = “NaVi”, but “NAVI Junior” is not NaVi).
 
-- **The receipt shows the market’s view:** `📈 Polymarket gave FURIA 43% when called — an underdog pick`, with a button to the market. A pick the market already prices at 97%+ is refused: that match is decided.
+- **The receipt shows the market’s view:** `📈 Polymarket gave FURIA 43% when called — an underdog pick`, with a button to the market. A match already being played can be called too, at the live price Polymarket trades it at. A pick the market already prices at 97%+ is refused: that match is decided.
+- **Only a team named? It finds the match.** “easy for Vitality” goes on Vitality’s next match, or the one being played right now. The bot merges Polymarket’s newest CS2 listings with a search by team name, because search returns only ten results and the newest-first listing misses matches put up days ahead.
+- **Match times come from the description.** An event’s `closeTime` is a few hours after the market went up, not the match, and CS2 markets keep trading during play, so neither says when a match starts. The start is read from the event text instead (“initially scheduled for October 30, 2026 at 5:15 PM ET”, converted from New York time).
 - **The call settles from Polymarket’s resolution** (Polymarket resolves CS2 from HLTV) the moment it resolves, so nobody has to confirm the score. Until then, the chat’s one-tap confirmation still works.
 - **The bot learns who beats the market.** Picks are filed as *underdog picks* (under 45%) or *favourite picks* (over 55%), and each member’s record gets an edge against the market: their hit rate minus the average price Polymarket gave their picks (`beats Polymarket by 12 pts on CS2`). A win the market had under 45% comes back as `🎯 Called the upset`.
 
@@ -142,6 +177,8 @@ flowchart LR
   BOT -- extract call --> LLM[LLM]
   BOT -- price --> TATUM[Tatum Price API]
   BOT -- Sui token price --> GRPC[Tatum Sui gRPC] --> CETUS[(Cetus pools<br/>Sui mainnet)]
+  BOT -- stock token price --> RH[Tatum Robinhood Chain RPC] --> UNI[(Uniswap v3 pools<br/>Robinhood Chain)]
+  BOT -- CS2 match, odds, result --> PRED[Tatum Prediction Market API] --> PM[(Polymarket)]
   BOT -- remember / recall --> WALRUS[(Walrus Memory<br/>namespace per chat)]
   BOT -- calls, reasons --> DB[(Neon Postgres)]
   BOT -- delayed message<br/>at deadline --> Q[Vercel Queue] --> SETTLE["/api/queues/deadline"] --> TG
@@ -152,7 +189,7 @@ flowchart LR
 
 - **Next.js 16** on Vercel serves the landing page, the Mini App, the bot webhook, public receipt pages and their Open Graph images.
 - **Calls settle on time with no polling.** Logging a call publishes a delayed Vercel Queue message for its deadline. Vercel’s free plan only allows daily cron jobs, so the cron is just a safety net and runs the Sunday digest.
-- **Neon Postgres** stores the structured side: calls, reasons, votes and chat settings. **Walrus Memory** holds what the bot remembers and answers from.
+- **Neon Postgres** stores the structured side: calls, reasons, votes, sets of picks and chat settings. **Walrus Memory** holds what the bot remembers and answers from.
 - **The Mini App** checks Telegram’s signed `initData` and asks Telegram whether the viewer is a member before it shows a group.
 - **Public receipt links** are signed with HMAC, so receipts can’t be enumerated by id.
 

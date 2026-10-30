@@ -15,7 +15,7 @@ const GITHUB = "https://github.com/stkalper/MyKoll";
 const steps = [
   {
     title: "Someone makes a call",
-    text: "“SOL to 300 by Friday.” In a message or with /call. The bot asks the author once, or logs it straight away in auto mode.",
+    text: "“SOL to 300 by Friday”, “BTC 102k tomorrow”, “easy for NaVi”. Said in passing or with /call. The bot asks the author once, or logs it straight away in auto mode.",
   },
   {
     title: "The bot files the receipt",
@@ -34,11 +34,11 @@ const steps = [
 const features = [
   {
     title: "Logs calls from plain talk",
-    text: "No commands needed. Ask-first or auto mode, chosen by group admins. Works in English, Ukrainian and more.",
+    text: "No commands, no format to learn. Price levels, trading signals, betting slang, a list of teams, in English, Ukrainian and more. Ask-first or auto mode, chosen by group admins.",
   },
   {
     title: "Settles on time, on its own",
-    text: "Each call schedules its own wake-up for the deadline. Crypto settles on price, CS2 on the Polymarket result for the match (from HLTV), or on the score the chat confirms.",
+    text: "Each call schedules its own wake-up for the deadline. Crypto settles on price, CS2 on the Polymarket result for the match (from HLTV). Picks made together come back together, once the last match ends.",
   },
   {
     title: "Remembers the why",
@@ -55,6 +55,50 @@ const features = [
   {
     title: "Receipts you can share",
     text: "Every verdict has a public card with a preview for X. Links are signed and hidden calls stay hidden.",
+  },
+];
+
+/** How people actually phrase calls, and what the bot files for each. */
+const callFormats = [
+  {
+    kind: "Crypto",
+    says: "SUI to $5 by Friday",
+    files: "SUI above $5.00, judged at the end of Friday.",
+  },
+  {
+    kind: "Crypto",
+    says: "BTC 102k tomorrow",
+    files: "No side said, so it checks the price. BTC is at $76,900, so this is a call for up.",
+  },
+  {
+    kind: "Crypto",
+    says: "СУІ вище 1 бакса через 5 годин",
+    files: "SUI above $1.00, judged in exactly five hours. Any language works.",
+  },
+  {
+    kind: "Signal",
+    says: "TRX long from 0.34, TP 0.37. Broke daily resistance on volume",
+    files: "TRX above $0.37. The reasoning goes on the receipt as the why.",
+  },
+  {
+    kind: "CS2",
+    says: "easy for Vitality",
+    files: "No opponent named, so it looks up Vitality’s next match: Vitality to beat MOUZ, Polymarket 56%.",
+  },
+  {
+    kind: "CS2",
+    says: "FaZe 2-0 G2 · ставлю на фурію",
+    files: "A predicted score or betting slang is a pick on the winner.",
+  },
+  {
+    kind: "CS2",
+    says: "bcgame ez, mid-match",
+    files: "A match already on counts too, at Polymarket’s live odds. Teams outside the big names are known from Polymarket’s listings.",
+  },
+  {
+    kind: "Several",
+    says: "NaVi, Vitality, FURIA, fnatic",
+    files: "Picks on four matches, logged with one tap. When the last one ends it posts every winner and the score: 3/4.",
   },
 ];
 
@@ -222,6 +266,9 @@ export default function Landing() {
           MyKoll
         </span>
         <div className="flex items-center gap-5 text-sm text-muted">
+          <a href="#formats" className="hidden hover:text-text sm:inline">
+            Formats
+          </a>
           <a href="#memory" className="hidden hover:text-text sm:inline">
             Memory
           </a>
@@ -249,8 +296,9 @@ export default function Landing() {
           <span className="hl text-ink">receipts.</span>
         </h1>
         <p className="mt-6 max-w-xl text-muted">
-          Crypto and CS2 calls get filed, judged when the deadline hits, and
-          remembered. The bot learns who in your chat is worth listening to.
+          Crypto and CS2 calls, said the way people actually say them, get
+          filed, judged when the deadline hits, and remembered. The bot learns
+          who in your chat is worth listening to.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <a
@@ -306,6 +354,37 @@ export default function Landing() {
             <ChatPreview />
           </div>
         </div>
+      </Section>
+
+      <Section
+        id="formats"
+        tab="Call formats"
+        title="Talk normally. It knows a call when it sees one."
+      >
+        <div className="paper rounded-sm p-5 sm:p-6">
+          <div className="hidden grid-cols-[6rem_1fr_1.4fr] gap-6 border-b-2 border-ink pb-2 sm:grid">
+            <span className="field-label">Kind</span>
+            <span className="field-label">In the chat</span>
+            <span className="field-label">What it files</span>
+          </div>
+          <ul>
+            {callFormats.map((f) => (
+              <li
+                key={f.says}
+                className="grid gap-1 border-b border-dashed border-rule py-3 last:border-b-0 sm:grid-cols-[6rem_1fr_1.4fr] sm:items-baseline sm:gap-6"
+              >
+                <span className="field-label">{f.kind}</span>
+                <span className="font-hand text-xl leading-tight">“{f.says}”</span>
+                <span className="font-mono text-xs leading-relaxed">{f.files}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <p className="mt-6 max-w-2xl text-sm text-muted">
+          Questions, jokes, other people&apos;s predictions and talk about
+          matches already played are left alone. A pick the market already
+          prices at 97% isn&apos;t taken: that match is decided.
+        </p>
       </Section>
 
       <Section
@@ -421,9 +500,10 @@ export default function Landing() {
           PONS, come from their Uniswap pool on Robinhood Chain through
           Tatum&apos;s Robinhood Chain RPC. Each on-chain price links to where it
           was read, and where two sources cover a token, the receipt shows how
-          far apart they are. CS2 calls get the match&apos;s Polymarket odds and
-          settle from its result, through Tatum&apos;s Prediction Market API.
-          Live right now:
+          far apart they are. CS2 calls get the match&apos;s Polymarket odds at
+          the moment of the call, live if the match is on, and settle from its
+          result, through Tatum&apos;s Prediction Market API. It also finds the
+          match when only a team is named. Live right now:
         </p>
         <div data-pen="5" data-pen-points="0.12,0.5">
           <LivePrices />
