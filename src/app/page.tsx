@@ -102,8 +102,8 @@ const callFormats = [
   },
   {
     kind: "A post",
-    says: "x.com/cryptoguru/status/… or t.me/channel/…",
-    files: "Reads the post and files its call under @cryptoguru, timed from when it was posted. The accounts your chat quotes get a track record too.",
+    says: "x.com/cryptoguru/status/…, t.me/channel/…, or a forwarded post",
+    files: "Reads the post and files its call under @cryptoguru, timed from when it was posted. Brags like “TP3 HIT ✅” and both-ways scenarios don’t count. The accounts your chat quotes get a track record too.",
   },
 ];
 

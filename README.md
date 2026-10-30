@@ -41,9 +41,12 @@ People don’t write calls in a format, so the bot reads them the way they are s
 | `FaZe 2-0 G2` · `ставлю на віталіті проти мауз` · `+1 FURIA` | A predicted score or betting slang is a pick on the winner |
 | `bcgame ez` while the match is on | The match being played counts, at Polymarket’s live odds |
 | `NaVi, Vitality, FURIA, fnatic` | **Several picks at once** (see below) |
-| `https://x.com/cryptoguru/status/…` · `https://t.me/channel/123` | **A call from a post** (see below) |
+| `https://x.com/cryptoguru/status/…` · `https://t.me/channel/123` · a post forwarded from a channel | **A call from a post** (see below) |
+| `COIN: $SOL/USDT · SHORT · Targets: 180 / 175 / 168 · SL: 192` | A signal post: SOL below the first target |
+| `$SUI 2x incoming` · `$CHZUSDT 4h: long bias, targets 0.0143` | A relative target becomes a level from the price when logged (SUI up 100%); a chart timeframe sets the horizon (4h: 3 days, 1D: 2 weeks, 1W: 2 months) |
+| `Pick: Vitality ML @1.85 (2u)` | A tipster pick on Vitality; totals like `over 26.5 rounds` can't be checked |
 
-Left alone: questions, jokes, other people’s predictions, vague moods (“sol looks good”) and talk about matches already played (“did you see NaVi beat FaZe yesterday?”).
+Left alone: questions, jokes, other people’s predictions, vague moods (“sol looks good”) and talk about matches already played (“did you see NaVi beat FaZe yesterday?”). From signal channels, also: results and bragging (“Target 3: HIT ✅ (+64% gain)”), scenarios on both sides (“hold 76.5k and it pushes to 80.7k, lose it and it drops to 75k”) and pure conditionals (“a close above 82,150 opens the door to 87.5k”). These rules come from reading real posts in public signal channels, and each one is checked against them.
 
 **Several picks in one message.** A list of teams becomes one pick per team, each on that team’s next match. The bot always asks first, whatever the chat’s mode, and lists what it left out: a team with no match this week, a repeat, or two teams that play each other. One tap logs them all as separate calls. Their results aren’t posted one by one: when the last match ends, one message lists every winner and the author’s score, with any upset the market didn’t see coming.
 ```
@@ -56,7 +59,9 @@ Left alone: questions, jokes, other people’s predictions, vague moods (“sol 
 ✅ #34 fnatic beat Eternal Fire 🎯 upset, Polymarket had 38%
 ```
 
-**Calls from posts on X and Telegram.** Chats argue about what someone posted as much as about their own takes. Share a link to a post on X or in a public Telegram channel and the bot reads it (X through the public fxtwitter API with vxtwitter as a fallback, Telegram through the channel’s embed widget; no API keys), finds the call in it, and asks the member who shared it whether to keep score. The call is filed under the post’s author (`@cryptoguru on X`), so outside accounts build a track record in the chat like members do and show up on the board. Times are read from when the post went up, so “by Friday” in a Wednesday post means that Friday; if the deadline has already passed, the bot says so instead of filing it. The price is taken when the link is shared, and the receipt links the original post and names who shared it. The member who shared it can hide or undo it, and it doesn’t count toward their own habits.
+**Calls from posts on X and Telegram.** Chats argue about what someone posted as much as about their own takes. Share a link to a post on X or in a public Telegram channel, or forward the post into the group, and the bot reads it (X through the public fxtwitter API with vxtwitter as a fallback, Telegram through the channel’s embed widget; no API keys), finds the call in it, and asks the member who shared it whether to keep score. The call is filed under the post’s author (`@cryptoguru on X`), so outside accounts build a track record in the chat like members do and show up on the board. Times are read from when the post went up, so “by Friday” in a Wednesday post means that Friday; if the deadline has already passed, the bot says so instead of filing it. The price is taken when the link is shared, and the receipt links the original post and names who shared it. The member who shared it can hide or undo it, and it doesn’t count toward their own habits.
+
+**The prompt only carries what a message needs.** The free LLM tier counts input tokens per minute, so the rules for signal posts and for CS2 picks are added only when a message looks like one, and a 429 waits as long as the provider asks before trying again.
 
 **A cheap filter goes first.** Most chat messages never reach the LLM: a regex looks for a coin or a team next to a prediction word, a number or a list of teams. Beyond its fixed list of teams, it knows every team on Polymarket’s current CS2 matches, refreshed every 10 minutes, so “easy for bcgame” isn’t dropped. Those team names are passed to the LLM too, so “BC.Game” reads as a team, not a casino.
 

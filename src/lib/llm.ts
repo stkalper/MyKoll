@@ -28,11 +28,15 @@ export async function complete(messages: LlmMessage[], opts: { temperature?: num
       signal: AbortSignal.timeout(45_000),
     });
   let res = await send();
-  // Free tiers cap tokens per minute; the provider says how long to wait, and a short wait
-  // beats dropping someone's call.
-  for (let attempt = 0; res.status === 429 && attempt < 2; attempt++) {
-    const wait = Math.min(8, Number(res.headers.get("retry-after")) || 2);
-    await new Promise((r) => setTimeout(r, wait * 1000));
+  // Free tiers cap tokens per minute; the provider says how long to wait ("try again in 582ms",
+  // or a retry-after header), and a short wait beats dropping someone's call.
+  for (let attempt = 0, waited = 0; res.status === 429 && attempt < 4 && waited < 30_000; attempt++) {
+    const body = await res.text().catch(() => "");
+    const said = body.match(/try again in ([\d.]+)(ms|s)/);
+    const ms = said ? Number(said[1]) * (said[2] === "s" ? 1000 : 1) : (Number(res.headers.get("retry-after")) || 2) * 1000;
+    const wait = Math.min(12_000, ms + 400);
+    waited += wait;
+    await new Promise((r) => setTimeout(r, wait));
     res = await send();
   }
   if (!res.ok) {

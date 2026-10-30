@@ -18,9 +18,42 @@ export interface Post extends PostLink {
   postedAt: Date;
 }
 
+/** Where a forwarded Telegram message came from, as grammY gives it (`message.forward_origin`). */
+export type ForwardOrigin =
+  | { type: "channel"; chat: { username?: string; title?: string }; message_id: number; date: number }
+  | { type: "chat"; sender_chat: { username?: string; title?: string }; date: number }
+  | { type: "user"; sender_user: { username?: string; first_name: string }; date: number }
+  | { type: "hidden_user"; sender_user_name: string; date: number };
+
+/**
+ * A message forwarded into the chat from a channel or another person, as a post: its author and the
+ * time it was first sent, which Telegram keeps on the forward. A public channel's post gets its link.
+ */
+export function forwardedPost(origin: ForwardOrigin, text: string): Post | null {
+  const at = new Date(origin.date * 1000);
+  if (!text.trim()) return null;
+  switch (origin.type) {
+    case "channel": {
+      const handle = origin.chat.username ?? origin.chat.title;
+      if (!handle) return null;
+      const url = origin.chat.username ? `https://t.me/${origin.chat.username}/${origin.message_id}` : "";
+      return { kind: "telegram", url, handle, id: String(origin.message_id), text, postedAt: at };
+    }
+    case "chat": {
+      const handle = origin.sender_chat.username ?? origin.sender_chat.title;
+      return handle ? { kind: "telegram", url: "", handle, id: "", text, postedAt: at } : null;
+    }
+    case "user":
+      return { kind: "telegram", url: "", handle: origin.sender_user.username ?? origin.sender_user.first_name, id: "", text, postedAt: at };
+    case "hidden_user":
+      return { kind: "telegram", url: "", handle: origin.sender_user_name, id: "", text, postedAt: at };
+  }
+}
+
 /** Where a call came from when it was shared from a post, kept on its draft and its row. */
 export interface PostSource {
   kind: PostKind;
+  /** Empty for a forward from a private channel or a person: there's no public link to it. */
   url: string;
   handle: string;
   postedAt: string;
@@ -44,7 +77,9 @@ export function justTheLink(text: string, link: PostLink): boolean {
   return text.replace(/https?:\/\/\S+/g, "").trim().length < 25 && postLinkIn(text)?.url === link.url;
 }
 
-export const sourceName = (s: Pick<PostSource, "kind" | "handle">) => `@${s.handle} on ${s.kind === "x" ? "X" : "Telegram"}`;
+/** "@cryptoguru on X"; a channel or person without a username goes by its name. */
+export const sourceName = (s: Pick<PostSource, "kind" | "handle">) =>
+  `${/^[A-Za-z]\w{3,31}$/.test(s.handle) ? `@${s.handle}` : s.handle} on ${s.kind === "x" ? "X" : "Telegram"}`;
 
 /**
  * A stable id for an outside account, so its calls add up to one track record per chat. Negative,

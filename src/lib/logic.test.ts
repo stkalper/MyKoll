@@ -2,11 +2,11 @@
 //   npm test
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { claim, mightBeCall, sideOf, teamsNamed, usd, type CallRow } from "./calls";
+import { claim, mightBeCall, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { startOf, teamKey, teamsOf } from "./polymarket";
-import { justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
+import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
 import { scorecardLine, scoreMemory } from "./scorecard";
 import { poolPrice } from "./suiPrices";
@@ -31,6 +31,21 @@ describe("spotting calls", () => {
   });
 });
 
+describe("signal posts", () => {
+  it("lets through the shapes signal posts come in", () => {
+    for (const text of ["$ASTERUSDT is going to explode from here", "$SNOW perfectly retested. Expecting to see a drop from here", "#BTC breakout incoming", "COIN: $LINK/USDT Direction: LONG", "Pick: NaVi ML @1.85 (2u)"])
+      assert.equal(mightBeCall(text), true, text);
+  });
+  it("reads the coin out of pairs and tags", () => {
+    for (const [raw, want] of [["$CHZUSDT", "CHZ"], ["SOL/USDT", "SOL"], ["ETH-PERP", "ETH"], ["#btc", "BTC"], ["BTCUSD", "BTC"], ["USDT", "USDT"], ["SUI", "SUI"]])
+      assert.equal(tickerOf(raw), want, raw);
+  });
+  it("spells out a target given relative to the price", () => {
+    assert.equal(claim({ ...call({ direction: "above", target: null, subject: "SOL" }), targetPct: 100 }), "SOL up 100%");
+    assert.equal(claim({ ...call({ direction: "below", target: null, subject: "SOL" }), targetPct: -20 }), "SOL down 20%");
+  });
+});
+
 describe("calls shared from posts", () => {
   it("finds links to posts on X and public Telegram channels", () => {
     assert.deepEqual(postLinkIn("look https://x.com/CryptoGuru/status/1985341984679469056?s=20"), {
@@ -46,6 +61,16 @@ describe("calls shared from posts", () => {
     assert.equal(justTheLink("https://x.com/abc/status/123", link), true);
     assert.equal(justTheLink("check this https://x.com/abc/status/123", link), true);
     assert.equal(justTheLink("he says btc goes to 120k, I think it dumps first https://x.com/abc/status/123", link), false);
+  });
+  it("reads a forwarded channel post as that channel's, timed when it was first posted", () => {
+    const post = forwardedPost({ type: "channel", chat: { username: "wolfoftrading", title: "Wolf" }, message_id: 812, date: 1_793_000_000 }, "$CHZUSDT long, targets 0.0143");
+    assert.equal(post?.url, "https://t.me/wolfoftrading/812");
+    assert.equal(post?.handle, "wolfoftrading");
+    assert.equal(post?.postedAt.getTime(), 1_793_000_000_000);
+    const closed = forwardedPost({ type: "channel", chat: { title: "VIP Signals" }, message_id: 5, date: 1 }, "BTC 120k")!;
+    assert.equal(closed.url, "");
+    assert.equal(sourceName(closed), "VIP Signals on Telegram");
+    assert.equal(forwardedPost({ type: "hidden_user", sender_user_name: "Max", date: 1 }, "  "), null);
   });
   it("gives each outside account one stable id, apart from Telegram users", () => {
     const id = sourceId({ kind: "x", handle: "CryptoGuru" });

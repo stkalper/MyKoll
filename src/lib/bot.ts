@@ -36,7 +36,7 @@ import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
 import { noteForNewCall, trackRecords } from "./learning";
 import { shareUrl } from "./receipts";
 import { memoryScorecard, scorecardLine } from "./scorecard";
-import { justTheLink, postLinkIn, readPost, sourceName, type PostLink } from "./posts";
+import { forwardedPost, justTheLink, postLinkIn, readPost, sourceName, type ForwardOrigin, type Post, type PostLink } from "./posts";
 import { proofLabel, proofUrl } from "./proof";
 import { DISAGREE, gap, sourceLabel } from "./tatum";
 
@@ -91,7 +91,7 @@ function receiptButtons(call: CallRow, kb = new InlineKeyboard()): InlineKeyboar
   const next = () => (kb.inline_keyboard.flat().length ? kb.row() : kb);
   if (proof) next().url(`🔎 Check the price on ${proofLabel(proof)}`, proofUrl(proof));
   if (call.market_ref) next().url("📈 The match on Polymarket", call.market_ref.url);
-  if (call.source) next().url(`📎 The original post on ${call.source.kind === "x" ? "X" : "Telegram"}`, call.source.url);
+  if (call.source?.url) next().url(`📎 The original post on ${call.source.kind === "x" ? "X" : "Telegram"}`, call.source.url);
   return kb.inline_keyboard.flat().length ? kb : undefined;
 }
 
@@ -109,8 +109,8 @@ const reasonsIn = (d: Draft) => (d.why ? [d.why] : []);
  * The call in a post someone shared from X or Telegram, read from the post's own text and time and
  * filed under its author. Null when the post holds no checkable call.
  */
-async function callFromPost(link: PostLink, sharer: { id: number; name: string }): Promise<Draft | Slate | Unplaced | null> {
-  const post = await readPost(link);
+async function callFromPost(from: PostLink | Post, sharer: { id: number; name: string }): Promise<Draft | Slate | Unplaced | null> {
+  const post = "text" in from ? from : await readPost(from);
   if (!post) return { reason: "I can't read that post. It may be deleted, or from a private account or channel.", speak: true };
   if (!(await mightBeCallNow(post.text))) return null;
   const found = await extractCall(post.text, post.postedAt).catch((err) => {
@@ -407,8 +407,9 @@ export function createBot(): Bot {
     await announceSlate(bot, call);
   });
 
-  bot.on("message:text", async (ctx) => {
-    const text = ctx.message.text;
+  // Captions too: signals are often a chart with the call written under it.
+  bot.on(["message:text", "message:caption"], async (ctx) => {
+    const text = ctx.message.text ?? ctx.message.caption ?? "";
     const mention = `@${ctx.me.username}`;
     const repliedToMe = ctx.message.reply_to_message?.from?.id === ctx.me.id;
 
@@ -433,15 +434,19 @@ export function createBot(): Bot {
     // A link to a post on X or Telegram: the call in it is filed under the post's author, once the
     // member who shared it says so. A bare link is a request to look, so the bot answers even when
     // there's nothing to file; a link inside a longer message is only offered when it holds a call.
-    const link = postLinkIn(text);
-    if (link) {
-      const asked = justTheLink(text, link);
+    // A message forwarded from a channel or another person works the same way: the call is the
+    // original author's, timed from when they first sent it. Forwards that hold no call pass quietly.
+    const forwarded = ctx.message.forward_origin ? forwardedPost(ctx.message.forward_origin as ForwardOrigin, text) : null;
+    const link = forwarded ? null : postLinkIn(text);
+    if (forwarded || link) {
+      const asked = link ? justTheLink(text, link) : false;
       if (asked) void ctx.replyWithChatAction("typing").catch(() => {});
-      const found = await callFromPost(link, authorOf(ctx));
-      const reply = (message: string) => (asked ? ctx.reply(message, { reply_parameters: { message_id: ctx.message.message_id } }) : undefined);
-      console.log("shared post", { chat: ctx.chat.id, kind: link.kind, result: found ? ("reason" in found ? found.reason : "call") : "not a call" });
-      if (!found) return reply(`I read @${link.handle}'s post but found no call in it I can check.`);
-      if ("reason" in found) return reply(found.reason);
+      const found = await callFromPost((forwarded ?? link)!, authorOf(ctx));
+      const reply = (message: string) => ctx.reply(message, { reply_parameters: { message_id: ctx.message.message_id } });
+      console.log("shared post", { chat: ctx.chat.id, kind: forwarded ? "forward" : link!.kind, result: found ? ("reason" in found ? found.reason : "call") : "not a call" });
+      if (!found) return asked ? reply(`I read @${link!.handle}'s post but found no call in it I can check.`) : undefined;
+      // A forward or a bare link holds a call the sender wants kept, so say why it can't be.
+      if ("reason" in found) return asked || forwarded ? reply(found.reason) : undefined;
       const id = randomBytes(6).toString("hex");
       await db(`insert into pending_calls (id, chat_id, author_id, draft) values ($1, $2, $3, $4)`, [id, ctx.chat.id, ctx.from.id, JSON.stringify(found)]);
       const n = "picks" in found ? found.picks.length : 1;
