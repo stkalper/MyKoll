@@ -73,6 +73,16 @@ const ALIASES: Record<string, string> = {
   віталіті: "vitality",
   спіріт: "spirit",
   спирит: "spirit",
+  фнатік: "fnatic",
+  фнатик: "fnatic",
+  themongolz: "mongolz",
+  монголз: "mongolz",
+  мауз: "mouz",
+  фуріа: "furia",
+  фурия: "furia",
+  астраліс: "astralis",
+  астралис: "astralis",
+  c9: "cloud9",
 };
 
 /** Both teams of a Polymarket CS2 event, from its title: "Counter-Strike: MOUZ vs FURIA (BO3) - …". */
@@ -106,6 +116,24 @@ function upcomingEvents(): Promise<Event[]> {
 
 /** How many upcoming CS2 matches Polymarket lists (for the health check). */
 export const upcomingCs2Matches = async () => (await upcomingEvents()).filter((e) => new Date(e.closeTime).getTime() > Date.now()).length;
+
+/**
+ * A team's next match on Polymarket, for a call that names only the team ("изи для НАВІ завтра"):
+ * the match nearest the day the author named, else the soonest one this week. Names are spelled
+ * the way Polymarket spells them.
+ */
+export async function nextMatch(team: string, near?: Date): Promise<{ team: string; opponent: string; at: Date } | null> {
+  const key = teamKey(team);
+  const now = Date.now();
+  const games = (await upcomingEvents())
+    .map((e) => ({ teams: teamsOf(e.title)!, at: new Date(e.closeTime) }))
+    .filter((g) => g.teams.some((t) => teamKey(t) === key) && g.at.getTime() > now - 3 * 3_600_000 && g.at.getTime() < now + 7 * 86_400_000)
+    .sort((a, b) => (near ? Math.abs(a.at.getTime() - near.getTime()) - Math.abs(b.at.getTime() - near.getTime()) : a.at.getTime() - b.at.getTime()));
+  const game = games[0];
+  if (!game) return null;
+  const [ours, theirs] = teamKey(game.teams[0]) === key ? game.teams : [game.teams[1], game.teams[0]];
+  return { team: ours, opponent: theirs, at: game.at };
+}
 
 /** The match-winner market of an event (not a map, handicap or totals market). */
 async function matchWinner(eventId: string): Promise<Market | null> {

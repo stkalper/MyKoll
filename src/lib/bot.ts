@@ -329,7 +329,10 @@ export function createBot(): Bot {
       return null;
     });
     console.log("spotted candidate", { chat: ctx.chat.id, length: text.length, result: draft ? ("reason" in draft ? draft.reason : "call") : "not a call" });
-    if (!draft || "reason" in draft) return;
+    if (!draft) return;
+    // Most reasons stay quiet in a passive read; a clear pick the bot can't place is worth saying.
+    if ("reason" in draft)
+      return draft.speak ? ctx.reply(draft.reason, { reply_parameters: { message_id: ctx.message.message_id } }) : undefined;
     // Pricing, memory and the receipt take a few seconds; show the chat the bot is on it.
     void ctx.replyWithChatAction("typing").catch(() => {});
 

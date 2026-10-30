@@ -5,7 +5,7 @@ import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
 import { remember } from "./memory";
 import { wakeAt } from "./schedule";
-import { findMatch, marketWinner, teamKey, type MarketRef } from "./polymarket";
+import { findMatch, marketWinner, nextMatch, teamKey, type MarketRef } from "./polymarket";
 import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
 
@@ -66,7 +66,7 @@ const MAX_QUOTE = 280;
 // \b only knows ASCII letters, so word edges are spelled out to work for Cyrillic too.
 const word = (alts: string) => new RegExp(`(?<![\\p{L}\\d])(${alts})(?![\\p{L}])`, "iu");
 const CS2_TEAMS = word(
-  "navi|na'vi|нави|наві|faze|фейз|vitality|віталіті|spirit|спіріт|спирит|g2|mouz|falcons|liquid|astralis|heroic|furia|mongolz|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|parivision|legacy|mibr|imperial|og",
+  "navi|na'vi|natus vincere|нави|наві|faze|фейз|vitality|віталіті|виталити|spirit|спіріт|спирит|g2|mouz|мауз|falcons|liquid|astralis|астраліс|астралис|heroic|furia|фурі\\p{L}*|фури\\p{L}*|(?:the\\s?)?mongolz|монголз|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|parivision|legacy|mibr|imperial|og|fnatic|фнатік\\p{L}*|фнатик\\p{L}*|cloud9|c9|ence|passion ua|tyloo|lynn vision|wildcard|fluxo|nemiga|немиг\\p{L}*|saw|m80|gentle mates|nrg|sashi|bestia",
 );
 const CRYPTO = word(
   "\\$[a-z]{2,8}|navx|haedal|ika|hippo|lofi|scallop|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|trx|tron|трон\\p{L}*|трх|ltc|bch|atom|algo|xlm|matic|vet|cro|chz|tsla|tesla|тесл\\p{L}*|nvda|nvidia|нвід\\p{L}*|aapl|msft|amzn|googl|pons|понс|cashcat|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|бтс|бтц|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
@@ -74,7 +74,7 @@ const CRYPTO = word(
 /** Any ticker written in caps, e.g. "APT" or "WAL". */
 const TICKER = /(?<![\p{L}\d])[A-Z]{2,6}(?![\p{L}])/u;
 const PREDICTION =
-  /\d|\b(will|gonna|by|to|until|pump|dump|moon|long|short|win|wins|beat|beats|take|takes|crash|ath|tp|sl|entry|target|signal|over|under|above|below|tomorrow|tmrw|tonight|next week|hours?|hrs?|mins?|dollars?|bucks?|cents?)\b|буд|вищ|вище|нижч|завтра|годин|хвилин|бакс|долар|цент|пі[дй]д|впад|вирос|вигра|візьм|рознес|злет|пойд|упад|вырас|выигр|возьм|разнес|порв|лонг|шорт|тейк|стоп|вхід|вход|ціль|цель|сигнал|памп|дамп|зрост|рост|пада/iu;
+  /\d|\b(will|gonna|by|to|until|pump|dump|moon|long|short|win|wins|beat|beats|take|takes|crash|ath|tp|sl|entry|target|signal|over|under|above|below|tomorrow|tmrw|tonight|next week|hours?|hrs?|mins?|dollars?|bucks?|cents?|vs|easy|ez|fav|underdog)\b|\+\s?на|плюс на|изи|ізі|ставл|ставк|проти|против|перемож|перемог|победи|фаворит|андердог|буд|вищ|вище|нижч|завтра|годин|хвилин|бакс|долар|цент|пі[дй]д|впад|вирос|вигра|візьм|рознес|злет|пойд|упад|вырас|выигр|возьм|разнес|порв|лонг|шорт|тейк|стоп|вхід|вход|ціль|цель|сигнал|памп|дамп|зрост|рост|пада/iu;
 
 /** Cheap filter so the model only sees messages that could plausibly be a call. */
 export function mightBeCall(text: string): boolean {
@@ -96,7 +96,7 @@ function nowInZone(): string {
  * into a structured draft. Returns null for chatter, jokes and questions, and a reason
  * when it is a call the bot can't keep score on.
  */
-export async function extractCall(text: string): Promise<Draft | { reason: string } | null> {
+export async function extractCall(text: string): Promise<Draft | { reason: string; speak?: boolean } | null> {
   const reply = await complete(
     [
       {
@@ -107,7 +107,12 @@ A call is either:
   A coin with a price and a time is a call even without a side: "BTC 102k tomorrow" / "БТС 102к завтра" means BTC gets to 102000 by tomorrow.
   A trading signal is a call too: "TRX long, entry 0.33, TP 0.36, SL 0.31" / "лонг TRX, тейк 0.36" means TRX above the first take-profit (short: below it).
   This also covers stock tokens on Robinhood Chain (TSLA, NVDA, AAPL, SPY, MSFT, AMZN, GOOGL, META, COIN) and its memecoins (PONS, CASHCAT): "tesla to 450 by Friday" is subject TSLA.
-- cs2: a team winning a match. Example: "NaVi take FaZe tonight", "Spirit beats Vitality".
+- cs2: a team winning its match. Example: "NaVi take FaZe tonight", "Spirit beats Vitality".
+  Any CS2 team counts, big or small (fnatic, Eternal Fire, Nemiga, BC.Game...).
+  A bare "X beat Y" / "X beats Y" is a call on their coming match, not a past result: chats talk about matches ahead, so "Fnatic beat Eternal Fire" and "Spirit beat Vitality, easy" are calls. Only skip it when the message clearly talks about a match already played ("yesterday", "did you see", "gg wp").
+  A team name with a word of confidence is a call on that team, even in two words: "фнатік ізі", "ez fnatic", "изи для X", "+ на X", "X фаворит", "ставлю на X проти Y", "X vs Y, X".
+  A predicted score is a call on the team with more maps: "FaZe 2-0 G2" picks FaZe, "2:1 G2 vs FaZe" picks G2.
+  The opponent may go unnamed ("изи для НАВІ завтра", "NaVi easy tomorrow"): then opponent is null.
 Not calls: questions, jokes, sarcasm, other people's predictions, vague moods ("sol looks good").
 
 Now is ${nowInZone()} in ${config.timezone}.
@@ -115,8 +120,8 @@ Now is ${nowInZone()} in ${config.timezone}.
 Reply with JSON only:
 {"is_call": boolean,
  "market": "crypto" | "cs2",
- "subject": ticker in caps for crypto (BTC, SUI, SOL, TSLA...) or the team picked to WIN for cs2,
- "opponent": the other team for cs2, else null,
+ "subject": ticker in caps for crypto (BTC, SUI, SOL, TSLA...) or the team picked to WIN for cs2 (team names in their usual English spelling: "наві" is NaVi, "фурію" is FURIA),
+ "opponent": the other team for cs2 if the message names it, else null,
  "direction": "above" | "below" (crypto with a price level and a side: above, over, to, pump, вище, до, памп...), "to" (a price level with no side said, e.g. "BTC 102k tomorrow"), "up" | "down" (crypto without a level), "win" (cs2),
  "target": price level in USD as a number, else null (expand "90k" / "90к" to 90000; "1 бакс" / "a buck" / "a dollar" is 1, "50 cents" is 0.5),
  "in_minutes": minutes from now until the call is judged if the message says it relatively ("in 5 minutes", "in 2 hours", "через 5 годин" = 300, "через пів години" = 30, "within a day"), else null,
@@ -143,23 +148,38 @@ Reply with JSON only:
   }>(reply);
   if (!r?.is_call || !r.subject || !r.market || !r.direction) return null;
   if (r.market !== "crypto" && r.market !== "cs2") return null;
-  if (r.market === "cs2" && (!r.opponent || r.direction !== "win")) return null;
+  if (r.market === "cs2" && r.direction !== "win") return null;
   if (r.market === "crypto" && !["above", "below", "up", "down", "to"].includes(r.direction)) return null;
   if (hasLevel(r.direction) && !(Number(r.target) > 0)) return null;
 
   // Relative times are counted here, not by the model. No deadline said: a CS2 match is
   // usually within a day, a price call gets a week.
   const minutes = Number(r.in_minutes);
-  let deadline =
-    minutes > 0 ? new Date(Date.now() + minutes * 60_000) : r.deadline ? new Date(r.deadline) : new Date(Date.now() + (r.market === "cs2" ? DAY : 7 * DAY));
-  if (Number.isNaN(deadline.getTime())) deadline = new Date(Date.now() + 7 * DAY);
+  const said = minutes > 0 ? new Date(Date.now() + minutes * 60_000) : r.deadline ? new Date(r.deadline) : null;
+  let deadline = said && !Number.isNaN(said.getTime()) ? said : new Date(Date.now() + (r.market === "cs2" ? DAY : 7 * DAY));
+
+  // A pick with no opponent is on the team's next match, as Polymarket lists it.
+  let subject = r.subject;
+  let opponent = r.opponent?.trim() || null;
+  if (r.market === "cs2" && !opponent) {
+    const next = await nextMatch(subject, said ?? undefined).catch((err) => {
+      console.error("Polymarket next-match lookup failed", err);
+      return null;
+    });
+    if (!next) return { reason: `I can't find ${subject}'s next match. Name the opponent, e.g. "${subject} beat FaZe".`, speak: true };
+    ({ team: subject, opponent } = next);
+    // Judged once the match is over: a few hours after it starts, even if the author said an earlier day.
+    const over = next.at.getTime() + 4 * 3_600_000;
+    if (!said || deadline.getTime() < over) deadline = new Date(over);
+  }
+
   if (deadline.getTime() < Date.now() + 60_000) return { reason: "That deadline is already here. Give it at least a couple of minutes." };
   if (deadline.getTime() > Date.now() + 120 * DAY) return { reason: "I only keep score on calls that settle within 120 days." };
 
   return {
     market: r.market,
-    subject: r.market === "crypto" ? r.subject.replace(/^\$/, "").toUpperCase() : r.subject,
-    opponent: r.market === "cs2" ? (r.opponent ?? null) : null,
+    subject: r.market === "crypto" ? subject.replace(/^\$/, "").toUpperCase() : subject,
+    opponent: r.market === "cs2" ? opponent : null,
     direction: r.direction,
     target: hasLevel(r.direction) ? Number(r.target) : null,
     deadline: deadline.toISOString(),

@@ -22,11 +22,11 @@ const call = (over: Partial<CallRow>): CallRow =>
 
 describe("spotting calls", () => {
   it("lets through predictions in English, Ukrainian and Russian", () => {
-    for (const text of ["SUI to $5 by Friday", "btc dumps under 90k this week", "біток до 90к до неділі", "NaVi рознесуть FaZe сьогодні", "эфир упадет до 2000", "WAL 0.05 by friday", "тесла до 450 до пʼятниці", "PONS to 50 cents", "trx лонг", "TRX long, entry 0.33, TP 0.36", "трх шорт тейк 0.30", "сигнал по трону", "БТС 102к завтра", "СУІ вище 1 бакса через 5 годин", "BTC 102k tomorrow", "SUI above 1 buck in 5 hours", "sui over a dollar tomorrow", "суі вище бакса завтра"])
+    for (const text of ["SUI to $5 by Friday", "btc dumps under 90k this week", "біток до 90к до неділі", "NaVi рознесуть FaZe сьогодні", "эфир упадет до 2000", "WAL 0.05 by friday", "тесла до 450 до пʼятниці", "PONS to 50 cents", "trx лонг", "TRX long, entry 0.33, TP 0.36", "трх шорт тейк 0.30", "сигнал по трону", "БТС 102к завтра", "СУІ вище 1 бакса через 5 годин", "BTC 102k tomorrow", "SUI above 1 buck in 5 hours", "sui over a dollar tomorrow", "суі вище бакса завтра", "изи для НАВІ завтра", "ставлю на віталіті проти спіріт", "vitality vs spirit, vitality", "Fnatic beat NIP", "фнатік фаворит"])
       assert.equal(mightBeCall(text), true, text);
   });
   it("skips chatter, commands and coins without a prediction", () => {
-    for (const text of ["good morning everyone", "/call SUI to $5", "BTC", "lol"]) assert.equal(mightBeCall(text), false, text);
+    for (const text of ["good morning everyone", "/call SUI to $5", "BTC", "lol", "дивимось наві ввечері?"]) assert.equal(mightBeCall(text), false, text);
   });
 });
 
@@ -85,6 +85,9 @@ describe("CS2 on Polymarket", () => {
     assert.equal(teamKey("Na'Vi"), "navi");
     assert.notEqual(teamKey("NAVI Junior"), teamKey("NaVi"));
     assert.equal(teamKey("FURIA Esports"), teamKey("FURIA"));
+    assert.equal(teamKey("НАВІ"), "navi");
+    assert.equal(teamKey("фнатік"), teamKey("fnatic"));
+    assert.equal(teamKey("TheMongolZ"), teamKey("The MongolZ"));
   });
   it("reads both teams from a Polymarket match title", () => {
     assert.deepEqual(teamsOf("Counter-Strike: MOUZ vs FURIA (BO3) - PGL Masters Bucharest Playoffs"), ["MOUZ", "FURIA"]);
