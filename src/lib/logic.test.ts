@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { claim, mightBeCall, sideOf, teamsNamed, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
-import { teamKey, teamsOf } from "./polymarket";
+import { startOf, teamKey, teamsOf } from "./polymarket";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
 import { scorecardLine, scoreMemory } from "./scorecard";
 import { poolPrice } from "./suiPrices";
@@ -33,10 +33,10 @@ describe("spotting calls", () => {
 describe("teams beyond the fixed list", () => {
   it("finds teams on Polymarket's current matches in a message", () => {
     const listed = new Set(["bcgame", "lynnvision", "metizport", "og"]);
-    assert.deepEqual([...teamsNamed("easy for bcgame", listed)], ["bcgame"]);
-    assert.deepEqual([...teamsNamed("BC.Game Esports tonight", listed)], ["bcgame"]);
-    assert.deepEqual([...teamsNamed("Lynn Vision, Metizport", listed)].sort(), ["lynnvision", "metizport"]);
-    assert.deepEqual([...teamsNamed("og bro", listed)], []);
+    assert.deepEqual([...teamsNamed("easy for bcgame", listed).keys()], ["bcgame"]);
+    assert.deepEqual([...teamsNamed("BC.Game Esports tonight", listed).keys()], ["bcgame"]);
+    assert.deepEqual([...teamsNamed("Lynn Vision, Metizport", listed).keys()].sort(), ["lynnvision", "metizport"]);
+    assert.deepEqual([...teamsNamed("og bro", listed).keys()], []);
   });
 });
 
@@ -96,6 +96,14 @@ describe("CS2 on Polymarket", () => {
     assert.notEqual(teamKey("NAVI Junior"), teamKey("NaVi"));
     assert.equal(teamKey("FURIA Esports"), teamKey("FURIA"));
     assert.equal(teamKey("НАВІ"), "navi");
+    assert.equal(teamKey("BC.Game Esports"), "bcgame");
+  });
+  it("reads when a match starts from its description, in New York time", () => {
+    const at = (when: string) => startOf({ description: `the match, initially scheduled for ${when} ET. More text`, closeTime: "2026-10-31T03:25:00Z" }).toISOString();
+    assert.equal(at("October 30, 2026 at 5:15 PM"), "2026-10-30T21:15:00.000Z");
+    assert.equal(at("November 2, 2026 at 12:00 PM"), "2026-11-02T17:00:00.000Z");
+    assert.equal(at("January 5, 2027 at 9:30 AM"), "2027-01-05T14:30:00.000Z");
+    assert.equal(startOf({ closeTime: "2026-10-31T03:25:00Z" }).toISOString(), "2026-10-31T03:25:00.000Z");
     assert.equal(teamKey("фнатік"), teamKey("fnatic"));
     assert.equal(teamKey("TheMongolZ"), teamKey("The MongolZ"));
   });

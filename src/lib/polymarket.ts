@@ -39,9 +39,35 @@ interface Market {
 interface Event {
   id: string;
   title: string;
+  description?: string;
   status: string;
   closeTime: string;
   source?: { url?: string };
+}
+
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
+/**
+ * When a match starts. Polymarket's closeTime is a few hours after the market went up, not the
+ * match time, and CS2 markets keep trading while the match is played, so the start comes from the
+ * description: "initially scheduled for October 30, 2026 at 5:15 PM ET".
+ */
+export function startOf(e: Pick<Event, "description" | "closeTime">): Date {
+  const m = e.description?.match(/scheduled for (\w+) (\d{1,2}), (\d{4}) at (\d{1,2}):(\d{2}) ([AP]M) ET/i);
+  const month = m ? MONTHS.indexOf(m[1].toLowerCase()) : -1;
+  if (!m || month < 0) return new Date(e.closeTime);
+  const hour = (Number(m[4]) % 12) + (m[6].toUpperCase() === "PM" ? 12 : 0);
+  return fromNewYork(Number(m[3]), month, Number(m[2]), hour, Number(m[5]));
+}
+
+/** A wall-clock time in New York (EST or EDT, whichever applied that day) as an instant. */
+function fromNewYork(year: number, month: number, day: number, hour: number, minute: number): Date {
+  const guess = Date.UTC(year, month, day, hour + 5, minute);
+  const offset = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", timeZoneName: "longOffset" })
+    .formatToParts(new Date(guess))
+    .find((p) => p.type === "timeZoneName")?.value;
+  const hours = Number(offset?.match(/GMT([+-]\d{2})/)?.[1] ?? -5);
+  return new Date(Date.UTC(year, month, day, hour - hours, minute));
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -119,15 +145,78 @@ function upcomingEvents(): Promise<Event[]> {
  * long before they're played, so a team's own matches are also searched by name.
  */
 async function teamEvents(team: string): Promise<Event[]> {
-  const [listed, found] = await Promise.all([
-    upcomingEvents(),
-    get<{ data?: { events?: Event[] } }>(`/search?q=${encodeURIComponent(`Counter-Strike: ${team}`)}`)
-      .then((r) => (r.data?.events ?? []).filter((e) => e.status === "active" && teamsOf(e.title)))
-      .catch(() => [] as Event[]),
-  ]);
+  const [listed, found] = await Promise.all([upcomingEvents(), searchTeam(team)]);
+  const open = found.filter((e) => e.status === "active");
   const ids = new Set(listed.map((e) => e.id));
-  return [...listed, ...found.filter((e) => !ids.has(e.id))];
+  return [...listed, ...open.filter((e) => !ids.has(e.id))];
 }
+
+/** A team's CS2 events by name, open and closed alike; briefly cached, since one message can ask twice. */
+const searched = new Map<string, { at: number; value: Promise<Event[]> }>();
+
+function searchTeam(team: string): Promise<Event[]> {
+  const key = teamKey(team);
+  const hit = searched.get(key);
+  if (hit && Date.now() - hit.at < 2 * 60_000) return hit.value;
+  // Search returns ten results, ranked loosely, so it's asked two ways and the answers merged.
+  const ask = (q: string) =>
+    get<{ data?: { events?: Event[] } }>(`/search?q=${encodeURIComponent(q)}`)
+      .then((r) => r.data?.events ?? [])
+      .catch(() => [] as Event[]);
+  const value = Promise.all([ask(`Counter-Strike: ${team}`), ask(team)]).then(([a, b]) => {
+    const byId = new Map([...a, ...b].map((e) => [e.id, e]));
+    return [...byId.values()].filter((e) => teamsOf(e.title)?.some((t) => teamKey(t) === key));
+  });
+  searched.set(key, { at: Date.now(), value });
+  return value;
+}
+
+/** The two teams of an event, the given team first. */
+function sides(e: Event, key: string): [string, string] {
+  const teams = teamsOf(e.title)!;
+  return teamKey(teams[0]) === key ? teams : [teams[1], teams[0]];
+}
+
+/**
+ * A match of this team (against this opponent, if named) that is being played right now: past
+ * its start and not yet resolved. Calls on it would be made watching the score, so they aren't taken.
+ */
+export async function startedMatch(team: string, opponent?: string | null): Promise<{ team: string; opponent: string; at: Date } | null> {
+  const key = teamKey(team);
+  const now = Date.now();
+  const found = (await Promise.all([searchTeam(team), opponent ? searchTeam(opponent) : []])).flat();
+  const recent = [...new Map(found.map((e) => [e.id, e])).values()]
+    .filter((e) => {
+      const start = startOf(e).getTime();
+      const teams = teamsOf(e.title)!.map(teamKey);
+      return start <= now && start > now - 8 * 3_600_000 && teams.includes(key) && (!opponent || teams.includes(teamKey(opponent)));
+    })
+    // The latest start first: the one being played, not an earlier one waiting to be resolved.
+    .sort((a, b) => startOf(b).getTime() - startOf(a).getTime());
+  for (const e of recent) {
+    const market = await matchWinner(e.id).catch(() => null);
+    if (!market || market.status === "resolved" || market.resolution?.outcome) continue;
+    const [ours, theirs] = sides(e, key);
+    return { team: ours, opponent: theirs, at: startOf(e) };
+  }
+  return null;
+}
+
+/** Orders matches for a call that names a time: those starting in the day before it first, then the nearest, then the soonest. */
+const byTime = (by?: Date) => (a: Event, b: Event) => {
+  const miss = (e: Event) => {
+    if (!by) return 0;
+    const t = startOf(e).getTime();
+    return t <= by.getTime() && t > by.getTime() - 86_400_000 ? 0 : Math.abs(t - by.getTime());
+  };
+  return miss(a) - miss(b) || startOf(a).getTime() - startOf(b).getTime();
+};
+
+/** Not started yet, and within the week. */
+const ahead = (e: Event) => {
+  const start = startOf(e).getTime();
+  return start > Date.now() && start < Date.now() + 7 * 86_400_000;
+};
 
 let knownTeams: Set<string> | undefined;
 
@@ -146,29 +235,21 @@ export async function listedTeams(): Promise<Set<string>> {
 }
 
 /** How many upcoming CS2 matches Polymarket lists (for the health check). */
-export const upcomingCs2Matches = async () => (await upcomingEvents()).filter((e) => new Date(e.closeTime).getTime() > Date.now()).length;
+export const upcomingCs2Matches = async () => (await upcomingEvents()).filter(ahead).length;
 
 /**
- * A team's next match on Polymarket, for a call that names only the team ("изи для НАВІ завтра"):
- * the first one in the day before the time the author named ("завтра" is 23:59 tomorrow), else
- * the one nearest it, else the soonest one this week. Names are spelled the way Polymarket spells them.
+ * A team's next match on Polymarket that hasn't started, for a call that names only the team
+ * ("изи для НАВІ завтра"): on the day the author named ("завтра" is 23:59 tomorrow), else the
+ * soonest this week. Names are spelled the way Polymarket spells them.
  */
 export async function nextMatch(team: string, by?: Date): Promise<{ team: string; opponent: string; at: Date } | null> {
   const key = teamKey(team);
-  const now = Date.now();
-  const miss = (at: Date) => {
-    if (!by) return 0;
-    const t = at.getTime();
-    return t <= by.getTime() && t > by.getTime() - 86_400_000 ? 0 : Math.abs(t - by.getTime());
-  };
-  const games = (await teamEvents(team))
-    .map((e) => ({ teams: teamsOf(e.title)!, at: new Date(e.closeTime) }))
-    .filter((g) => g.teams.some((t) => teamKey(t) === key) && g.at.getTime() > now - 3 * 3_600_000 && g.at.getTime() < now + 7 * 86_400_000)
-    .sort((a, b) => miss(a.at) - miss(b.at) || a.at.getTime() - b.at.getTime());
-  const game = games[0];
+  const game = (await teamEvents(team))
+    .filter((e) => ahead(e) && teamsOf(e.title)!.some((t) => teamKey(t) === key))
+    .sort(byTime(by))[0];
   if (!game) return null;
-  const [ours, theirs] = teamKey(game.teams[0]) === key ? game.teams : [game.teams[1], game.teams[0]];
-  return { team: ours, opponent: theirs, at: game.at };
+  const [ours, theirs] = sides(game, key);
+  return { team: ours, opponent: theirs, at: startOf(game) };
 }
 
 /** The match-winner market of an event (not a map, handicap or totals market). */
@@ -178,20 +259,14 @@ async function matchWinner(eventId: string): Promise<Market | null> {
 }
 
 /**
- * The Polymarket market for a CS2 call: the same two teams, playing between a few hours ago
- * and a week from now, nearest to the call's deadline. Null when Polymarket has no such match.
+ * The Polymarket market for a CS2 call: the same two teams, in a match that hasn't started and
+ * plays this week, the one before the call's deadline first. Null when Polymarket has no such match.
  */
 export async function findMatch(team: string, opponent: string, deadline: Date): Promise<MarketRef | null> {
   const want = [teamKey(team), teamKey(opponent)].sort().join("|");
-  const now = Date.now();
-  const candidates = (await teamEvents(team))
-    .filter((e) => {
-      const teams = teamsOf(e.title)!;
-      const close = new Date(e.closeTime).getTime();
-      return teams.map(teamKey).sort().join("|") === want && close > now - 6 * 3_600_000 && close < now + 7 * 86_400_000;
-    })
-    .sort((a, b) => Math.abs(new Date(a.closeTime).getTime() - deadline.getTime()) - Math.abs(new Date(b.closeTime).getTime() - deadline.getTime()));
-  const event = candidates[0];
+  const event = (await teamEvents(team))
+    .filter((e) => ahead(e) && teamsOf(e.title)!.map(teamKey).sort().join("|") === want)
+    .sort(byTime(deadline))[0];
   if (!event) return null;
 
   const market = await matchWinner(event.id);

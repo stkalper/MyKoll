@@ -6,7 +6,7 @@ import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
 import { remember } from "./memory";
 import { wakeAt } from "./schedule";
-import { findMatch, listedTeams, marketWinner, nextMatch, teamKey, type MarketRef } from "./polymarket";
+import { findMatch, listedTeams, marketWinner, nextMatch, startedMatch, teamKey, type MarketRef } from "./polymarket";
 import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
 
@@ -56,6 +56,8 @@ export interface Slate {
 /** A call the bot can't keep score on, and why; `speak` when it's worth saying even in a passive read. */
 export interface Unplaced {
   reason: string;
+  /** The same in a few words, for a list of picks. */
+  short?: string;
   speak?: boolean;
 }
 
@@ -99,23 +101,34 @@ const PREDICTION =
 
 /** Cheap filter so the model only sees messages that could plausibly be a call. */
 export function mightBeCall(text: string): boolean {
-  if (text.length < 6 || text.length > MAX_MESSAGE || text.startsWith("/")) return false;
+  if (text.length < 4 || text.length > MAX_MESSAGE || text.startsWith("/")) return false;
   // A bare list of teams is a set of picks: "наві, віталіті, мауз, фуріа".
   if ((text.match(CS2_TEAMS_ALL) ?? []).length >= 2) return true;
   return (CRYPTO.test(text) || TICKER.test(text) || CS2_TEAMS.test(text)) && PREDICTION.test(text);
 }
 
-/** Listed teams named in a message, by team key: one to three words at a time, e.g. "BC.Game", "Lynn Vision". */
-export function teamsNamed(text: string, teams: Set<string>): Set<string> {
+/**
+ * Listed teams named in a message, team key to the words used: one to three words at a time,
+ * e.g. "BC.Game", "Lynn Vision".
+ */
+export function teamsNamed(text: string, teams: Set<string>): Map<string, string> {
   const words = text.split(/[\s,;:!?()"«»/+]+/).filter(Boolean);
-  const found = new Set<string>();
+  const found = new Map<string, string>();
   for (let i = 0; i < words.length; i++)
     for (let n = 1; n <= 3 && i + n <= words.length; n++) {
-      const key = teamKey(words.slice(i, i + n).join(" "));
+      const phrase = words.slice(i, i + n).join(" ");
+      const key = teamKey(phrase);
       // Short keys ("og", "big") are too easily ordinary words; the fixed list covers those teams.
-      if (key.length >= 4 && teams.has(key)) found.add(key);
+      if (key.length >= 4 && teams.has(key) && !found.has(key)) found.set(key, phrase);
     }
   return found;
+}
+
+/** Every CS2 team a message names, as written, from the fixed list and Polymarket's current matches. */
+async function teamWords(text: string): Promise<Map<string, string>> {
+  const named = teamsNamed(text, await listedTeams().catch(() => new Set<string>()));
+  for (const m of text.match(CS2_TEAMS_ALL) ?? []) if (!named.has(teamKey(m))) named.set(teamKey(m), m);
+  return named;
 }
 
 /**
@@ -124,9 +137,8 @@ export function teamsNamed(text: string, teams: Set<string>): Set<string> {
  */
 export async function mightBeCallNow(text: string): Promise<boolean> {
   if (mightBeCall(text)) return true;
-  if (text.length < 6 || text.length > MAX_MESSAGE || text.startsWith("/")) return false;
-  const named = teamsNamed(text, await listedTeams());
-  for (const m of text.match(CS2_TEAMS_ALL) ?? []) named.add(teamKey(m));
+  if (text.length < 4 || text.length > MAX_MESSAGE || text.startsWith("/")) return false;
+  const named = await teamWords(text);
   return named.size >= 2 || (named.size >= 1 && PREDICTION.test(text));
 }
 
@@ -145,6 +157,7 @@ function nowInZone(): string {
  * when it is a call the bot can't keep score on.
  */
 export async function extractCall(text: string): Promise<Draft | Slate | Unplaced | null> {
+  const teams = [...(await teamWords(text)).values()];
   const reply = await complete(
     [
       {
@@ -164,7 +177,8 @@ A call is either:
   Several teams picked at once are a set of picks, one per team: a bare list ("наві, віталіті, мауз, фуріа", "NaVi Vitality MOUZ FURIA tomorrow"), "my picks: X, Y, Z", or several "X over Y" in one message. Put every pick in "picks".
 Not calls: questions, jokes, sarcasm, other people's predictions, vague moods ("sol looks good").
 
-Now is ${nowInZone()} in ${config.timezone}.
+Now is ${nowInZone()} in ${config.timezone}.${teams.length ? `
+These words in the message are CS2 team names: ${teams.map((t) => `"${t}"`).join(", ")}.` : ""}
 
 Reply with JSON only:
 {"is_call": boolean,
@@ -256,12 +270,25 @@ async function placePick(
   let subject = team.trim();
   let opponent = rival?.trim() || null;
   let deadline = said ?? new Date(Date.now() + DAY);
-  if (!opponent) {
-    const next = await nextMatch(subject, said ?? undefined).catch((err) => {
-      console.error("Polymarket next-match lookup failed", err);
+  const lookup = <T,>(p: Promise<T | null>) =>
+    p.catch((err) => {
+      console.error("Polymarket lookup failed", err);
       return null;
     });
-    if (!next) return { reason: `I can't find a match ${subject} plays this week that hasn't started yet. Name the opponent, e.g. "${subject} beat FaZe".`, speak: true };
+
+  // A match being played now can't be called: the author could be watching the score. Unless they
+  // named a later day, that's the match they mean, so say so instead of moving the pick elsewhere.
+  const [live, next] = await Promise.all([lookup(startedMatch(subject, opponent)), opponent ? null : lookup(nextMatch(subject, said ?? undefined))]);
+  if (live && (!said || live.at.getTime() > said.getTime() - DAY)) {
+    const then = next ? ` Their next one is against ${next.opponent} (${when(next.at)}): say "${next.team} beat ${next.opponent}" to call it.` : "";
+    return {
+      reason: `${live.team} vs ${live.opponent} has already started, and calls only count before a match begins.${then}`,
+      short: `${live.team} vs ${live.opponent} has already started`,
+      speak: true,
+    };
+  }
+  if (!opponent) {
+    if (!next) return { reason: `I can't find a match ${subject} plays this week that hasn't started yet. Name the opponent, e.g. "${subject} beat FaZe".`, short: `no upcoming match for ${subject}`, speak: true };
     ({ team: subject, opponent } = next);
     const over = next.at.getTime() + 4 * 3_600_000;
     if (!said || deadline.getTime() < over) deadline = new Date(over);
@@ -283,7 +310,7 @@ async function slateOf(
   const skipped: string[] = [];
   const picks: Draft[] = [];
   placed.forEach((p, i) => {
-    if ("reason" in p) skipped.push(`${raw[i].team}: no upcoming match found`);
+    if ("reason" in p) skipped.push(p.short ?? `${raw[i].team}: ${p.reason}`);
     else picks.push({ market: "cs2", ...p, direction: "win", target: null, quote, why });
   });
   if (raw.length > MAX_PICKS) skipped.push(`only the first ${MAX_PICKS} picks count`);
@@ -373,6 +400,9 @@ export async function logCall(chat: { id: number; title?: string }, author: Auth
   // CS2: the same match on Polymarket, when there is one, for its odds and its result.
   let market: MarketRef | null = null;
   if (draft.market === "cs2" && draft.opponent) {
+    // The author may tap "Log it" after the match began.
+    const live = await startedMatch(draft.subject, draft.opponent).catch(() => null);
+    if (live) return { error: `${live.team} vs ${live.opponent} has already started, and calls only count before a match begins.` };
     market = await findMatch(draft.subject, draft.opponent, new Date(draft.deadline)).catch((err) => {
       console.error("Polymarket lookup failed", err);
       return null;
