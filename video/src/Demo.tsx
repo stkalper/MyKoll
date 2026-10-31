@@ -6,18 +6,25 @@ import { ColdOpen, Problem, Title } from "./scenes/open";
 import { JustTalk, Settles } from "./scenes/talk";
 import { Memory } from "./scenes/memory";
 import { Ask, Channels, End, Hood } from "./scenes/close";
+import { LIVE_ASK_LENGTH, LIVE_CALLS_LENGTH, LIVE_SLATE_LENGTH, LiveAsk, LiveCalls, LiveSlate } from "./scenes/live";
 import { FPS, s } from "./theme";
 
-/** The film, scene by scene, with the voice clip each one carries (public/audio/<vo>.mp3). */
+/**
+ * The film, scene by scene, with the voice clip each one carries (public/audio/<vo>.mp3). The live
+ * scenes are real screen recordings with no voice over them; the music comes up there.
+ */
 export const SCENES = [
   { id: "cold", vo: "vo_00_cold_open", length: s(9), voAt: s(6.3), Scene: ColdOpen },
   { id: "problem", vo: "vo_01_problem", length: s(8.5), voAt: s(0.4), Scene: Problem },
   { id: "title", vo: "vo_02_title", length: s(6), voAt: s(1.2), Scene: Title },
   { id: "talk", vo: "vo_03_just_talk", length: s(21.5), voAt: s(0.6), Scene: JustTalk },
+  { id: "live-calls", vo: "", length: LIVE_CALLS_LENGTH, voAt: 0, Scene: LiveCalls },
+  { id: "live-slate", vo: "", length: LIVE_SLATE_LENGTH, voAt: 0, Scene: LiveSlate },
   { id: "settles", vo: "vo_04_settles", length: s(13), voAt: s(0.4), Scene: Settles },
   { id: "memory", vo: "vo_05_memory", length: s(29), voAt: s(0.4), Scene: Memory },
   { id: "channels", vo: "vo_06_channels", length: s(13.5), voAt: s(0.4), Scene: Channels },
   { id: "ask", vo: "vo_07_ask", length: s(8), voAt: s(0.6), Scene: Ask },
+  { id: "live-ask", vo: "", length: LIVE_ASK_LENGTH, voAt: 0, Scene: LiveAsk },
   { id: "hood", vo: "vo_08_under_the_hood", length: s(12), voAt: s(0.6), Scene: Hood },
   { id: "end", vo: "vo_09_end", length: s(9), voAt: s(2.2), Scene: End },
 ] as const;
@@ -54,7 +61,7 @@ const exists = (file: string) =>
 
 /** Each scene runs at least its designed length, and long enough for its voice clip with a breath after. */
 export const calculateDemoMetadata: CalculateMetadataFunction<DemoProps> = async () => {
-  const voices = await Promise.all(SCENES.map((x) => exists(`audio/${x.vo}.mp3`)));
+  const voices = await Promise.all(SCENES.map((x) => (x.vo ? exists(`audio/${x.vo}.mp3`) : false)));
   const voiceFrames = await Promise.all(
     SCENES.map(async (x, i) =>
       voices[i] ? Math.ceil(((await getAudioDurationInSeconds(staticFile(`audio/${x.vo}.mp3`)).catch(() => 0)) || 0) * FPS) : 0,

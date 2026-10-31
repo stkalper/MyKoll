@@ -22,3 +22,5 @@ Record the whole voice-over as one take, `public/audio/voiceover.mp3`, with a 2.
 ## Footage
 
 `scripts/stills.mjs` takes full-page screenshots of the live Mini App (and the landing page) into `public/captures/`. `scripts/capture.mjs` records pages as video through Chrome's screencast. Explorers like Suiscan turn headless browsers away, so the on-chain proof is best recorded on a phone. Phone recordings go in `public/footage/`. Audio, footage and captures stay out of git.
+
+The live scenes (`src/scenes/live.tsx`) play those recordings in a phone frame, with no voice over them: each clip is a list of cuts `[from, to, speed]`, fast while someone types and near real time where the bot answers, the first frame holding before and the last after. A clean status bar covers the recording's own. `node scripts/sheet.mjs public/footage/clip.mp4 1.5` tiles a frame every 1.5 s into `out/sheets/`, to find the cut points without scrubbing.
