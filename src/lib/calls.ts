@@ -341,7 +341,7 @@ async function placePick(
 
   // A match being played right now is the one the author means, unless they named a later day.
   // Polymarket trades CS2 live, so the receipt shows the odds at the moment of the call.
-  const [live, next] = await Promise.all([lookup(startedMatch(subject, opponent)), opponent ? null : lookup(nextMatch(subject, said ?? undefined))]);
+  const [live, next] = await Promise.all([lookup(startedMatch(subject, opponent)), lookup(nextMatch(subject, said ?? undefined, opponent))]);
   const match = live && (!said || live.at.getTime() > said.getTime() - DAY) ? live : next;
   if (match) {
     ({ team: subject, opponent } = match);

@@ -117,7 +117,13 @@ export function teamsOf(title: string): [string, string] | null {
   return m ? [m[1], m[2]] : null;
 }
 
-/** Upcoming CS2 events, newest first; a few pages, cached briefly since every CS2 call looks here. */
+const ACTIVE_ESPORTS = "/events?platform=polymarket&status=active&category=Esports";
+
+/**
+ * Every open CS2 event. Polymarket lists matches days ahead, among hundreds of other esports
+ * events, so the whole listing is read (~6 pages), not just the newest. It takes a few seconds,
+ * so after the first load the last listing is served while a fresh one loads behind it.
+ */
 let upcoming: { at: number; value: Promise<Event[]> } | undefined;
 
 function upcomingEvents(): Promise<Event[]> {
@@ -125,9 +131,9 @@ function upcomingEvents(): Promise<Event[]> {
   const value = (async () => {
     const out: Event[] = [];
     let cursor: string | undefined;
-    for (let page = 0; page < 3; page++) {
+    for (let page = 0; page < 10; page++) {
       const r = await get<{ data: Event[]; pagination?: { cursor?: string } }>(
-        `/events?platform=polymarket&status=active&category=Esports&sort=newest&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        `${ACTIVE_ESPORTS}&sort=newest&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
       );
       out.push(...r.data.filter((e) => teamsOf(e.title)));
       cursor = r.pagination?.cursor;
@@ -135,9 +141,10 @@ function upcomingEvents(): Promise<Event[]> {
     }
     return out;
   })();
+  const last = upcoming?.value;
   upcoming = { at: Date.now(), value };
   value.catch(() => (upcoming = undefined));
-  return value;
+  return last ?? value;
 }
 
 /**
@@ -158,13 +165,17 @@ function searchTeam(team: string): Promise<Event[]> {
   const key = teamKey(team);
   const hit = searched.get(key);
   if (hit && Date.now() - hit.at < 2 * 60_000) return hit.value;
-  // Search returns ten results, ranked loosely, so it's asked two ways and the answers merged.
+  // Search returns ten results, ranked loosely and mostly closed, so it's asked two ways; open events
+  // come from the listing's own search, which matches the name as written ("mongolz" finds "TheMongolz").
   const ask = (q: string) =>
     get<{ data?: { events?: Event[] } }>(`/search?q=${encodeURIComponent(q)}`)
       .then((r) => r.data?.events ?? [])
       .catch(() => [] as Event[]);
-  const value = Promise.all([ask(`Counter-Strike: ${team}`), ask(team)]).then(([a, b]) => {
-    const byId = new Map([...a, ...b].map((e) => [e.id, e]));
+  const open = get<{ data: Event[] }>(`${ACTIVE_ESPORTS}&limit=50&search=${encodeURIComponent(key)}`)
+    .then((r) => r.data)
+    .catch(() => [] as Event[]);
+  const value = Promise.all([ask(`Counter-Strike: ${team}`), ask(team), open]).then((all) => {
+    const byId = new Map(all.flat().map((e) => [e.id, e]));
     return [...byId.values()].filter((e) => teamsOf(e.title)?.some((t) => teamKey(t) === key));
   });
   searched.set(key, { at: Date.now(), value });
@@ -184,7 +195,7 @@ function sides(e: Event, key: string): [string, string] {
 export async function startedMatch(team: string, opponent?: string | null): Promise<{ team: string; opponent: string; at: Date } | null> {
   const key = teamKey(team);
   const now = Date.now();
-  const found = (await Promise.all([searchTeam(team), opponent ? searchTeam(opponent) : []])).flat();
+  const found = (await Promise.all([teamEvents(team), searchTeam(team), opponent ? searchTeam(opponent) : []])).flat();
   const recent = [...new Map(found.map((e) => [e.id, e])).values()]
     .filter((e) => {
       const start = startOf(e).getTime();
@@ -238,14 +249,18 @@ export async function listedTeams(): Promise<Set<string>> {
 export const upcomingCs2Matches = async () => (await upcomingEvents()).filter(ahead).length;
 
 /**
- * A team's next match on Polymarket that hasn't started, for a call that names only the team
- * ("изи для НАВІ завтра"): on the day the author named ("завтра" is 23:59 tomorrow), else the
- * soonest this week. Names are spelled the way Polymarket spells them.
+ * A team's next match on Polymarket that hasn't started (against this opponent, if named), so a
+ * call lands on when the match is played ("изи для НАВІ завтра"): on the day the author named
+ * ("завтра" is 23:59 tomorrow), else the soonest this week. Names are spelled the way Polymarket
+ * spells them.
  */
-export async function nextMatch(team: string, by?: Date): Promise<{ team: string; opponent: string; at: Date } | null> {
+export async function nextMatch(team: string, by?: Date, opponent?: string | null): Promise<{ team: string; opponent: string; at: Date } | null> {
   const key = teamKey(team);
   const game = (await teamEvents(team))
-    .filter((e) => ahead(e) && teamsOf(e.title)!.some((t) => teamKey(t) === key))
+    .filter((e) => {
+      const teams = teamsOf(e.title)!.map(teamKey);
+      return ahead(e) && teams.includes(key) && (!opponent || teams.includes(teamKey(opponent)));
+    })
     .sort(byTime(by))[0];
   if (!game) return null;
   const [ours, theirs] = sides(game, key);
