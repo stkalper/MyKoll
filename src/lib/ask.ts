@@ -5,6 +5,16 @@ import { complete } from "./llm";
 import { callIdsIn, recall } from "./memory";
 import { memoryScorecard, scorecardLine } from "./scorecard";
 
+/**
+ * A question about past calls put to the room rather than to the bot ("who called nemiga?",
+ * "хто казав про SUI"). It's the bot's job to answer those, so it does without being tagged. Kept
+ * to how such questions start, so ordinary chat ("who's watching tonight?") is left alone.
+ */
+const RECALL =
+  /^(?:who(?:'s| is| was)? (?:called|calls|said|says|picked|backed|bet|was right|right about|got it right)|what did \S+ (?:say|call|pick)|хто (?:казав|кликав|колив|ставив|писав|говорив|вгадав|був правий)|що (?:казав|писав|говорив)|кто (?:говорил|ставил|писал|угадал))(?!\s+(?:me|you|him|her|them|us)(?![\p{L}]))(?=[\s?!.,]|$)/iu;
+
+export const recallQuestion = (text: string) => RECALL.test(text.trim());
+
 /** Answers a question about the chat's past calls from its Walrus Memory. */
 export async function answer(chatId: number, question: string): Promise<string> {
   const [memories, hidden, crypto, cs2, records, scorecard] = await Promise.all([

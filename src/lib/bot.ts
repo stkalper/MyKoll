@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { Bot, InlineKeyboard, type Context } from "grammy";
-import { answer } from "./ask";
+import { answer, recallQuestion } from "./ask";
 import {
   chatMode,
   claim,
@@ -423,8 +423,8 @@ export function createBot(): Bot {
       if (call && String(call.author_id) === String(ctx.from.id)) return saveReason(ctx, receiptId, text);
     }
 
-    // A question to the bot: "@mykoll_bot what did Jake say about SUI?"
-    if (text.includes(mention) || (repliedToMe && ctx.chat.type !== "private")) {
+    // A question to the bot: "@mykoll_bot what did Jake say about SUI?", or plainly "who called nemiga?"
+    if (text.includes(mention) || (repliedToMe && ctx.chat.type !== "private") || recallQuestion(text)) {
       const q = text.replace(mention, "").trim();
       if (q) {
         await ctx.replyWithChatAction("typing");

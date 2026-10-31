@@ -2,6 +2,7 @@
 //   npm test
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { recallQuestion } from "./ask";
 import { claim, mightBeCall, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
@@ -208,6 +209,17 @@ describe("habits", () => {
     assert.equal(habitOf([true, true]), null);
     assert.equal(habitOf([false, true, false]), "unsure");
     assert.equal(habitOf([false, true, true]), null);
+  });
+});
+
+describe("questions about past calls", () => {
+  it("answers them without being tagged", () => {
+    for (const q of ["who called nemiga", "Who called SUI?", "who said btc 100k", "who was right about furia", "what did Jake say about SOL", "хто казав про суі", "Хто вгадав матч наві?", "що казав Макс"])
+      assert.ok(recallQuestion(q), q);
+  });
+  it("stays out of ordinary chat", () => {
+    for (const q of ["who's watching tonight?", "who called me?!", "navi beat faze", "whoever called this is a genius", "хто йде на матч", "btc 102k tomorrow"])
+      assert.equal(recallQuestion(q), false, q);
   });
 });
 
