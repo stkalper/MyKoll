@@ -17,7 +17,7 @@ node scripts/preview.mjs talk    # a few PNG frames of one scene, quicker than a
 
 ## Sound
 
-Put the voice clips in `public/audio/`, named as in `SCENES` (`vo_00_cold_open.mp3` … `vo_09_end.mp3`), and optionally `public/audio/music.mp3`. The render picks up whatever is there: each clip plays from its scene's `voAt`, the scene grows to fit it, and the music sits under the voice and fades out at the end.
+Record the whole voice-over as one take, `public/audio/voiceover.mp3`, with a 2.5 s pause between scenes, and `node scripts/split-voice.mjs` cuts it at the nine longest pauses. Or put the voice clips in `public/audio/` yourself, named as in `SCENES` (`vo_00_cold_open.mp3` … `vo_09_end.mp3`), and optionally `public/audio/music.mp3`. The render picks up whatever is there: each clip plays from its scene's `voAt`, the scene grows to fit it, and the music sits under the voice and fades out at the end.
 
 ## Footage
 
