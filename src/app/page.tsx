@@ -72,7 +72,7 @@ const callFormats = [
   },
   {
     kind: "Crypto",
-    says: "СУІ вище 1 бакса через 5 годин",
+    says: "sui over a dollar in 5 hours",
     files: "SUI above $1.00, judged in exactly five hours. Any language works.",
   },
   {
@@ -87,7 +87,7 @@ const callFormats = [
   },
   {
     kind: "CS2",
-    says: "FaZe 2-0 G2 · ставлю на фурію",
+    says: "FaZe 2-0 G2 · backing FURIA",
     files: "A predicted score or betting slang is a pick on the winner.",
   },
   {
