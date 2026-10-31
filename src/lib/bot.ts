@@ -38,6 +38,7 @@ import { shareUrl } from "./receipts";
 import { memoryScorecard, scorecardLine } from "./scorecard";
 import { forwardedPost, justTheLink, postLinkIn, readPost, sourceName, type ForwardOrigin, type Post, type PostLink } from "./posts";
 import { proofLabel, proofUrl } from "./proof";
+import { nextSweep } from "./schedule";
 import { DISAGREE, gap, sourceLabel } from "./tatum";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -222,6 +223,8 @@ async function sweepSoon(bot: Bot) {
   if (Date.now() - lastSweep < 3 * 60_000) return;
   lastSweep = Date.now();
   await announceResolutions(bot).catch((err) => console.error("sweep failed", err));
+  // And make sure the quarter-hourly sweep is running, for when the chats go quiet.
+  await nextSweep();
 }
 
 export function createBot(): Bot {
