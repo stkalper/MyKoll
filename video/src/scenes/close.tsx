@@ -233,16 +233,16 @@ export function End() {
           }}
         >
           Add
-          <svg width="330" height="70" viewBox="0 0 330 70">
+          <svg width="236" height="70" viewBox="0 0 236 70">
             <defs>
               <clipPath id="sign">
-                <rect x="0" y="0" width={330 * sign} height="70" />
+                <rect x="0" y="0" width={236 * sign} height="70" />
               </clipPath>
             </defs>
             <text x="0" y="52" clipPath="url(#sign)" style={{ fontFamily: F.hand, fontWeight: 700, fontSize: 56, fill: C.ink, textTransform: "none" }}>
               @mykoll_bot
             </text>
-            {sign > 0 && sign < 1 && <circle cx={330 * sign} cy={40 + Math.sin(sign * 40) * 10} r="5" fill={C.ink} />}
+            {sign > 0 && sign < 1 && <circle cx={236 * sign} cy={40 + Math.sin(sign * 40) * 10} r="5" fill={C.ink} />}
           </svg>
           to your group
         </div>
