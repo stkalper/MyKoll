@@ -29,10 +29,23 @@ export type DemoProps = {
   lengths: number[];
   /** Which voice clips and music exist in public/audio. */
   voices: boolean[];
+  /** How long each voice clip runs, in frames (0 without one), so the music can duck under it. */
+  voiceFrames: number[];
   music: boolean;
 };
 
-export const defaultDemoProps: DemoProps = { lengths: SCENES.map((x) => x.length), voices: SCENES.map(() => false), music: false };
+export const defaultDemoProps: DemoProps = {
+  lengths: SCENES.map((x) => x.length),
+  voices: SCENES.map(() => false),
+  voiceFrames: SCENES.map(() => 0),
+  music: false,
+};
+
+/** Music level under the voice, and where nobody is speaking. */
+const MUSIC_UNDER = 0.12;
+const MUSIC_ALONE = 0.32;
+/** Frames the music takes to dip before the voice and come back after it. */
+const DUCK = 12;
 
 const exists = (file: string) =>
   fetch(staticFile(file), { method: "HEAD" })
@@ -42,22 +55,35 @@ const exists = (file: string) =>
 /** Each scene runs at least its designed length, and long enough for its voice clip with a breath after. */
 export const calculateDemoMetadata: CalculateMetadataFunction<DemoProps> = async () => {
   const voices = await Promise.all(SCENES.map((x) => exists(`audio/${x.vo}.mp3`)));
-  const lengths = await Promise.all(
-    SCENES.map(async (x, i) => {
-      if (!voices[i]) return x.length;
-      const seconds = await getAudioDurationInSeconds(staticFile(`audio/${x.vo}.mp3`)).catch(() => 0);
-      return Math.max(x.length, x.voAt + Math.ceil((seconds + 0.8) * FPS));
-    }),
+  const voiceFrames = await Promise.all(
+    SCENES.map(async (x, i) =>
+      voices[i] ? Math.ceil(((await getAudioDurationInSeconds(staticFile(`audio/${x.vo}.mp3`)).catch(() => 0)) || 0) * FPS) : 0,
+    ),
   );
+  const lengths = SCENES.map((x, i) => (voices[i] ? Math.max(x.length, x.voAt + voiceFrames[i] + Math.ceil(0.8 * FPS)) : x.length));
   const music = await exists("audio/music.mp3");
   const total = lengths.reduce((a, b) => a + b, 0) - CROSSFADE * (SCENES.length - 1);
-  return { durationInFrames: total, props: { lengths, voices, music } };
+  return { durationInFrames: total, props: { lengths, voices, voiceFrames, music } };
 };
 
-export function Demo({ lengths, voices, music }: DemoProps) {
+export function Demo({ lengths, voices, voiceFrames, music }: DemoProps) {
   const { durationInFrames } = useVideoConfig();
   // Where each scene starts once the crossfades overlap them, for placing its voice clip.
   const starts = lengths.map((_, i) => lengths.slice(0, i).reduce((a, b) => a + b, 0) - CROSSFADE * i);
+  const speaking = SCENES.map((x, i) => [starts[i] + x.voAt, starts[i] + x.voAt + voiceFrames[i]] as const).filter((_, i) => voices[i]);
+
+  /** The music dips under each voice clip and rises in the gaps, fading in at the start and out at the end. */
+  const musicVolume = (f: number) => {
+    const duck = Math.max(
+      0,
+      ...speaking.map(([from, to]) =>
+        interpolate(f, [from - DUCK, from, to, to + DUCK], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+      ),
+    );
+    const level = MUSIC_ALONE + (MUSIC_UNDER - MUSIC_ALONE) * duck;
+    const edges = interpolate(f, [0, 20, durationInFrames - 75, durationInFrames], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    return level * edges;
+  };
   return (
     <AbsoluteFill style={{ background: "#06080d" }}>
       <TransitionSeries>
@@ -80,8 +106,7 @@ export function Demo({ lengths, voices, music }: DemoProps) {
       {music && (
         <Audio
           src={staticFile("audio/music.mp3")}
-          // Under the voice, up a little where there's none, and out at the end.
-          volume={(f) => interpolate(f, [0, 30, durationInFrames - 90, durationInFrames], [0, 0.16, 0.16, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })}
+          volume={musicVolume}
         />
       )}
     </AbsoluteFill>
