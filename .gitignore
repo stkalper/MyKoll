@@ -54,3 +54,10 @@ tatumapi.txt
 .claude/
 skills-lock.json
 !.env.example
+
+# demo video: dependencies, renders and raw footage stay local
+/video/node_modules
+/video/out
+/video/public/footage
+/video/public/audio
+/video/public/captures
