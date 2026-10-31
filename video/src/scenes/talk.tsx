@@ -19,7 +19,7 @@ export function JustTalk() {
             <Chat
               messages={[
                 { at: s(0.2), from: "Max", color: "#7cc4f5", text: "sui looks heavy today" },
-                { at: s(0.9), from: "Ivan", color: "#e0a96d", text: "СУІ вище 1 бакса через 5 годин" },
+                { at: s(0.9), from: "Ivan", color: "#e0a96d", text: "sui over a dollar in 5 hours" },
                 {
                   at: s(2.1),
                   from: "MyKoll",
@@ -52,7 +52,7 @@ export function JustTalk() {
             id={142}
             author="@ivan"
             when="Fri 31 Oct, 15:14"
-            quote="СУІ вище 1 бакса через 5 годин"
+            quote="sui over a dollar in 5 hours"
             hlAt={s(5.6)}
             rows={[
               ["Claim", "SUI above $1.00"],
@@ -66,7 +66,7 @@ export function JustTalk() {
         </div>
 
         {/* On the phone while it's alone, then on the receipt, from the margins so no line crosses the text. */}
-        <Callout at={s(1.4)} until={s(4.2)} anchor="left" text="Any language" from={[1300, 690]} to={[1190, 690]} />
+        <Callout at={s(1.4)} until={s(4.2)} anchor="left" text="Plain talk" from={[1300, 690]} to={[1190, 690]} />
         <Callout at={s(2.7)} until={s(4.2)} anchor="left" text="No commands" from={[1300, 860]} to={[1190, 860]} />
         <Callout at={s(8.4)} anchor="left" text="On-chain via Tatum" from={[1565, 456]} to={[1510, 456]} />
         <Callout at={s(9.6)} anchor="left" text="Cross-checked" from={[1565, 530]} to={[1510, 520]} />
@@ -147,7 +147,7 @@ export function Settles() {
             id={142}
             author="@ivan"
             when="Fri 31 Oct, 15:14"
-            quote="СУІ вище 1 бакса через 5 годин"
+            quote="sui over a dollar in 5 hours"
             width={740}
             rows={[
               ["Claim", "SUI above $1.00"],

@@ -44,7 +44,7 @@ const NOISE = [
   { t: "sui 2x incoming", x: 40, y: 82, r: 4 },
   { t: "who said btc would dump??", x: 38, y: 8, r: -1 },
   { t: "SNIPED THE BOTTOM AGAIN 🐺", x: 72, y: 40, r: -3, brag: true },
-  { t: "біток 70к до неділі", x: 4, y: 42, r: 2 },
+  { t: "btc 70k by sunday", x: 4, y: 42, r: 2 },
 ];
 
 /** 1 · Calls everywhere, nobody keeps score. */
