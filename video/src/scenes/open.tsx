@@ -16,9 +16,9 @@ export function ColdOpen() {
             <ChatHeader />
             <Chat
               messages={[
-                { at: s(0.3), from: "Ivan", color: "#e0a96d", text: "SOL to 300 by Friday 🚀" },
+                { at: s(0.3), from: "Jake", color: "#e0a96d", text: "SOL to 300 by Friday 🚀" },
                 { at: s(3.4), from: "Max", color: "#7cc4f5", text: "so… SOL?" },
-                { at: s(4.6), from: "Ivan", color: "#e0a96d", text: "I never said that." },
+                { at: s(4.6), from: "Jake", color: "#e0a96d", text: "I never said that." },
               ]}
             />
           </Phone>

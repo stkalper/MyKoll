@@ -15,7 +15,7 @@ import { gap } from "./tatum";
 const DAY = 86_400_000;
 const call = (over: Partial<CallRow>): CallRow =>
   ({
-    id: 1, chat_id: "-1", chat_title: null, author_id: "7", author_name: "@ivan", market: "crypto", subject: "SUI", opponent: null,
+    id: 1, chat_id: "-1", chat_title: null, author_id: "7", author_name: "@jake", market: "crypto", subject: "SUI", opponent: null,
     direction: "up", target: null, entry_price: 1, quote: "", made_at: new Date(0), deadline: new Date(3 * DAY), status: "open",
     final_price: null, result_note: null, resolved_at: null, hidden: false, price_source: null, entry_proof: null, entry_check: null, final_proof: null, final_check: null, market_ref: null,
     ...over,
@@ -129,7 +129,7 @@ describe("the learning loop", () => {
     assert.equal(record.hits, 2);
     assert.ok(record.strong.some((s) => s.segment === "majors"));
     assert.ok(record.weak.some((s) => s.segment === "Sui tokens"));
-    assert.match(record.summary, /^@ivan is 2\/4 right; strong on .*majors 2\/2.*; weak on .*Sui tokens 0\/2/);
+    assert.match(record.summary, /^@jake is 2\/4 right; strong on .*majors 2\/2.*; weak on .*Sui tokens 0\/2/);
   });
 
   it("trusts a member most on the coin itself, smoothed so one call isn't certainty", () => {
@@ -176,7 +176,7 @@ describe("CS2 on Polymarket", () => {
 });
 
 describe("memory scorecard", () => {
-  // Ivan misses on Sui tokens again and again; Max keeps getting SUI right.
+  // Jake misses on Sui tokens again and again; Max keeps getting SUI right.
   const at = (day: number) => new Date(day * DAY);
   const history = [
     ...[0, 1, 2, 3].map((d) => call({ id: 10 + d, author_id: "1", subject: "WAL", status: "loss", made_at: at(d), resolved_at: at(d + 0.5) })),

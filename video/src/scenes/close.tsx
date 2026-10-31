@@ -64,7 +64,7 @@ export function Channels() {
             <Paper style={{ width: 1100, padding: "36px 46px" }}>
               <Label color={C.inkMuted} size={20}>Board · who calls it right</Label>
               {[
-                ["@ivan", "13 of 18", "72%", C.win, false],
+                ["@jake", "13 of 18", "72%", C.win, false],
                 ["@max", "14 of 23", "61%", C.win, false],
                 ["VIP Signals on Telegram", "3 of 11", "27%", C.loss, true],
               ].map(([who, n, pct, color, source], i) => (
@@ -128,7 +128,7 @@ export function Ask() {
           <span style={{ background: frame > s(4.6) ? `${C.hl}55` : "transparent", borderRadius: 4, padding: "0 4px" }}>“nah, SUI bleeds”</span> and SUI ended the week at $0.84.
           {"\n"}
           <div>
-            <b>Ivan</b> · 1/4 on Sui tokens. His last one, “SUI to $5 by Friday”, missed.
+            <b>Jake</b> · 1/4 on Sui tokens. His last one, “SUI to $5 by Friday”, missed.
           </div>
         </div>
       </div>

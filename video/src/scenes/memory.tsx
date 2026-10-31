@@ -3,10 +3,10 @@ import { C, F, s } from "../theme";
 import { Backdrop, Chat, Count, Kinetic, Label, Paper, Phone, Rise, useIn, type Msg } from "../ui";
 
 const ENTRIES = [
-  { tag: "CALL", color: C.open, text: "@ivan called “SUI to $5 by Friday”. SUI was $0.9029 (Cetus pool via Tatum)." },
-  { tag: "REASON", color: C.inkMuted, text: "@ivan: storage usage keeps climbing, chart is coiling." },
-  { tag: "RESULT", color: C.loss, text: "@sasha’s call “WAL to 5 cents” was WRONG: $0.0308 at the deadline." },
-  { tag: "TRACK RECORD", color: C.win, text: "@ivan is 13/18 right; strong on majors 9/10; weak on Sui tokens 1/4." },
+  { tag: "CALL", color: C.open, text: "@jake called “SUI to $5 by Friday”. SUI was $0.9029 (Cetus pool via Tatum)." },
+  { tag: "REASON", color: C.inkMuted, text: "@jake: storage usage keeps climbing, chart is coiling." },
+  { tag: "RESULT", color: C.loss, text: "@ryan’s call “WAL to 5 cents” was WRONG: $0.0308 at the deadline." },
+  { tag: "TRACK RECORD", color: C.win, text: "@jake is 13/18 right; strong on majors 9/10; weak on Sui tokens 1/4." },
   { tag: "HABIT", color: C.inkMuted, text: "@max confirmed his last 3 calls, so I log his without asking." },
 ];
 
@@ -89,9 +89,9 @@ function Vault() {
   );
 }
 
-const SUI: Msg = { at: s(13.4), from: "Ivan", color: "#e0a96d", text: "SUI to $5 by Friday" };
+const SUI: Msg = { at: s(13.4), from: "Jake", color: "#e0a96d", text: "SUI to $5 by Friday" };
 const MAX: Msg = { at: s(19.6), from: "Max", color: "#7cc4f5", text: "nah, SUI bleeds 🩸" };
-const OLA: Msg = { at: s(25.2), from: "Ola", color: "#f4a7c8", text: "imagine SUI at 10 lol" };
+const OLA: Msg = { at: s(25.2), from: "Emma", color: "#f4a7c8", text: "imagine SUI at 10 lol" };
 
 /** The same three messages to a bot that forgets and to MyKoll. */
 function SideBySide() {
@@ -113,7 +113,7 @@ function SideBySide() {
       text: (
         <>
           🧾 Receipt #148 · SUI above $5.00{"\n"}
-          <span style={{ color: "#f2c46d" }}>📊 @ivan: 1/4 on Sui tokens · ⚠️ a weak spot</span>
+          <span style={{ color: "#f2c46d" }}>📊 @jake: 1/4 on Sui tokens · ⚠️ a weak spot</span>
           {"\n"}↩ Last time: “WAL to 5 cents” · ❌ missed
         </>
       ),
@@ -144,7 +144,7 @@ function SideBySide() {
         title="MyKoll · with Walrus Memory"
         note={
           <div style={{ opacity: quiet, transform: `translateY(${(1 - quiet) * 14}px)`, background: C.paper, color: C.ink, border: `3px solid ${C.outline}`, borderRadius: 6, padding: "8px 16px", fontFamily: F.mono, fontSize: 20 }}>
-            stays quiet: Ola said “not a call” twice
+            stays quiet: Emma said “not a call” twice
           </div>
         }
       >

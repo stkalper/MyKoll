@@ -237,7 +237,7 @@ export function createBot(): Bot {
 
   bot.command("start", (ctx) =>
     ctx.reply(
-      "I keep receipts on your group chat's crypto and CS2 calls.\n\nAdd me to a group, then:\n• /call SUI to $5 by Friday\n• /call NaVi beat FaZe tonight\n• or just talk — I'll offer to log anything that sounds like a call\n• /board — who calls it right\n• /ask what did Ivan say about SUI?",
+      "I keep receipts on your group chat's crypto and CS2 calls.\n\nAdd me to a group, then:\n• /call SUI to $5 by Friday\n• /call NaVi beat FaZe tonight\n• or just talk — I'll offer to log anything that sounds like a call\n• /board — who calls it right\n• /ask what did Jake say about SUI?",
       {
         reply_markup: new InlineKeyboard().url("➕ Add to a group", `https://t.me/${ctx.me.username}?startgroup=receipts`),
       },
@@ -420,7 +420,7 @@ export function createBot(): Bot {
       if (call && String(call.author_id) === String(ctx.from.id)) return saveReason(ctx, receiptId, text);
     }
 
-    // A question to the bot: "@mykoll_bot what did Ivan say about SUI?"
+    // A question to the bot: "@mykoll_bot what did Jake say about SUI?"
     if (text.includes(mention) || (repliedToMe && ctx.chat.type !== "private")) {
       const q = text.replace(mention, "").trim();
       if (q) {

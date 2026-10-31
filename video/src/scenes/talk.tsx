@@ -19,7 +19,7 @@ export function JustTalk() {
             <Chat
               messages={[
                 { at: s(0.2), from: "Max", color: "#7cc4f5", text: "sui looks heavy today" },
-                { at: s(0.9), from: "Ivan", color: "#e0a96d", text: "sui over a dollar in 5 hours" },
+                { at: s(0.9), from: "Jake", color: "#e0a96d", text: "sui over a dollar in 5 hours" },
                 {
                   at: s(2.1),
                   from: "MyKoll",
@@ -50,7 +50,7 @@ export function JustTalk() {
         >
           <Receipt
             id={142}
-            author="@ivan"
+            author="@jake"
             when="Fri 31 Oct, 15:14"
             quote="sui over a dollar in 5 hours"
             hlAt={s(5.6)}
@@ -145,7 +145,7 @@ export function Settles() {
         <div style={{ position: "absolute", left: 170, top: 230, opacity: a, transform: `translateY(${(1 - a) * 80}px) rotate(-2deg)` }}>
           <Receipt
             id={142}
-            author="@ivan"
+            author="@jake"
             when="Fri 31 Oct, 15:14"
             quote="sui over a dollar in 5 hours"
             width={740}
@@ -159,7 +159,7 @@ export function Settles() {
         <div style={{ position: "absolute", left: 1010, top: 300, opacity: b, transform: `translateY(${(1 - b) * 80}px) rotate(2deg)` }}>
           <Receipt
             id={139}
-            author="@sasha"
+            author="@ryan"
             when="Mon 27 Oct, 11:40"
             quote="WAL to 5 cents by Friday"
             width={740}
@@ -191,7 +191,7 @@ export function Settles() {
       <div style={{ position: "absolute", right: 150, top: 260, opacity: slate * interpolate(frame, [s(15), s(15.6)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), transform: `translateX(${(1 - slate) * 120}px)` }}>
         <div style={{ background: C.tgIn, borderRadius: 24, padding: "28px 34px", width: 780, color: C.tgText, fontFamily: F.sans, fontSize: 30, lineHeight: 1.5 }}>
           <div style={{ color: C.hl, fontWeight: 700, fontSize: 24 }}>MyKoll</div>
-          🏁 <b>All matches are over</b> · @ivan went <b>2/3</b>
+          🏁 <b>All matches are over</b> · @jake went <b>2/3</b>
           <div style={{ color: C.tgMeta }}>“NaVi, Vitality, FURIA”</div>
           <div style={{ marginTop: 8 }}>✅ #31 <b>Vitality</b> beat MOUZ</div>
           <div>❌ #32 <b>FaZe</b> beat NaVi</div>

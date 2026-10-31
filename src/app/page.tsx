@@ -111,22 +111,22 @@ const memoryEntries = [
   {
     tag: "CALL",
     color: "border-stamp-open text-stamp-open",
-    text: "@ivan called “WAL to 5 cents by Friday”. WAL above $0.0500 by Fri 23:59. WAL was $0.0341 (on-chain via Tatum Sui RPC).",
+    text: "@jake called “WAL to 5 cents by Friday”. WAL above $0.0500 by Fri 23:59. WAL was $0.0341 (on-chain via Tatum Sui RPC).",
   },
   {
     tag: "REASON",
     color: "border-ink-muted text-ink-muted",
-    text: "@ivan explained the call: storage usage keeps climbing, chart is coiling.",
+    text: "@jake explained the call: storage usage keeps climbing, chart is coiling.",
   },
   {
     tag: "RESULT",
     color: "border-stamp-loss text-stamp-loss",
-    text: "@ivan’s call “WAL to 5 cents by Friday” was WRONG: WAL was $0.0362 at the deadline.",
+    text: "@jake’s call “WAL to 5 cents by Friday” was WRONG: WAL was $0.0362 at the deadline.",
   },
   {
     tag: "TRACK RECORD",
     color: "border-stamp-win text-stamp-win",
-    text: "@ivan is 13/18 right; strong on majors 9/10; weak on Sui tokens 1/4.",
+    text: "@jake is 13/18 right; strong on majors 9/10; weak on Sui tokens 1/4.",
   },
   {
     tag: "HABIT",
@@ -138,19 +138,19 @@ const memoryEntries = [
 /** The same chat, with a bot that forgets and with one that remembers. */
 const withMemory = [
   {
-    moment: "Ivan: “SUI to $5 by Friday”",
+    moment: "Jake: “SUI to $5 by Friday”",
     without: "Logs it.",
     with: "Logs it with his record: 1/4 on Sui tokens, a weak spot. His last call like it, “WAL to 5 cents”, missed.",
   },
   {
     moment: "Max: “nah, SUI bleeds”",
     without: "One more opinion.",
-    with: "Weighs both: Max is 3/3 on SUI, so the chat leans his way, even though more people side with Ivan.",
+    with: "Weighs both: Max is 3/3 on SUI, so the chat leans his way, even though more people side with Jake.",
   },
   {
     moment: "Friday, 23:59",
     without: "SUI is $3.80.",
-    with: "❌ Ivan missed, with the pool transaction to check it on Sui. Both records update.",
+    with: "❌ Jake missed, with the pool transaction to check it on Sui. Both records update.",
   },
   {
     moment: "A week later: “who’s good on SUI?”",
@@ -158,7 +158,7 @@ const withMemory = [
     with: "Max, 4/4, with his exact words and dates.",
   },
   {
-    moment: "Ola’s jokes keep reading as calls",
+    moment: "Emma’s jokes keep reading as calls",
     without: "Keeps asking.",
     with: "She said “not a call” twice, so it stops asking about that kind of message.",
   },
@@ -478,14 +478,14 @@ export default function Landing() {
                   ))}
                 </ul>
                 <p className="mt-4 font-hand text-xl leading-snug text-ink-muted">
-                  <PenTail text="“who was bullish on Sui coins?” finds Ivan's WAL call, though the word “bullish” is nowhere in it." />
+                  <PenTail text="“who was bullish on Sui coins?” finds Jake's WAL call, though the word “bullish” is nowhere in it." />
                 </p>
               </div>
             </Taped>
-            {/* What the bot learned about Ivan from those verdicts: the badge it holds up on his next call. */}
+            {/* What the bot learned about Jake from those verdicts: the badge it holds up on his next call. */}
             <MemberBadge
               data-pen="4"
-              name="@ivan"
+              name="@jake"
               hits={13}
               calls={18}
               strong={["majors 9/10"]}

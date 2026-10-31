@@ -5,7 +5,7 @@ import type { BoardView, ReceiptView } from "./view";
 export const demoCalls: ReceiptView[] = [
   {
     id: 142,
-    author: "@ivan",
+    author: "@jake",
     market: "crypto",
     quote: "WAL to 5 cents by Friday",
     claim: "WAL above $0.0500",
@@ -20,7 +20,7 @@ export const demoCalls: ReceiptView[] = [
   },
   {
     id: 139,
-    author: "@oleh",
+    author: "@liam",
     market: "cs2",
     quote: "NaVi take FaZe 2-0, Mirage is theirs",
     claim: "NaVi to beat FaZe",
@@ -47,25 +47,25 @@ export const demoBoard: BoardView = {
   me: { id: 0 },
   boards: {
     crypto: [
-      { name: "@ivan", calls: 18, hits: 13, insight: "strong: majors · weak: Sui tokens" },
+      { name: "@jake", calls: 18, hits: 13, insight: "strong: majors · weak: Sui tokens" },
       { name: "@max", calls: 23, hits: 14, insight: "weak: calls under a day" },
-      { name: "@oleh", calls: 9, hits: 5 },
-      { name: "@sasha", calls: 31, hits: 12 },
+      { name: "@liam", calls: 9, hits: 5 },
+      { name: "@ryan", calls: 31, hits: 12 },
     ],
     cs2: [
-      { name: "@oleh", calls: 14, hits: 11, insight: "strong: CS2 picks, NaVi picks" },
-      { name: "@ivan", calls: 10, hits: 6 },
-      { name: "@sasha", calls: 12, hits: 6 },
+      { name: "@liam", calls: 14, hits: 11, insight: "strong: CS2 picks, NaVi picks" },
+      { name: "@jake", calls: 10, hits: 6 },
+      { name: "@ryan", calls: 12, hits: 6 },
       { name: "@max", calls: 7, hits: 3 },
     ],
   },
   recent: demoCalls,
   mine: [demoCalls[0], { ...demoCalls[2], id: 120, quote: "DEEP to 3 cents this month", claim: "DEEP above $0.0300", priceSource: "sui-onchain", entry: 0.017, outcome: "loss", hidden: true }],
   learned: {
-    name: "@ivan",
+    name: "@jake",
     hits: 13,
     calls: 18,
-    summary: "@ivan is 13/18 right; strong on majors 9/10; weak on Sui tokens 1/4.",
+    summary: "@jake is 13/18 right; strong on majors 9/10; weak on Sui tokens 1/4.",
     strong: [{ segment: "majors", hits: 9, calls: 10 }],
     weak: [{ segment: "Sui tokens", hits: 1, calls: 4 }],
   },

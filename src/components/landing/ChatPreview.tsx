@@ -16,7 +16,7 @@ type Line = {
 const lines: Line[] = [
   {
     from: "user",
-    name: "Ivan",
+    name: "Jake",
     text: "WAL to 5 cents by Friday, calling it",
     time: "14:02",
   },
@@ -28,7 +28,7 @@ const lines: Line[] = [
   },
   {
     from: "user",
-    name: "Ivan",
+    name: "Jake",
     text: "storage usage keeps climbing, chart is coiling",
     pen: true,
     sub: "↩ reply to Receipt #142",
@@ -37,25 +37,25 @@ const lines: Line[] = [
   { from: "bot", text: "🧾 Receipt #142 · why added 💭", time: "14:03" },
   {
     from: "user",
-    name: "Ola",
+    name: "Emma",
     text: "nah, WAL dumps before Friday",
     time: "15:20",
   },
   {
     from: "bot",
-    text: "🧾 Receipt #143 · logged ⚡\n🧭 Also on WAL: Ivan ↑ up (1/4 on Sui tokens)\nWeighted by track record the chat leans ↓ down (60%).",
+    text: "🧾 Receipt #143 · logged ⚡\n🧭 Also on WAL: Jake ↑ up (1/4 on Sui tokens)\nWeighted by track record the chat leans ↓ down (60%).",
     time: "15:20",
   },
   {
     from: "bot",
-    text: "🧾 Receipt #142 · ❌ missed\nWAL was $0.0362 at the deadline\n📈 Ivan on Sui tokens: 1/4",
+    text: "🧾 Receipt #142 · ❌ missed\nWAL was $0.0362 at the deadline\n📈 Jake on Sui tokens: 1/4",
     time: "Fri 23:59",
     button: "🔗 Share this receipt",
   },
   {
     from: "user",
     name: "Max",
-    text: "@mykoll_bot how often is Ivan right on Sui coins?",
+    text: "@mykoll_bot how often is Jake right on Sui coins?",
     time: "Sat 10:12",
   },
   {

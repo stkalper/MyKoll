@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/stkalper/MyKoll/actions/workflows/ci.yml/badge.svg)](https://github.com/stkalper/MyKoll/actions/workflows/ci.yml)
 
-**Your group chat finally keeps receipts.** MyKoll is a Telegram bot for group chats that argue about crypto and Counter-Strike 2. When someone makes a call (“SUI to $5 by Friday”, “NaVi take FaZe tonight”), the bot logs it with the price at that second. It settles the call by itself at the deadline and remembers it in the chat’s **Walrus Memory**. So months later anyone can ask *“what did Ivan say about SUI?”* and get Ivan’s own words back.
+**Your group chat finally keeps receipts.** MyKoll is a Telegram bot for group chats that argue about crypto and Counter-Strike 2. When someone makes a call (“SUI to $5 by Friday”, “NaVi take FaZe tonight”), the bot logs it with the price at that second. It settles the call by itself at the deadline and remembers it in the chat’s **Walrus Memory**. So months later anyone can ask *“what did Jake say about SUI?”* and get Jake’s own words back.
 
 - **Bot:** [@mykoll_bot](https://t.me/mykoll_bot). Add it to a group.
 - **Site:** https://mykoll.vercel.app (the landing page with a live demo of the Mini App)
@@ -50,7 +50,7 @@ Left alone: questions, jokes, other people’s predictions, vague moods (“sol 
 
 **Several picks in one message.** A list of teams becomes one pick per team, each on that team’s next match. The bot always asks first, whatever the chat’s mode, and lists what it left out: a team with no match this week, a repeat, or two teams that play each other. One tap logs them all as separate calls. Their results aren’t posted one by one: when the last match ends, one message lists every winner and the author’s score, with any upset the market didn’t see coming.
 ```
-🏁 All matches are over · @ivan went 3/4
+🏁 All matches are over · @jake went 3/4
 “NaVi, Vitality, FURIA, fnatic”
 
 ✅ #31 NaVi beat FaZe
@@ -79,11 +79,11 @@ Without memory, MyKoll is just a price alert. The product is the memory: *who sa
 - **Each chat owns its memory.** Every group has its own namespace, `receipts:chat:<chatId>`, so one chat’s calls never come up in another chat’s answers.
 - **Plain-language entries, recalled by meaning.** Each call writes up to three memories:
   ```
-  [CALL #142] Thursday 30 Oct, 14:02: @ivan called "WAL to 5 cents by Friday". Logged as WAL above $0.0500 by Friday 31 Oct, 23:59. WAL was $0.0341 at the time (on-chain Cetus pool via Tatum Sui RPC).
-  [REASON #142] @ivan explained the call: storage usage keeps climbing, chart is coiling
-  [RESULT #142] @ivan's call "WAL to 5 cents by Friday" was WRONG: WAL was $0.0362 at the deadline.
+  [CALL #142] Thursday 30 Oct, 14:02: @jake called "WAL to 5 cents by Friday". Logged as WAL above $0.0500 by Friday 31 Oct, 23:59. WAL was $0.0341 at the time (on-chain Cetus pool via Tatum Sui RPC).
+  [REASON #142] @jake explained the call: storage usage keeps climbing, chart is coiling
+  [RESULT #142] @jake's call "WAL to 5 cents by Friday" was WRONG: WAL was $0.0362 at the deadline.
   ```
-  `/ask who was bullish on Sui coins?` finds Ivan’s WAL call even though the word “bullish” is never in it.
+  `/ask who was bullish on Sui coins?` finds Jake’s WAL call even though the word “bullish” is never in it.
 - **People control what is remembered.** This follows the Walrus team’s guidance on long-term memory management:
   - Only calls are stored, never the rest of the chat. When someone says a message wasn’t a call, only the bot’s own misreading is kept.
   - The author can **undo** an auto-logged message within 15 minutes.
@@ -98,12 +98,12 @@ Every settled call and every tap on a spotted call teaches the bot something, an
 
 - **Where each member is right.** Each verdict recomputes the author’s track record by kind of call: per coin or team, Sui tokens vs majors, bullish vs bearish, short vs long range. New calls come back with that record, a warning when the call is in a known weak spot (or a 🔥 for a strong one), and the author’s most similar past call, recalled by meaning.
   ```
-  📊 @ivan's record: WAL calls 0/2 · Sui tokens 1/4 · bullish calls 2/6 — ⚠️ a weak spot (Sui tokens 1/4)
+  📊 @jake's record: WAL calls 0/2 · Sui tokens 1/4 · bullish calls 2/6 — ⚠️ a weak spot (Sui tokens 1/4)
   ↩ Last time: “WAL to 5 cents by Friday” — ❌ wrong
   ```
 - **Whom to trust.** When others already have an open call on the same coin or match, the bot weighs everyone by their record on that kind of call, so a head count can lose to the people who are usually right:
   ```
-  🧭 Also on SUI: @ivan ↓ down (0/3 on SUI calls), @max ↑ up (3/3 on SUI calls)
+  🧭 Also on SUI: @jake ↓ down (0/3 on SUI calls), @max ↑ up (3/3 on SUI calls)
   2 of 3 say ↓ down, but weighted by track record the chat leans ↑ up (53%).
   ```
 - **How each member talks.** Answers to spotted calls change how the bot treats that person:
@@ -112,9 +112,9 @@ Every settled call and every tap on a spotted call teaches the bot something, an
   - **Misreads:** when the author says “not a call”, the bot writes its own misreading to Walrus Memory. A later message that reads the same way (same coin, same direction) is offered with a note instead of logged, and after two rejections it stays quiet. The misreading is stored, never the message.
 - **The history is in Walrus Memory**, next to the calls, so `/ask` can explain how the bot’s view of someone changed:
   ```
-  [TRACK RECORD @ivan] 2026-10-31, after call #142: @ivan is 1/4 right; weak on Sui tokens 1/4.
+  [TRACK RECORD @jake] 2026-10-31, after call #142: @jake is 1/4 right; weak on Sui tokens 1/4.
   [HABIT @max] Friday 31 Oct, 18:40: @max confirmed their last 3 calls, so I log theirs without asking.
-  [NOT A CALL] @ola: I read a message as "BTC below $90,000" (BTC, bearish) and they said it wasn't a call.
+  [NOT A CALL] @emma: I read a message as "BTC below $90,000" (BTC, bearish) and they said it wasn't a call.
   ```
 - **The Mini App shows each member what was learned about them:** their record card, strong and weak spots, and how the bot now handles their calls.
 
