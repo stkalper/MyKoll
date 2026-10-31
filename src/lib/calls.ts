@@ -5,7 +5,7 @@ import { db } from "./db";
 import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
 import { remember } from "./memory";
-import { wakeAt } from "./schedule";
+import { firstCheck, wakeAt } from "./schedule";
 import { findMatch, listedTeams, marketWinner, nextMatch, startedMatch, teamKey, type MarketRef } from "./polymarket";
 import { sourceId, sourceName, type PostSource } from "./posts";
 import type { PoolRead } from "./proof";
@@ -485,7 +485,7 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
   );
 
   // The deadline wake-up and the memory write don't depend on each other.
-  const scheduled = wakeAt(call.id, call.deadline);
+  const scheduled = wakeAt(call.id, firstCheck(call));
   // Reasons given in the same message are filed like a /why, so the receipt shows them.
   if (draft.why) await db(`insert into call_reasons (call_id, text) values ($1, $2)`, [call.id, draft.why]);
 
