@@ -60,6 +60,12 @@ create table if not exists slates (
   announced_at  timestamptz
 );
 
+-- Telegram updates already taken, since Telegram delivers one again if the last try looked failed.
+create table if not exists seen_updates (
+  update_id  bigint primary key,
+  seen_at    timestamptz not null default now()
+);
+
 -- A call spotted in conversation, waiting for its author to tap "log it".
 create table if not exists pending_calls (
   id          text primary key,

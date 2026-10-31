@@ -227,8 +227,20 @@ async function sweepSoon(bot: Bot) {
   await nextSweep();
 }
 
+/** True the first time an update arrives. The insert decides, so two instances can't both take it. */
+export async function firstDelivery(updateId: number): Promise<boolean> {
+  const taken = await db(`insert into seen_updates (update_id) values ($1) on conflict do nothing returning update_id`, [updateId]);
+  return taken.length > 0;
+}
+
 export function createBot(): Bot {
   const bot = new Bot(config.telegram.botToken);
+
+  // A repeat delivery would log the same call and post the same receipt twice.
+  bot.use(async (ctx, next) => {
+    if (await firstDelivery(ctx.update.update_id)) return next();
+    console.log("repeat delivery skipped", { update: ctx.update.update_id });
+  });
 
   // Every update is a chance to settle due calls (Hobby cron only runs daily).
   // Registered first, because command handlers don't pass updates further down.
@@ -365,7 +377,9 @@ export function createBot(): Bot {
     const [pending] = await db<{ chat_id: string; author_id: string; draft: Draft | Slate }>(`select * from pending_calls where id = $1`, [pendingId]);
     if (!pending) return ctx.answerCallbackQuery({ text: "This one expired." });
     if (String(pending.author_id) !== String(ctx.from.id)) return ctx.answerCallbackQuery({ text: "Only the author can log their call.", show_alert: true });
-    await db(`delete from pending_calls where id = $1`, [pendingId]);
+    // Whoever removes the draft logs it, so a double tap can't log it twice.
+    const claimed = await db(`delete from pending_calls where id = $1 returning id`, [pendingId]);
+    if (!claimed.length) return ctx.answerCallbackQuery({ text: "Already handled." });
     const chat = { id: ctx.chat!.id, title: "title" in ctx.chat! ? ctx.chat!.title : undefined };
     if ("picks" in pending.draft) {
       const slate = pending.draft;

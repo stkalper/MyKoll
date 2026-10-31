@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import { announceResolutions } from "@/lib/bot";
 import { config } from "@/lib/config";
+import { db } from "@/lib/db";
 import { postWeeklyDigests } from "@/lib/digest";
 import { nextSweep } from "@/lib/schedule";
 
@@ -13,6 +14,7 @@ export async function GET(req: Request) {
   await announceResolutions(bot);
   // Restarts the quarter-hourly sweep if it ever stopped.
   await nextSweep();
+  await db(`delete from seen_updates where seen_at < now() - interval '2 days'`);
   const digest = new Date().getUTCDay() === 0 || new URL(req.url).searchParams.has("digest");
   if (digest) await postWeeklyDigests(bot);
   return Response.json({ ok: true, digest });
