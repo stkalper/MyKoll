@@ -50,9 +50,11 @@ const NOISE = [
 /** 1 · Calls everywhere, nobody keeps score. */
 export function Problem() {
   const frame = useCurrentFrame();
-  const blur = interpolate(frame, [s(5.2), s(6.2)], [0, 14], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const fade = interpolate(frame, [s(5.2), s(6.2)], [1, 0.25], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const line = (at: number) => (frame >= at ? 1 : 0);
+  // Timed to the voice: the calls, "deleted, edited, forgotten", the channels' brags, then the line.
+  const blur = interpolate(frame, [s(5.1), s(5.8)], [0, 14], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const fade = interpolate(frame, [s(5.1), s(5.8)], [1, 0.25], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const brags = interpolate(frame, [s(3.7), s(4.2)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const forgotten = interpolate(frame, [s(1.9), s(2.1), s(3.5), s(3.8)], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <Backdrop glow="#7cc4f5">
       <AbsoluteFill style={{ filter: `blur(${blur}px)`, opacity: fade }}>
@@ -66,8 +68,9 @@ export function Problem() {
                 position: "absolute",
                 left: `${n.x}%`,
                 top: `${n.y}%`,
-                transform: `translate(${drift}px, ${(1 - p) * 60}px) rotate(${n.r}deg) scale(${0.8 + 0.2 * p})`,
-                opacity: p,
+                transform: `translate(${drift}px, ${(1 - p) * 60}px) rotate(${n.r}deg) scale(${0.8 + 0.2 * p + (n.brag ? 0.12 * brags : 0)})`,
+                opacity: p * (n.brag ? 1 : 1 - 0.7 * brags) * (1 - 0.65 * forgotten),
+                zIndex: n.brag ? 1 : 0,
                 background: n.brag ? C.paper : C.tgIn,
                 color: n.brag ? C.ink : C.tgText,
                 border: n.brag ? `3px solid ${C.outline}` : "none",
@@ -85,12 +88,10 @@ export function Problem() {
         })}
       </AbsoluteFill>
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: 18, flexDirection: "column" }}>
-        <div style={{ opacity: line(s(6.3)) }}>
-          <Kinetic text="Deleted. Edited. Forgotten." delay={s(6.3)} size={64} color={C.muted} stagger={6} />
+        <div style={{ position: "absolute", opacity: forgotten }}>
+          <Kinetic text="Deleted. Edited. Forgotten." delay={s(1.9)} size={84} stagger={6} style={{ textShadow: "0 6px 30px rgba(0,0,0,0.9)" }} />
         </div>
-        <div style={{ opacity: line(s(8.4)) }}>
-          <Kinetic text="Nobody keeps score." delay={s(8.4)} size={128} highlight={["score"]} />
-        </div>
+        {frame >= s(5.3) && <Kinetic text="Nobody keeps score." delay={s(5.3)} size={128} highlight={["score"]} />}
       </AbsoluteFill>
     </Backdrop>
   );

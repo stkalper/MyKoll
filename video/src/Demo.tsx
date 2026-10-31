@@ -11,15 +11,15 @@ import { FPS, s } from "./theme";
 /** The film, scene by scene, with the voice clip each one carries (public/audio/<vo>.mp3). */
 export const SCENES = [
   { id: "cold", vo: "vo_00_cold_open", length: s(9), voAt: s(6.3), Scene: ColdOpen },
-  { id: "problem", vo: "vo_01_problem", length: s(13), voAt: s(0.4), Scene: Problem },
+  { id: "problem", vo: "vo_01_problem", length: s(8.5), voAt: s(0.4), Scene: Problem },
   { id: "title", vo: "vo_02_title", length: s(6), voAt: s(1.2), Scene: Title },
-  { id: "talk", vo: "vo_03_just_talk", length: s(24), voAt: s(0.6), Scene: JustTalk },
-  { id: "settles", vo: "vo_04_settles", length: s(18), voAt: s(0.4), Scene: Settles },
-  { id: "memory", vo: "vo_05_memory", length: s(40), voAt: s(0.4), Scene: Memory },
-  { id: "channels", vo: "vo_06_channels", length: s(18), voAt: s(0.4), Scene: Channels },
-  { id: "ask", vo: "vo_07_ask", length: s(10), voAt: s(0.6), Scene: Ask },
-  { id: "hood", vo: "vo_08_under_the_hood", length: s(14), voAt: s(0.6), Scene: Hood },
-  { id: "end", vo: "vo_09_end", length: s(10), voAt: s(2.2), Scene: End },
+  { id: "talk", vo: "vo_03_just_talk", length: s(21.5), voAt: s(0.6), Scene: JustTalk },
+  { id: "settles", vo: "vo_04_settles", length: s(13), voAt: s(0.4), Scene: Settles },
+  { id: "memory", vo: "vo_05_memory", length: s(29), voAt: s(0.4), Scene: Memory },
+  { id: "channels", vo: "vo_06_channels", length: s(13.5), voAt: s(0.4), Scene: Channels },
+  { id: "ask", vo: "vo_07_ask", length: s(8), voAt: s(0.6), Scene: Ask },
+  { id: "hood", vo: "vo_08_under_the_hood", length: s(12), voAt: s(0.6), Scene: Hood },
+  { id: "end", vo: "vo_09_end", length: s(9), voAt: s(2.2), Scene: End },
 ] as const;
 
 const CROSSFADE = 12;

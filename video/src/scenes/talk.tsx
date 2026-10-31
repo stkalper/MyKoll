@@ -8,7 +8,7 @@ export function JustTalk() {
   const frame = useCurrentFrame();
   // The phone slides left as the receipt comes out of it; then both clear for the format montage.
   const slide = interpolate(frame, [s(4.4), s(5.4)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) });
-  const out = interpolate(frame, [s(13.2), s(14)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const out = interpolate(frame, [s(14.8), s(15.5)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const receipt = useIn(s(4.6), { damping: 15 });
   return (
     <Backdrop glowAt="60% 45%">
@@ -73,7 +73,7 @@ export function JustTalk() {
         <Callout at={s(10.8)} anchor="left" text="Anyone can check it" from={[1565, 660]} to={[1075, 660]} />
       </AbsoluteFill>
 
-      {frame > s(13.6) && <Formats start={s(13.8)} />}
+      {frame > s(15.2) && <Formats start={s(15.4)} />}
     </Backdrop>
   );
 }
@@ -93,7 +93,7 @@ function Formats({ start }: { start: number }) {
         <Label size={24} style={{ marginBottom: 10 }}>Said the way people say it</Label>
       </Rise>
       {FORMATS.map((f, i) => {
-        const at = start + s(0.4) + i * s(2.6);
+        const at = start + s(0.3) + i * s(1.7);
         const p = useIn(at);
         const arrow = interpolate(frame, [at + 8, at + 20], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
         const chip = useIn(at + 16);
@@ -127,9 +127,10 @@ export function Settles() {
   const time = `${String(h + Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const a = useIn(s(3.2));
   const b = useIn(s(4.6));
-  const cs = useIn(s(8.2));
-  const slate = useIn(s(11.6));
-  const firstOut = interpolate(frame, [s(7.6), s(8.2)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const cs = useIn(s(6.4));
+  const slate = useIn(s(7.6));
+  const firstOut = interpolate(frame, [s(5.8), s(6.4)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const csOut = interpolate(frame, [s(9.6), s(10.2)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <Backdrop glow={C.hl}>
       <div style={{ position: "absolute", top: 70, left: 0, right: 0 }}>
@@ -172,7 +173,7 @@ export function Settles() {
         </div>
       </AbsoluteFill>
 
-      <div style={{ position: "absolute", left: 160, top: 300, opacity: cs * interpolate(frame, [s(15), s(15.6)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), transform: `translateX(${(1 - cs) * -120}px)` }}>
+      <div style={{ position: "absolute", left: 160, top: 300, opacity: cs * csOut, transform: `translateX(${(1 - cs) * -120}px)` }}>
         <Paper style={{ padding: "34px 40px", width: 720 }}>
           <Label color={C.inkMuted} size={18}>Counter-Strike 2 · PGL Masters Bucharest</Label>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "18px 0" }}>
@@ -188,7 +189,7 @@ export function Settles() {
         </Paper>
       </div>
 
-      <div style={{ position: "absolute", right: 150, top: 260, opacity: slate * interpolate(frame, [s(15), s(15.6)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), transform: `translateX(${(1 - slate) * 120}px)` }}>
+      <div style={{ position: "absolute", right: 150, top: 260, opacity: slate * csOut, transform: `translateX(${(1 - slate) * 120}px)` }}>
         <div style={{ background: C.tgIn, borderRadius: 24, padding: "28px 34px", width: 780, color: C.tgText, fontFamily: F.sans, fontSize: 30, lineHeight: 1.5 }}>
           <div style={{ color: C.hl, fontWeight: 700, fontSize: 24 }}>MyKoll</div>
           🏁 <b>All matches are over</b> · @jake went <b>2/3</b>
@@ -201,9 +202,9 @@ export function Settles() {
         </div>
       </div>
 
-      {frame > s(15.2) && (
+      {frame > s(9.9) && (
         <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-          <Stamp text="Nobody argues the score" color={C.hl} at={s(15.3)} size={80} rotate={-4} style={{ mixBlendMode: "normal" }} />
+          <Stamp text="Nobody argues the score" color={C.hl} at={s(10)} size={80} rotate={-4} style={{ mixBlendMode: "normal" }} />
         </AbsoluteFill>
       )}
     </Backdrop>

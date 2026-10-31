@@ -9,12 +9,12 @@ const ROOT = resolve(import.meta.dirname, "..");
 const OUT = join(ROOT, "out/preview");
 const AT = {
   cold: [1.5, 5.4, 7.6],
-  problem: [3, 10.5],
+  problem: [1.2, 3, 4.5, 6.5],
   title: [3.8],
   talk: [3.7, 12, 21],
-  settles: [1.4, 6.5, 13.5, 16.5],
-  memory: [5, 16.5, 28, 36],
-  channels: [5, 9, 15],
+  settles: [4.8, 8.6, 11],
+  memory: [2, 4.5, 13.5, 18, 24],
+  channels: [7.8, 11.5],
   ask: [7.5],
   hood: [8],
   end: [5],

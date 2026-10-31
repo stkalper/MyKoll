@@ -13,8 +13,8 @@ const ENTRIES = [
 /** 5 · Every verdict becomes memory, and memory changes what the bot does. */
 export function Memory() {
   const frame = useCurrentFrame();
-  const partA = interpolate(frame, [s(11.4), s(12.2)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const partB = interpolate(frame, [s(12), s(12.8), s(31.4), s(32.2)], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const partA = interpolate(frame, [s(6.2), s(6.8)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const partB = interpolate(frame, [s(6.6), s(7.2), s(20.4), s(21)], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <Backdrop glow={C.hl} glowAt="50% 50%">
       {partA > 0 && (
@@ -27,7 +27,7 @@ export function Memory() {
           <SideBySide />
         </AbsoluteFill>
       )}
-      {frame > s(31.8) && <MemoryCheck start={s(32)} />}
+      {frame > s(20.6) && <MemoryCheck start={s(20.8)} />}
     </Backdrop>
   );
 }
@@ -43,8 +43,8 @@ function Vault() {
       </div>
       {ENTRIES.map((e, i) => {
         // The entries stack up where they can be read, then fly into the vault one by one.
-        const appear = s(0.9) + i * s(0.5);
-        const at = s(5) + i * s(0.6);
+        const appear = s(0.5) + i * s(0.35);
+        const at = s(2.8) + i * s(0.45);
         const fly = interpolate(frame, [at, at + s(1.1)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) });
         const show = interpolate(frame, [appear, appear + 8], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
         const x = interpolate(fly, [0, 1], [180, 1080]);
@@ -81,7 +81,7 @@ function Vault() {
         <Label color={C.hl} size={22}>Walrus Memory · Sui mainnet</Label>
         <div style={{ fontFamily: F.mono, fontSize: 30, color: C.text }}>receipts:chat:-1001…</div>
         <div style={{ fontFamily: F.form, fontWeight: 800, fontSize: 130, color: C.text, lineHeight: 1 }}>
-          <Count from={128} to={133} start={s(5.6)} end={s(8.8)} />
+          <Count from={128} to={133} start={s(3.2)} end={s(5.8)} />
         </div>
         <Label size={20}>memories in this chat</Label>
       </div>
@@ -89,25 +89,25 @@ function Vault() {
   );
 }
 
-const SUI: Msg = { at: s(13.4), from: "Jake", color: "#e0a96d", text: "SUI to $5 by Friday" };
-const MAX: Msg = { at: s(19.6), from: "Max", color: "#7cc4f5", text: "nah, SUI bleeds 🩸" };
-const OLA: Msg = { at: s(25.2), from: "Emma", color: "#f4a7c8", text: "imagine SUI at 10 lol" };
+const SUI: Msg = { at: s(7.4), from: "Jake", color: "#e0a96d", text: "SUI to $5 by Friday" };
+const MAX: Msg = { at: s(11.4), from: "Max", color: "#7cc4f5", text: "nah, SUI bleeds 🩸" };
+const OLA: Msg = { at: s(15.6), from: "Emma", color: "#f4a7c8", text: "imagine SUI at 10 lol" };
 
 /** The same three messages to a bot that forgets and to MyKoll. */
 function SideBySide() {
   const frame = useCurrentFrame();
   const forgets: Msg[] = [
     SUI,
-    { at: s(15), from: "Bot", bot: true, text: "🧾 Logged: SUI above $5.00 by Fri 23:59." },
+    { at: s(8.6), from: "Bot", bot: true, text: "🧾 Logged: SUI above $5.00 by Fri 23:59." },
     MAX,
-    { at: s(21), from: "Bot", bot: true, text: "🧾 Logged: SUI down by Fri 23:59." },
+    { at: s(12.6), from: "Bot", bot: true, text: "🧾 Logged: SUI down by Fri 23:59." },
     OLA,
-    { at: s(26.6), from: "Bot", bot: true, text: "📌 Sounds like a call: SUI above $10. Log it?", buttons: [["🧾 Log it", "No"]] },
+    { at: s(16.6), from: "Bot", bot: true, text: "📌 Sounds like a call: SUI above $10. Log it?", buttons: [["🧾 Log it", "No"]] },
   ];
   const remembers: Msg[] = [
     SUI,
     {
-      at: s(15),
+      at: s(8.6),
       from: "MyKoll",
       bot: true,
       text: (
@@ -120,7 +120,7 @@ function SideBySide() {
     },
     MAX,
     {
-      at: s(21),
+      at: s(12.6),
       from: "MyKoll",
       bot: true,
       text: (
@@ -131,7 +131,7 @@ function SideBySide() {
     },
     OLA,
   ];
-  const quiet = interpolate(frame, [s(27), s(27.6)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const quiet = interpolate(frame, [s(17.2), s(17.8)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <AbsoluteFill style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 120, paddingTop: 20 }}>
       <Column title="A bot that forgets" dim>

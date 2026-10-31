@@ -5,9 +5,9 @@ import { Backdrop, Chat, ChatHeader, Kinetic, Label, Paper, Phone, Rise, Stamp, 
 /** 6 · Channels too: a forwarded signal is tracked under the channel; a brag isn't. */
 export function Channels() {
   const frame = useCurrentFrame();
-  const phoneOut = interpolate(frame, [s(9.6), s(10.4)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const brag = useIn(s(6.4));
-  const board = useIn(s(10.4));
+  const phoneOut = interpolate(frame, [s(8.6), s(9.2)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const brag = useIn(s(6.2));
+  const board = useIn(s(9.1));
   return (
     <Backdrop glow="#7cc4f5">
       <AbsoluteFill style={{ opacity: phoneOut }}>
@@ -48,17 +48,17 @@ export function Channels() {
             🚀 <b>+1,000% THIS MONTH</b> 📈🔥{"\n"}Our VIPs know exactly what to do. Book your seat now!
           </div>
           <div style={{ position: "absolute", left: 170, top: 90 }}>
-            <Stamp text="Not a call" color={C.loss} at={s(7.6)} size={64} rotate={-10} style={{ mixBlendMode: "normal", background: "rgba(241,237,227,0.92)" }} />
+            <Stamp text="Not a call" color={C.loss} at={s(7.1)} size={64} rotate={-10} style={{ mixBlendMode: "normal", background: "rgba(241,237,227,0.92)" }} />
           </div>
         </div>
-        {frame > s(8) && (
+        {frame > s(7.3) && (
           <div style={{ position: "absolute", left: 1020, top: 640, width: 700 }}>
-            <Kinetic text="Brags don’t count. Calls do." delay={s(8)} size={54} align="left" highlight={["Calls"]} />
+            <Kinetic text="Brags don’t count. Calls do." delay={s(7.3)} size={54} align="left" highlight={["Calls"]} />
           </div>
         )}
       </AbsoluteFill>
 
-      {frame > s(10.2) && (
+      {frame > s(8.9) && (
         <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: 40 }}>
           <div style={{ opacity: board, transform: `translateY(${(1 - board) * 60}px)` }}>
             <Paper style={{ width: 1100, padding: "36px 46px" }}>
@@ -68,12 +68,12 @@ export function Channels() {
                 ["@max", "14 of 23", "61%", C.win, false],
                 ["VIP Signals on Telegram", "3 of 11", "27%", C.loss, true],
               ].map(([who, n, pct, color, source], i) => (
-                <BoardRow key={who as string} at={s(11) + i * 6} who={who as string} n={n as string} pct={pct as string} color={color as string} source={source as boolean} />
+                <BoardRow key={who as string} at={s(9.5) + i * 6} who={who as string} n={n as string} pct={pct as string} color={color as string} source={source as boolean} />
               ))}
             </Paper>
           </div>
-          <Rise delay={s(13.4)}>
-            <Kinetic text="Now you know who’s worth listening to." delay={s(13.4)} size={58} highlight={["worth"]} />
+          <Rise delay={s(9.8)}>
+            <Kinetic text="Now you know who’s worth listening to." delay={s(9.8)} size={58} highlight={["worth"]} />
           </Rise>
         </AbsoluteFill>
       )}
@@ -94,7 +94,7 @@ function BoardRow({ at, who, n, pct, color, source }: { at: number; who: string;
         padding: "18px 0",
         opacity: p,
         transform: `translateX(${(1 - p) * -40}px)`,
-        background: source && frame > s(12.6) ? `linear-gradient(90deg, ${C.hlPink}66, transparent)` : undefined,
+        background: source && frame > s(10.4) ? `linear-gradient(90deg, ${C.hlPink}66, transparent)` : undefined,
       }}
     >
       <span style={{ fontFamily: F.mono, fontSize: 36, fontWeight: 600 }}>
@@ -165,7 +165,7 @@ export function Hood() {
   const wires: [number, number, number, number, number][] = [
     [450, 520, 690, 520, s(1)],
     [1010, 470, 1210, 260, s(2)],
-    [1010, 570, 1210, 800, s(4)],
+    [1010, 570, 1210, 800, s(5.4)],
   ];
   return (
     <Backdrop glow="#7cc4f5">
@@ -194,9 +194,9 @@ export function Hood() {
           </Rise>
         ))}
       </div>
-      <Node x={1210} y={720} w={560} title="Walrus Memory" sub="a namespace per chat · Sui mainnet" at={s(4)} accent={C.hl} />
+      <Node x={1210} y={720} w={560} title="Walrus Memory" sub="a namespace per chat · Sui mainnet" at={s(5.6)} accent={C.hl} />
       <div style={{ position: "absolute", bottom: 70, left: 0, right: 0, textAlign: "center" }}>
-        <Rise delay={s(6)}>
+        <Rise delay={s(7.6)}>
           <Label size={24}>Every price links to where it was read · every memory is the chat’s own</Label>
         </Rise>
       </div>
