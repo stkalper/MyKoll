@@ -4,6 +4,9 @@
   "functions": {
     "src/app/api/queues/deadline/route.ts": {
       "experimentalTriggers": [{ "type": "queue/v2beta", "topic": "call-deadlines" }]
+    },
+    "src/app/api/queues/watch/route.ts": {
+      "experimentalTriggers": [{ "type": "queue/v2beta", "topic": "price-watch" }]
     }
   }
 }

@@ -10,6 +10,7 @@ import { findMatch, listedTeams, marketWinner, nextMatch, startedMatch, teamKey,
 import { sourceId, sourceName, type PostSource } from "./posts";
 import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
+import type { Target } from "./schedule";
 
 export type Market = "crypto" | "cs2";
 /** "to" is a bare price level ("BTC 102k tomorrow"): only on a draft, it becomes above/below once the price is known. */
@@ -564,6 +565,22 @@ export interface Resolution {
  * yet move to "awaiting_score", where the chat can confirm the score (and Polymarket can still
  * settle them first). Safe to run as often as you like.
  */
+export const reached = (price: number, direction: Target["direction"], target: number) => (direction === "above" ? price >= target : price <= target);
+
+/** What the price checks between sweeps watch for: every level an open crypto call is waiting on. */
+export const openTargets = () =>
+  db<Target>(`select distinct subject, direction, target from calls where status = 'open' and market = 'crypto' and direction in ('above', 'below') and not hidden`);
+
+/** Whether any of these levels has been reached, by Tatum's price right now. Uses no database. */
+export async function anyTargetReached(targets: Target[]): Promise<boolean> {
+  const subjects = [...new Set(targets.map((t) => t.subject))];
+  const prices = new Map(await Promise.all(subjects.map(async (s) => [s, await quote(s).catch(() => null)] as const)));
+  return targets.some((t) => {
+    const q = prices.get(t.subject);
+    return Boolean(q) && reached(q!.price, t.direction, t.target);
+  });
+}
+
 export async function resolveDue(): Promise<Resolution[]> {
   const open = await db<CallRow>(
     `select * from calls where status = 'open' or (status = 'awaiting_score' and market_ref is not null) order by deadline`,
@@ -595,8 +612,7 @@ export async function resolveDue(): Promise<Resolution[]> {
     const price = q.price;
 
     let outcome: "win" | "loss" | null = null;
-    if (call.direction === "above" && price >= call.target!) outcome = "win";
-    else if (call.direction === "below" && price <= call.target!) outcome = "win";
+    if ((call.direction === "above" || call.direction === "below") && reached(price, call.direction, call.target!)) outcome = "win";
     else if (due) {
       if (call.direction === "up") outcome = price > call.entry_price! ? "win" : "loss";
       else if (call.direction === "down") outcome = price < call.entry_price! ? "win" : "loss";

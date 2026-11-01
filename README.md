@@ -122,7 +122,7 @@ Code: [`src/lib/learning.ts`](src/lib/learning.ts), [`src/lib/habits.ts`](src/li
 
 ## Tatum: prices you can check
 
-Every crypto call is judged by a price from Tatum, and each receipt records which source judged it.
+Every crypto call is judged by a price from Tatum, and each receipt records which source judged it. While a call is open the price is checked every 3 minutes, and the first check at or past the target settles it. So a spike shorter than that can pass unseen, and since the Price API averages across markets, it can sit a little off any one exchange’s chart.
 
 | Asset | Source | How |
 |---|---|---|

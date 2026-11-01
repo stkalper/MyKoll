@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { recallQuestion } from "./ask";
-import { claim, mightBeCall, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
+import { claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { startOf, teamKey, teamsOf } from "./polymarket";
@@ -209,6 +209,17 @@ describe("habits", () => {
     assert.equal(habitOf([true, true]), null);
     assert.equal(habitOf([false, true, false]), "unsure");
     assert.equal(habitOf([false, true, true]), null);
+  });
+});
+
+describe("price targets", () => {
+  it("counts a level as reached at the level or past it, on the called side only", () => {
+    assert.ok(reached(705, "above", 705));
+    assert.ok(reached(705.06, "above", 705));
+    assert.equal(reached(704.92, "above", 705), false);
+    assert.ok(reached(705, "below", 705));
+    assert.ok(reached(704.92, "below", 705));
+    assert.equal(reached(705.06, "below", 705), false);
   });
 });
 
