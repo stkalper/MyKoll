@@ -610,8 +610,9 @@ export async function resolveDue(): Promise<Resolution[]> {
     if (call.market === "cs2") {
       const winner = call.market_ref ? await marketWinner(call.market_ref.marketId).catch(() => null) : null;
       if (winner) {
-        const outcome = teamKey(winner) === teamKey(call.market_ref!.outcome) ? "win" : "loss";
-        const settled = await settle(call, outcome, `${winner} won (resolved by Polymarket from HLTV)`, null);
+        const outcome = teamKey(winner.name) === teamKey(call.market_ref!.outcome) ? "win" : "loss";
+        const how = winner.price ? `Polymarket has them at ${(winner.price * 100).toFixed(2)}%` : "resolved by Polymarket from HLTV";
+        const settled = await settle(call, outcome, `${winner.name} won (${how})`, null);
         if (settled) out.push({ call: settled });
         continue;
       }

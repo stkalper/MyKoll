@@ -15,7 +15,8 @@ export async function GET(req: Request) {
   // Restarts the quarter-hourly sweep if it ever stopped.
   await nextSweep();
   await db(`delete from seen_updates where seen_at < now() - interval '2 days'`);
-  const digest = new Date().getUTCDay() === 0 || new URL(req.url).searchParams.has("digest");
+  const params = new URL(req.url).searchParams;
+  const digest = !params.has("noDigest") && (new Date().getUTCDay() === 0 || params.has("digest"));
   if (digest) await postWeeklyDigests(bot);
   return Response.json({ ok: true, digest });
 }

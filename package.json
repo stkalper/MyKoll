@@ -7,6 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "deploy": "npx vercel --prod --yes && npx tsx --env-file=.env.local scripts/kick.mts",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "tsx --test src/lib/*.test.ts"

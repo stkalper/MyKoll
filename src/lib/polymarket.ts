@@ -206,7 +206,7 @@ export async function startedMatch(team: string, opponent?: string | null): Prom
     .sort((a, b) => startOf(b).getTime() - startOf(a).getTime());
   for (const e of recent) {
     const market = await matchWinner(e.id).catch(() => null);
-    if (!market || market.status === "resolved" || market.resolution?.outcome) continue;
+    if (!market || winnerOf(market)) continue;
     const [ours, theirs] = sides(e, key);
     return { team: ours, opponent: theirs, at: startOf(e) };
   }
@@ -306,9 +306,20 @@ export async function findMatch(team: string, opponent: string, deadline: Date):
   return null;
 }
 
-/** Who won, once Polymarket has resolved the market; null while it's still open. */
-export async function marketWinner(marketId: string): Promise<string | null> {
+/** The price at which a match is over in all but name. */
+const DECIDED = 0.995;
+
+/**
+ * Who won a market, if anyone yet. Polymarket's official resolution can come hours after the match,
+ * while the price says it the moment the match ends (99.95% for the winner), so the price counts too.
+ */
+export function winnerOf(m: Pick<Market, "status" | "resolution" | "outcomes">): { name: string; price?: number } | null {
+  if (m.status === "resolved" && m.resolution?.outcome) return { name: m.resolution.outcome };
+  const ahead = m.outcomes?.find((o) => Number(o.price) >= DECIDED);
+  return ahead ? { name: ahead.name, price: Number(ahead.price) } : null;
+}
+
+export async function marketWinner(marketId: string): Promise<{ name: string; price?: number } | null> {
   const r = await get<{ data?: Market } & Partial<Market>>(`/markets/${encodeURIComponent(marketId)}`);
-  const m = (r.data ?? r) as Market;
-  return m.status === "resolved" && m.resolution?.outcome ? m.resolution.outcome : null;
+  return winnerOf((r.data ?? r) as Market);
 }

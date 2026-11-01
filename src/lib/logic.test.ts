@@ -6,7 +6,7 @@ import { recallQuestion } from "./ask";
 import { claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
-import { startOf, teamKey, teamsOf } from "./polymarket";
+import { startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
 import { scorecardLine, scoreMemory } from "./scorecard";
@@ -209,6 +209,20 @@ describe("habits", () => {
     assert.equal(habitOf([true, true]), null);
     assert.equal(habitOf([false, true, false]), "unsure");
     assert.equal(habitOf([false, true, true]), null);
+  });
+});
+
+describe("who won a market", () => {
+  const market = (nrg: number, wildcard: number) => ({ status: "active", outcomes: [{ name: "NRG", price: nrg }, { name: "WILDCARD", price: wildcard }] });
+  it("takes the official resolution", () => {
+    assert.deepEqual(winnerOf({ ...market(0, 1), status: "resolved", resolution: { outcome: "WILDCARD" } }), { name: "WILDCARD" });
+  });
+  it("takes a price that says the match is over, before the resolution comes", () => {
+    assert.deepEqual(winnerOf(market(0.0005, 0.9995)), { name: "WILDCARD", price: 0.9995 });
+  });
+  it("waits while the match can still turn", () => {
+    assert.equal(winnerOf(market(0.48, 0.52)), null);
+    assert.equal(winnerOf(market(0.02, 0.98)), null);
   });
 });
 
