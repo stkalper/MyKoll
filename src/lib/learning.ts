@@ -1,5 +1,6 @@
 import type { CallRow } from "./calls";
 import { db } from "./db";
+import { noteEffect } from "./effects";
 import { recall, remember } from "./memory";
 import { robinhoodKind } from "./robinhoodPrices";
 import { isSuiToken } from "./suiPrices";
@@ -149,6 +150,7 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
   ]);
   const record = records.get(String(call.author_id));
   const lines: string[] = [];
+  const said = `${call.author_name}'s call "${call.quote}"`;
 
   if (record) {
     const relevant = segmentsOf(call)
@@ -160,6 +162,8 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
     const strong = isIn(record.strong);
     const weak = isIn(record.weak);
     const spot = weak ? ` — ⚠️ a weak spot (${fmt(weak)})` : strong ? ` — 🔥 a strong spot (${fmt(strong)})` : "";
+    if (weak) await noteEffect(call.chat_id, "weak_spot", `Flagged ${said} as a weak spot (${fmt(weak)}).`, call.id);
+    else if (strong) await noteEffect(call.chat_id, "strong_spot", `Flagged ${said} as a strong spot (${fmt(strong)}).`, call.id);
     lines.push(`📊 ${call.author_name}'s record: ${relevant.length ? relevant.map(fmt).join(" · ") : `${record.hits}/${record.calls} overall`}${spot}`);
   }
 
@@ -170,8 +174,12 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
   if (similar) {
     const verdict = similar.text.includes(" was RIGHT") ? "✅ right" : "❌ wrong";
     const quote = similar.text.match(/call "([^"]+)"/)?.[1];
-    if (quote) lines.push(`↩ Last time: “${quote}” — ${verdict}`);
+    if (quote) {
+      lines.push(`↩ Last time: “${quote}” — ${verdict}`);
+      await noteEffect(call.chat_id, "last_time", `Answered ${said} with what they said last time: "${quote}", ${verdict.slice(2)}.`, call.id);
+    }
   }
+  if (room.length) await noteEffect(call.chat_id, "room", `Weighed everyone's record on ${call.subject} to show which way the people worth listening to lean.`, call.id);
   return [...lines, ...room];
 }
 
@@ -187,15 +195,24 @@ const sameQuestion = (a: CallRow, b: CallRow) =>
   (a.market === "crypto" ? a.subject === b.subject : [a.subject, a.opponent].sort().join() === [b.subject, b.opponent].sort().join());
 
 /**
- * How far the bot trusts an author on a call: their hit rate on the closest kind of call
- * (this coin or team first, then its group, then overall), smoothed so 1/1 isn't 100%.
+ * How far the bot trusts an author on a call. It starts from a coin flip and moves only as far as
+ * the evidence takes it: their overall record counts as if 16 coin-flip calls came before it, and
+ * their record on the closest kind of call (this coin or team first, then its group) counts as if
+ * 16 calls at their overall rate came before that. One right call barely moves it. The sizes come
+ * from simulated chats (scripts/try-trust.mts), not from real calls, so they aren't fitted to the
+ * score they're judged by.
  */
+const PRIOR_CALLS = 16;
+const PRIOR_KIND_CALLS = 16;
+
 export function trustOn(record: TrackRecord | undefined, c: CallRow): { weight: number; basis: string } {
   if (!record) return { weight: 0.5, basis: "no record yet" };
   const own = `${c.subject} ${c.market === "cs2" ? "picks" : "calls"}`;
   const kinds = segmentsOf(c).filter((s) => s !== "crypto calls").sort((a, b) => Number(b === own) - Number(a === own));
-  const r = kinds.map((s) => record.segments.find((x) => x.segment === s)).find(Boolean) ?? { segment: "everything", hits: record.hits, calls: record.calls };
-  return { weight: (r.hits + 1) / (r.calls + 2), basis: `${r.hits}/${r.calls} on ${r.segment}` };
+  const overall = (record.hits + PRIOR_CALLS / 2) / (record.calls + PRIOR_CALLS);
+  const r = kinds.map((s) => record.segments.find((x) => x.segment === s)).find(Boolean);
+  if (!r) return { weight: overall, basis: `${record.hits}/${record.calls} on everything` };
+  return { weight: (r.hits + PRIOR_KIND_CALLS * overall) / (r.calls + PRIOR_KIND_CALLS), basis: `${r.hits}/${r.calls} on ${r.segment}` };
 }
 
 /**

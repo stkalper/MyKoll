@@ -26,6 +26,8 @@ export interface ReceiptView {
   polymarket?: { team: string; prob: number; url: string; direct?: boolean };
   /** On-chain prices: the Price API's price for the same moment, and how far apart the two are (0.012 = 1.2%). */
   check?: { price: number; apart: number };
+  /** Where this call's memory is sealed on Walrus Mainnet, once it is. */
+  blobUrl?: string;
   /** The author's own "why", added by replying to the receipt. */
   reasons?: string[];
   hidden?: boolean;
@@ -60,7 +62,29 @@ export interface BoardView {
   habits?: { habit?: string; misreads: number };
   /** Whether the memory is earning its keep in this chat (see scorecard.ts). */
   memoryCheck?: MemoryCheckView;
+  /** The latest times what the bot remembered changed what it did in this chat. */
+  memoryEffects?: { kind: MemoryEffectKind; text: string; when: string }[];
 }
+
+export type MemoryEffectKind = "weak_spot" | "strong_spot" | "last_time" | "room" | "logged_without_asking" | "asked_first" | "stayed_quiet";
+
+/** What each kind of change is called when they're counted. */
+export const effectLabel: Record<MemoryEffectKind, string> = {
+  weak_spot: "weak spots flagged",
+  strong_spot: "strong spots flagged",
+  last_time: "past calls brought back",
+  room: "rooms weighed by record",
+  logged_without_asking: "logged without asking",
+  asked_first: "asked first after a misread",
+  stayed_quiet: "misreads not repeated",
+};
+
+/** Below this, a score says more about luck than about the memory: one call can move it past 0.25. */
+export const MEMORY_CHECK_CALLS = 30;
+const MEMORY_CHECK_WITH_RECORD = 15;
+
+export const memoryCheckReady = (c: Pick<MemoryCheckView, "calls" | "withRecord" | "brierMemory">) =>
+  c.calls >= MEMORY_CHECK_CALLS && c.withRecord >= MEMORY_CHECK_WITH_RECORD && c.brierMemory !== null;
 
 /** The bot's trust, scored against outcomes, next to a bot that forgets. */
 export interface MemoryCheckView {

@@ -4,7 +4,7 @@ import { config } from "./config";
 import { db } from "./db";
 import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
-import { remember } from "./memory";
+import { remember, sealedBlobs } from "./memory";
 import { firstCheck, nextSweep, wakeAt } from "./schedule";
 import { findMatch, listedTeams, marketWinner, nextMatch, startedMatch, teamKey, type MarketRef } from "./polymarket";
 import { sourceId, sourceName, type PostSource } from "./posts";
@@ -30,6 +30,8 @@ export interface CallRow {
   target: number | null;
   entry_price: number | null;
   quote: string;
+  memory_job?: string | null;
+  memory_blob?: string | null;
   made_at: Date;
   deadline: Date;
   status: Status;
@@ -526,6 +528,17 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
   });
   await scheduled;
   return call;
+}
+
+/** These calls with the Walrus blob of their memory, where it has been sealed; a lookup is only ever needed once. */
+export async function withBlobs(calls: CallRow[]): Promise<CallRow[]> {
+  const missing = calls.filter((c) => c.memory_job && !c.memory_blob).slice(0, 50);
+  const blobs = await sealedBlobs(missing.map((c) => c.memory_job!)).catch((err) => {
+    console.error("could not look up memory blobs", err);
+    return new Map<string, string>();
+  });
+  await Promise.all(missing.filter((c) => blobs.has(c.memory_job!)).map((c) => db(`update calls set memory_blob = $1 where id = $2`, [blobs.get(c.memory_job!), c.id])));
+  return calls.map((c) => (c.memory_job && blobs.has(c.memory_job) ? { ...c, memory_blob: blobs.get(c.memory_job)! } : c));
 }
 
 /** Logs every pick of a slate as its own call, tied together so they're reported together. */

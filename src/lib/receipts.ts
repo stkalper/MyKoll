@@ -1,8 +1,8 @@
 import { createHmac } from "node:crypto";
-import { claim, reasonsFor, when, type CallRow } from "./calls";
+import { claim, reasonsFor, when, withBlobs, type CallRow } from "./calls";
 import { config } from "./config";
 import { db } from "./db";
-import { proofLabel, proofUrl } from "./proof";
+import { blobUrl, proofLabel, proofUrl } from "./proof";
 import { gap } from "./tatum";
 import type { ReceiptView } from "./view";
 
@@ -31,6 +31,7 @@ export function toView(c: CallRow, reasons: Map<number, string[]>): ReceiptView 
     final: c.final_price ?? undefined,
     note: c.result_note ?? undefined,
     priceSource: c.price_source ?? undefined,
+    blobUrl: c.memory_blob ? blobUrl(c.memory_blob) : undefined,
     reasons: reasons.get(c.id),
     hidden: c.hidden,
   };
@@ -52,5 +53,6 @@ export async function sharedReceipt(slug: string): Promise<ReceiptView | null> {
   if (!id || sig !== sign(id)) return null;
   const [call] = await db<CallRow>(`select * from calls where id = $1 and not hidden`, [id]);
   if (!call) return null;
-  return toView(call, await reasonsFor([id]));
+  const [sealed] = await withBlobs([call]);
+  return toView(sealed, await reasonsFor([id]));
 }

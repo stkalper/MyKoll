@@ -1,4 +1,5 @@
-import { callsBy, chatTitle, leaderboard, reasonsFor, recentCalls, type Standing } from "@/lib/calls";
+import { callsBy, chatTitle, leaderboard, reasonsFor, recentCalls, when, withBlobs, type Standing } from "@/lib/calls";
+import { recentEffects } from "@/lib/effects";
 import { habitsView } from "@/lib/habits";
 import { insightLine, trackRecords, type TrackRecord } from "@/lib/learning";
 import { toView } from "@/lib/receipts";
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
   const user = await chatMember(req, chatId);
   if (!user) return Response.json({ error: "Open this from your group's /board button." }, { status: 403 });
 
-  const [crypto, cs2, recent, mine, title, records, habits] = await Promise.all([
+  const [crypto, cs2, latest, myCalls, title, records, habits, effects] = await Promise.all([
     leaderboard(chatId, "crypto"),
     leaderboard(chatId, "cs2"),
     recentCalls(chatId),
@@ -25,7 +26,11 @@ export async function GET(req: Request) {
     chatTitle(chatId),
     trackRecords(chatId),
     habitsView(chatId, user.id),
+    recentEffects(chatId),
   ]);
+  const sealed = new Map((await withBlobs([...new Map([...latest, ...myCalls].map((c) => [c.id, c])).values()])).map((c) => [c.id, c]));
+  const recent = latest.map((c) => sealed.get(c.id) ?? c);
+  const mine = myCalls.map((c) => sealed.get(c.id) ?? c);
   const memoryCheck = await memoryScorecard(chatId);
   const mineLearned = records.get(String(user.id));
   const reasons = await reasonsFor([...new Set([...recent, ...mine].map((c) => c.id))]);
@@ -45,6 +50,7 @@ export async function GET(req: Request) {
     },
     habits,
     memoryCheck: memoryCheck.calls ? memoryCheck : undefined,
+    memoryEffects: effects.map((e) => ({ kind: e.kind, text: e.text, when: when(e.created_at) })),
   };
   return Response.json(view);
 }

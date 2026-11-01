@@ -22,6 +22,9 @@ export function proofUrl(read: PoolRead): string {
   return read.tx ? `https://suiscan.xyz/mainnet/tx/${read.tx}` : `https://suiscan.xyz/mainnet/object/${read.pool}`;
 }
 
+/** A memory's encrypted blob on Walrus: it shows when it was sealed, not what it says. */
+export const blobUrl = (blobId: string) => `https://walruscan.com/mainnet/blob/${blobId}`;
+
 /** Where a price came from, in a few words, for the receipt pages. */
 export const priceLabel = (source?: string) =>
   (

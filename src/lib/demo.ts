@@ -76,4 +76,9 @@ export const demoBoard: BoardView = {
     brierForgetful: 0.25,
     spots: { weak: { calls: 21, hits: 5 }, strong: { calls: 33, hits: 25 }, none: { calls: 70, hits: 39 } },
   },
+  memoryEffects: [
+    { kind: "weak_spot", text: `Flagged @jake's call "WAL to 5 cents by Friday" as a weak spot (Sui tokens 1/4).`, when: "Thursday 30 Oct, 14:02" },
+    { kind: "logged_without_asking", text: `Logged @max's "nah, SUI bleeds" without asking: every call they were asked about, they confirmed.`, when: "Tuesday 28 Oct, 19:40" },
+    { kind: "stayed_quiet", text: `Stayed quiet on @emma: they said twice that messages like this aren't calls.`, when: "Monday 27 Oct, 11:15" },
+  ],
 };

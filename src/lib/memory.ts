@@ -37,6 +37,15 @@ export async function remember(chatId: number | string, text: string): Promise<s
   return job.job_id;
 }
 
+/** The blobs queued writes ended up in, by job id; a write still being sealed isn't there yet. */
+export async function sealedBlobs(jobIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (!memwalEnabled || !jobIds.length) return out;
+  const { results } = await memwal().getRememberBulkStatus(jobIds);
+  for (const r of results) if (r.blob_id) out.set(r.job_id, r.blob_id);
+  return out;
+}
+
 export async function recall(chatId: number | string, query: string, limit = 10): Promise<Recalled[]> {
   if (!memwalEnabled) return [];
   const result = await memwal().recall({ query, limit, namespace: chatNamespace(chatId), maxDistance: MAX_DISTANCE });

@@ -1,7 +1,4 @@
-import type { MemoryCheckView } from "@/lib/view";
-
-/** Enough settled calls with a record behind them to say anything (same bar as the chat's line). */
-const enough = (c: MemoryCheckView) => c.calls >= 5 && c.withRecord >= 3 && c.brierMemory !== null;
+import { MEMORY_CHECK_CALLS, memoryCheckReady, type MemoryCheckView } from "@/lib/view";
 
 const pct = (x: { calls: number; hits: number }) => Math.round((x.hits / x.calls) * 100);
 
@@ -10,12 +7,12 @@ const pct = (x: { calls: number; hits: number }) => Math.round((x.hits / x.calls
  * (Brier, lower is better), next to a bot that forgets and trusts everyone 50/50.
  */
 export function MemoryCheck({ check, className = "" }: { check: MemoryCheckView; className?: string }) {
-  if (!enough(check))
+  if (!memoryCheckReady(check))
     return (
       <div className={`paper rounded-sm px-5 py-4 ${className}`}>
         <p className="field-label">Memory check</p>
         <p className="mt-2 font-mono text-sm">
-          {check.calls} settled call{check.calls === 1 ? "" : "s"} so far. After a few more, this shows whether what I remember predicts who&apos;s right.
+          Too early to score: {check.calls} of {MEMORY_CHECK_CALLS} settled calls. Below that, the number says more about luck than about what I remember.
         </p>
       </div>
     );

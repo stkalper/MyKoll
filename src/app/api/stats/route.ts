@@ -1,5 +1,6 @@
 import { knownChats } from "@/lib/calls";
 import { db } from "@/lib/db";
+import { effectCounts } from "@/lib/effects";
 import { memoryCounts } from "@/lib/memory";
 import { memoryScorecard } from "@/lib/scorecard";
 
@@ -19,9 +20,10 @@ export async function GET() {
     memoryCounts().catch(() => null),
     memoryScorecard(),
   ]);
+  const memoryEffects = await effectCounts(chats.map((c) => c.chat_id));
   const memories = counts ? chats.reduce((sum, c) => sum + (counts.get(String(c.chat_id)) ?? 0), 0) : null;
   return Response.json(
-    { groups: chats.length, calls: calls.calls, settled: calls.settled, members: calls.members, memories, memoryCheck },
+    { groups: chats.length, calls: calls.calls, settled: calls.settled, members: calls.members, memories, memoryCheck, memoryEffects },
     { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=1800" } },
   );
 }

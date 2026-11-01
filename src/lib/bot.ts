@@ -23,6 +23,7 @@ import {
   usd,
   voteScore,
   when,
+  withBlobs,
   type CallRow,
   type ChatMode,
   type Draft,
@@ -37,8 +38,9 @@ import { noteForNewCall, trackRecords } from "./learning";
 import { shareUrl } from "./receipts";
 import { memoryScorecard, scorecardLine } from "./scorecard";
 import { forwardedPost, justTheLink, postLinkIn, readPost, sourceName, type ForwardOrigin, type Post, type PostLink } from "./posts";
-import { proofLabel, proofUrl } from "./proof";
+import { blobUrl, proofLabel, proofUrl } from "./proof";
 import { nextSweep } from "./schedule";
+import { noteEffect } from "./effects";
 import { DISAGREE, gap, sourceLabel } from "./tatum";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -92,6 +94,7 @@ function receiptButtons(call: CallRow, kb = new InlineKeyboard()): InlineKeyboar
   const next = () => (kb.inline_keyboard.flat().length ? kb.row() : kb);
   if (proof) next().url(`🔎 Check the price on ${proofLabel(proof)}`, proofUrl(proof));
   if (call.market_ref) next().url("📈 The match on Polymarket", call.market_ref.url);
+  if (call.memory_blob) next().url("🧠 Sealed on Walrus before the result", blobUrl(call.memory_blob));
   if (call.source?.url) next().url(`📎 The original post on ${call.source.kind === "x" ? "X" : "Telegram"}`, call.source.url);
   return kb.inline_keyboard.flat().length ? kb : undefined;
 }
@@ -188,7 +191,9 @@ async function announceSlate(bot: Bot, call: CallRow) {
 export async function announceResolutions(bot: Bot) {
   const settled = await resolveDue();
   const reasons = await reasonsFor(settled.map((r) => r.call.id));
-  for (const { call, askScore } of settled) {
+  const sealed = new Map((await withBlobs(settled.map((r) => r.call))).map((c) => [c.id, c]));
+  for (const { call: resolved, askScore } of settled) {
+    const call = sealed.get(resolved.id) ?? resolved;
     // A pick in a slate is reported with the rest of it, once the last match is over.
     if (call.slate_id && !askScore) {
       await announceSlate(bot, call);
@@ -505,12 +510,16 @@ export function createBot(): Bot {
     // What the bot has learned about this member can override the chat's mode, and it says so.
     const author = authorOf(ctx);
     const [mode, habit, misreads] = await Promise.all([chatMode(ctx.chat.id), habitFor(ctx.chat.id, author.id), misreadsLike(ctx.chat.id, author, draft)]);
-    if (misreads >= 2) return console.log("skipped: the author said this reading wasn't a call before", { chat: ctx.chat.id, misreads });
+    if (misreads >= 2) {
+      await noteEffect(ctx.chat.id, "stayed_quiet", `Stayed quiet on ${author.name}: they said twice that messages like this aren't calls.`);
+      return console.log("skipped: the author said this reading wasn't a call before", { chat: ctx.chat.id, misreads });
+    }
 
     if (!misreads && (habit === "trusted" || (mode === "auto" && habit !== "unsure"))) {
       const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, author, draft);
       if ("error" in call) return ctx.reply(call.error, { reply_parameters: { message_id: ctx.message.message_id } });
       const why = mode === "ask" ? [`🤝 ${author.name} ${habitText.trusted.them}.`] : [];
+      if (mode === "ask") await noteEffect(ctx.chat.id, "logged_without_asking", `Logged ${author.name}'s "${call.quote}" without asking: ${author.name} ${habitText.trusted.them}.`, call.id);
       return ctx.reply(receiptText(call, mode === "auto" ? "logged automatically ⚡" : "logged without asking ⚡", reasonsIn(draft), [...why, ...(await learnedForNew(call))]), {
         parse_mode: "HTML",
         reply_parameters: { message_id: ctx.message.message_id },
@@ -524,6 +533,7 @@ export function createBot(): Bot {
       : mode === "auto" && habit === "unsure"
         ? habitText.unsure.you
         : "";
+    if (because) await noteEffect(ctx.chat.id, "asked_first", `Asked ${author.name} first about "${draft.quote}": ${because}`);
     const id = randomBytes(6).toString("hex");
     await db(`insert into pending_calls (id, chat_id, author_id, draft) values ($1, $2, $3, $4)`, [id, ctx.chat.id, ctx.from.id, JSON.stringify(draft)]);
     await ctx.reply(`📌 Sounds like a call: <b>${esc(draftSummary(draft))}</b>. Log it?${because ? `\n<i>${esc(because)}</i>` : ""}`, {

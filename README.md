@@ -15,6 +15,15 @@ Built for the **Tatum × Walrus “Total Recall”** hackathon, track *Markets &
 
 ![Landing page](docs/landing.png)
 
+## Try it in two minutes
+
+1. Add [@mykoll_bot](https://t.me/mykoll_bot) to a Telegram group, or open the [live demo of the Mini App](https://mykoll.vercel.app/app) with no account.
+2. Write a call the way you'd say it: `btc 80k tomorrow`, or `easy for furia`. Tap **Log it**: the receipt shows the price or the Polymarket odds at that moment, and its source.
+3. Paste a link to a signal post on X, or forward one from a Telegram channel: the call goes under the post's author.
+4. Ask `@mykoll_bot who called furia?`, or just `who called furia?`. The answer comes from Walrus Memory.
+5. Make a call that settles soon, such as `sui above 1 in 10 minutes`. The result comes on its own, with a link to where the call was sealed on Walrus before the result.
+6. [`/api/health`](https://mykoll.vercel.app/api/health) checks every integration live, and [`/api/stats`](https://mykoll.vercel.app/api/stats) has the live counts and the raw memory score.
+
 ## Why
 
 Every crypto or esports chat has the same fight: *“you said it would pump!”*, *“I never said that.”* Calls get made in passing, deleted, edited or forgotten, and nobody keeps score. MyKoll keeps score without changing how people talk. People just chat, and the bot remembers.
@@ -121,6 +130,22 @@ Every settled call and every tap on a spotted call teaches the bot something, an
 - **The Mini App shows each member what was learned about them:** their record card, strong and weak spots, and how the bot now handles their calls.
 
 Code: [`src/lib/learning.ts`](src/lib/learning.ts), [`src/lib/habits.ts`](src/lib/habits.ts). Try it without Telegram: [`scripts/try-learning.mts`](scripts/try-learning.mts), [`scripts/try-habits.mts`](scripts/try-habits.mts).
+
+### How much the bot trusts someone
+
+Trust starts at 50/50 and moves only as far as the evidence takes it. A member's overall record counts as if 16 coin-flip calls came before it, and their record on the closest kind of call counts as if 16 calls at their overall rate came before that, so one right call barely moves it. The two sizes were chosen on simulated chats ([`scripts/try-trust.mts`](scripts/try-trust.mts)), never on real calls, so they aren't fitted to the score they're judged by.
+
+### Is the memory earning its keep?
+
+The Memory Check scores that trust against how each call ended (Brier, lower is better), using only what was known when the call was made, next to a bot that forgets and trusts everyone 50/50 (always 0.25). It's shown in chat and on the site from 30 settled calls: below that, one call can move the score past 0.25. The raw number is always public at [`/api/stats`](https://mykoll.vercel.app/api/stats).
+
+The score has limits worth saying out loud. In simulated chats, memory wins clearly only when members really differ and have a real history. When everyone is about equally good, no memory can beat a coin flip, and this score stays a little above 0.25.
+
+### What memory changed
+
+Every time memory changes what the bot does, it writes that down: a weak or strong spot flagged, a past call brought back, a room weighed by record, a member no longer asked, a misread not repeated. The Mini App lists them per chat, and the landing page counts them across chats with nothing that identifies anyone. Code: [`src/lib/effects.ts`](src/lib/effects.ts).
+
+Each call also links to its blob on Walrus Mainnet, sealed before the result was known. The blob is encrypted, so the link shows when it was sealed, not what it says.
 
 ## Tatum: prices you can check
 

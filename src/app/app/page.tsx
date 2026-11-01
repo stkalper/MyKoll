@@ -179,6 +179,19 @@ export default function MiniApp() {
             )}
           </ol>
           {view.memoryCheck && <MemoryCheck check={view.memoryCheck} className="mt-6 rotate-[-0.4deg]" />}
+          {!!view.memoryEffects?.length && (
+            <div className="paper mt-6 rounded-sm px-5 py-4">
+              <p className="field-label">What memory changed here</p>
+              <ul className="mt-3 space-y-3">
+                {view.memoryEffects.map((e) => (
+                  <li key={`${e.when}${e.text}`} className="border-t-2 border-dashed border-rule pt-3 font-mono text-xs leading-relaxed first:border-t-0 first:pt-0">
+                    {e.text}
+                    <span className="field-label mt-1 block">{e.when}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </>
       )}
 

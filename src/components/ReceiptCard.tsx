@@ -64,6 +64,11 @@ export function ReceiptCard({
             check the price on {call.proofChain ?? "Sui"} ↗
           </a>
         )}
+        {call.blobUrl && (
+          <a href={call.blobUrl} target="_blank" rel="noreferrer" className="block underline decoration-dotted underline-offset-2">
+            sealed on Walrus Mainnet ↗
+          </a>
+        )}
       </p>
 
       {call.reasons?.map((r, i) => (

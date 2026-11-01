@@ -1,7 +1,7 @@
 import type { CallRow } from "./calls";
 import { db } from "./db";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
-import type { MemoryCheckView } from "./view";
+import { memoryCheckReady, type MemoryCheckView } from "./view";
 
 /**
  * Does the memory help? For every settled call, the bot's trust in it is worked out from
@@ -59,9 +59,9 @@ export async function memoryScorecard(chatId?: number | string): Promise<Scoreca
 
 /** One line for the chat: what the memory has been worth so far, once there's enough to say. */
 export function scorecardLine(s: Scorecard): string | null {
-  if (s.calls < 5 || s.withRecord < 3 || s.brierMemory === null) return null;
+  if (!memoryCheckReady(s)) return null;
   const rate = (x: { calls: number; hits: number }) => (x.calls ? `${Math.round((x.hits / x.calls) * 100)}% right (${x.hits}/${x.calls})` : null);
-  const parts = [`🧪 Memory check over ${s.calls} settled calls: my trust scored ${s.brierMemory.toFixed(3)} vs 0.250 for a bot that forgets (lower is better).`];
+  const parts = [`🧪 Memory check over ${s.calls} settled calls: my trust scored ${s.brierMemory!.toFixed(3)} vs 0.250 for a bot that forgets (lower is better).`];
   const weak = rate(s.spots.weak);
   const strong = rate(s.spots.strong);
   if (weak) parts.push(`Calls I flagged as a weak spot: ${weak}.`);

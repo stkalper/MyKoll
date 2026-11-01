@@ -136,8 +136,20 @@ describe("the learning loop", () => {
 
   it("trusts a member most on the coin itself, smoothed so one call isn't certainty", () => {
     const record = trackRecordOf([call({ status: "win" }), call({ status: "win" }), call({ status: "win" }), call({ subject: "BTC", status: "loss" })])!;
-    assert.deepEqual(trustOn(record, call({})), { weight: 4 / 5, basis: "3/3 on SUI calls" });
+    const { weight, basis } = trustOn(record, call({}));
+    assert.equal(basis, "3/3 on SUI calls");
+    assert.ok(weight > 0.6 && weight < 0.65, String(weight));
     assert.deepEqual(trustOn(undefined, call({})), { weight: 0.5, basis: "no record yet" });
+  });
+
+  it("moves little on one result, and further with more", () => {
+    const once = trackRecordOf([call({ status: "win" })])!;
+    const weight = trustOn(once, call({})).weight;
+    assert.ok(weight > 0.5 && weight < 0.6, String(weight));
+    const missed = trustOn(trackRecordOf([call({ status: "loss" })])!, call({})).weight;
+    assert.ok(missed < 0.5 && missed > 0.4, String(missed));
+    const many = trackRecordOf(Array.from({ length: 10 }, () => call({ status: "win" })))!;
+    assert.ok(trustOn(many, call({})).weight > 0.75);
   });
 });
 
@@ -197,7 +209,14 @@ describe("memory scorecard", () => {
     assert.equal(s.spots.weak.hits, 0);
     assert.ok(s.spots.weak.calls >= 2);
     assert.equal(s.spots.strong.hits, s.spots.strong.calls);
-    assert.match(scorecardLine(s)!, /vs 0\.250 for a bot that forgets/);
+  });
+  it("gives a score once there are enough calls for it to mean something", () => {
+    const long = [
+      ...Array.from({ length: 16 }, (_, d) => call({ id: 100 + d, author_id: "1", subject: "WAL", status: "loss", made_at: at(d), resolved_at: at(d + 0.5) })),
+      ...Array.from({ length: 16 }, (_, d) => call({ id: 200 + d, author_id: "2", subject: "SUI", status: "win", made_at: at(d), resolved_at: at(d + 0.5) })),
+    ];
+    assert.match(scorecardLine(scoreMemory(long))!, /vs 0\.250 for a bot that forgets/);
+    assert.equal(scorecardLine(scoreMemory(long.slice(0, 20))), null);
   });
   it("stays quiet until there is enough to say", () => {
     assert.equal(scorecardLine(scoreMemory(history.slice(0, 3))), null);

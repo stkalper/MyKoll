@@ -46,6 +46,8 @@ alter table calls add column if not exists slate_id text;
 -- Calls shared from a post on X or Telegram: the post (author, link, time) and the member who shared it.
 alter table calls add column if not exists source jsonb;
 alter table calls add column if not exists shared_by_id bigint;
+-- The Walrus blob a call's memory was sealed in, looked up from memory_job once it's ready.
+alter table calls add column if not exists memory_blob text;
 create index if not exists calls_chat_idx on calls (chat_id, made_at desc);
 create index if not exists calls_due_idx on calls (status, deadline);
 create index if not exists calls_slate_idx on calls (slate_id) where slate_id is not null;
@@ -59,6 +61,18 @@ create table if not exists slates (
   created_at    timestamptz not null default now(),
   announced_at  timestamptz
 );
+
+-- The times what the bot remembered changed what it did (see effects.ts).
+create table if not exists memory_effects (
+  id          bigserial primary key,
+  chat_id     bigint not null,
+  kind        text not null,
+  text        text not null,
+  call_id     bigint,
+  created_at  timestamptz not null default now()
+);
+create unique index if not exists memory_effects_once on memory_effects (call_id, kind);
+create index if not exists memory_effects_chat_idx on memory_effects (chat_id, created_at desc);
 
 -- Telegram updates already taken, since Telegram delivers one again if the last try looked failed.
 create table if not exists seen_updates (
