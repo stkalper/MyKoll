@@ -11,6 +11,8 @@
 
 Built for the **Tatum × Walrus “Total Recall”** hackathon, track *Markets & Sports Prediction*.
 
+> **Note for the judges: Tatum credits ran out during development.** Every Tatum API now answers 402 for this project, so the live bot temporarily reads from public endpoints, as Tatum's team advised. Tatum is still the first choice in the code. [Details and sources below](#tatum-prices-you-can-check).
+
 ![Landing page](docs/landing.png)
 
 ## Why
@@ -20,7 +22,7 @@ Every crypto or esports chat has the same fight: *“you said it would pump!”*
 ## How it works
 
 1. **Someone makes a call** in a normal message or with `/call`. An LLM decides whether it is a checkable prediction and pulls out the asset, direction, target and deadline. It understands relative times (“in 2 hours”, “через 5 годин”) and day names (“by Friday” means the end of Friday). It works in English, Ukrainian, Russian and other languages. See [what counts as a call](#what-counts-as-a-call).
-2. **The bot keeps the receipt.** It stores who said it, the exact words, when, and the price at that moment, all from Tatum. In *ask* mode the author taps “Log it” first. In *auto* mode it is logged straight away, and the author can undo it.
+2. **The bot keeps the receipt.** It stores who said it, the exact words, when, and the price at that moment, from Tatum (for now, from [public fallbacks](#tatum-prices-you-can-check)). In *ask* mode the author taps “Log it” first. In *auto* mode it is logged straight away, and the author can undo it.
 3. **The author can add the why** by replying to the receipt or with `/why`.
 4. **At the deadline the bot posts first.** It shows ✅ or ❌, the final price and the author’s reasoning, plus a link to a public card that can be shared.
 5. **Ask anything later.** Use `/ask` or mention the bot, and it answers from the chat’s memory, quoting people.
@@ -122,7 +124,14 @@ Code: [`src/lib/learning.ts`](src/lib/learning.ts), [`src/lib/habits.ts`](src/li
 
 ## Tatum: prices you can check
 
-> **Tatum credits ran out.** While building, this project used up its Tatum plan's credits (402 from every Tatum API), and credits couldn't be granted for the hackathon. As Tatum's team suggested, the bot now falls back to public endpoints whenever Tatum answers 402: Binance and CoinGecko for prices, Polymarket's own API for CS2, Sui GraphQL and Robinhood Chain's public RPC for on-chain pools. Tatum stays the first choice and is asked again every 10 minutes, so restored credits take over on their own. Each receipt names the source it really used, and `/api/health` shows `publicFallback`.
+> **Tatum credits ran out.** While building, this project used up its Tatum plan's credits (402 from every Tatum API), and credits couldn't be granted for the hackathon. As Tatum's team suggested, the bot falls back to public endpoints whenever Tatum answers 402. Tatum stays the first choice and is asked again every 10 minutes, so restored credits take over on their own. Each receipt names the source it really used, and [`/api/health`](https://mykoll.vercel.app/api/health) shows `publicFallback`. Code: [`src/lib/fallback.ts`](src/lib/fallback.ts).
+>
+> | Tatum API | Public fallback |
+> |---|---|
+> | Price API | Binance, then CoinGecko |
+> | Sui gRPC | Sui GraphQL (`graphql.mainnet.sui.io`) |
+> | Robinhood Chain RPC | `rpc.mainnet.chain.robinhood.com` |
+> | Prediction Market API | Polymarket's own API (`gamma-api.polymarket.com`) |
 
 Every crypto call is judged by a price from Tatum (or, for now, the public fallback above), and each receipt records which source judged it. While a call is open the price is checked every 3 minutes, and the first check at or past the target settles it. So a spike shorter than that can pass unseen, and since the Price API averages across markets, it can sit a little off any one exchange’s chart.
 
@@ -141,9 +150,9 @@ Why on-chain matters: on our plan the Price API covers SUI but answers `402` for
 **Two sources, compared.** When the Price API also covers a token (SUI), the bot asks both and shows how far apart they are. Above 2% the receipt flags it, and the on-chain price is the one that counts:
 ```
 SUI was $0.9519 when called · on-chain Cetus pool via Tatum Sui RPC
-✓ Tatum Price API agrees: $0.9535 (0.2% apart)
+✓ The price feed agrees: $0.9535 (0.2% apart)
 ```
-Both go into Walrus Memory with the call (`… pool state from Sui tx 4stnGpxc…; Tatum Price API said $0.9535`), so `/ask` can say where a verdict came from.
+Both go into Walrus Memory with the call (`… pool state from Sui tx 4stnGpxc…; the price feed said $0.9535`), so `/ask` can say where a verdict came from.
 
 Notes from building it:
 
