@@ -16,14 +16,14 @@ export interface ReceiptView {
   entry?: number;
   final?: number;
   note?: string;
-  /** "price-api", "sui-onchain" or "robinhood-onchain" for price calls. */
+  /** The PriceSource behind a price call. */
   priceSource?: string;
   /** On-chain prices: the explorer page behind the pool price the call was judged by (or logged at). */
   proofUrl?: string;
   /** Which chain that page is on: "Sui" or "Robinhood Chain". */
   proofChain?: string;
   /** CS2 calls matched on Polymarket: the pick as Polymarket names it, its price when called, and the market. */
-  polymarket?: { team: string; prob: number; url: string };
+  polymarket?: { team: string; prob: number; url: string; direct?: boolean };
   /** On-chain prices: the Price API's price for the same moment, and how far apart the two are (0.012 = 1.2%). */
   check?: { price: number; apart: number };
   /** The author's own "why", added by replying to the receipt. */

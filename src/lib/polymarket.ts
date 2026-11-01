@@ -1,4 +1,5 @@
 import { config } from "./config";
+import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 
 /**
  * CS2 matches on Polymarket, through Tatum's Prediction Market API. A CS2 call is matched to
@@ -19,6 +20,8 @@ export interface MarketRef {
   /** The picked team as Polymarket names it, and its price (implied chance) when the call was made. */
   outcome: string;
   prob: number;
+  /** Set when this was read straight from Polymarket, because Tatum was out of credits. */
+  direct?: boolean;
 }
 
 interface Outcome {
@@ -76,6 +79,74 @@ async function get<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/* Polymarket's own API, for when Tatum is out of credits. Its ids are the ones Tatum passes on. */
+
+const GAMMA = "https://gamma-api.polymarket.com";
+/** Polymarket's tag for Counter-Strike 2. */
+const CS2_TAG = 100780;
+
+interface GammaMarket {
+  conditionId: string;
+  question: string;
+  outcomes?: string;
+  outcomePrices?: string;
+  closed?: boolean;
+  umaResolutionStatus?: string | null;
+  slug?: string;
+}
+
+interface GammaEvent {
+  id: string | number;
+  title: string;
+  description?: string;
+  closed?: boolean;
+  endDate?: string;
+  slug?: string;
+  markets?: GammaMarket[];
+}
+
+async function gamma<T>(path: string): Promise<T> {
+  const res = await fetch(`${GAMMA}${path}`, { signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new Error(`Polymarket API ${res.status} for ${path}`);
+  return (await res.json()) as T;
+}
+
+const eventUrl = (slug?: string) => (slug ? `https://polymarket.com/event/${slug}` : undefined);
+
+const fromGammaEvent = (e: GammaEvent): Event => ({
+  id: String(e.id),
+  title: e.title,
+  description: e.description,
+  status: e.closed ? "closed" : "active",
+  closeTime: e.endDate ?? "",
+  source: { url: eventUrl(e.slug) },
+});
+
+/** Outcomes and prices come as JSON strings; a closed market's winner is the side priced at 1. */
+export function fromGammaMarket(m: GammaMarket, eventId: string, slug?: string): Market {
+  const names = JSON.parse(m.outcomes ?? "[]") as string[];
+  const prices = (JSON.parse(m.outcomePrices ?? "[]") as string[]).map(Number);
+  const outcomes = names.map((name, i) => ({ name, price: prices[i] ?? 0 }));
+  const resolved = Boolean(m.closed) && m.umaResolutionStatus === "resolved";
+  return {
+    id: m.conditionId,
+    eventId,
+    question: m.question,
+    status: resolved ? "resolved" : m.closed ? "closed" : "active",
+    outcomes,
+    resolution: resolved ? { outcome: outcomes.find((o) => o.price >= 0.5)?.name ?? null } : null,
+    source: { url: eventUrl(slug ?? m.slug) },
+  };
+}
+
+/** The latest CS2 events first, which is where this week's matches are; older ones never get played. */
+async function gammaListing(): Promise<Event[]> {
+  const pages = await Promise.all(
+    [0, 100, 200].map((offset) => gamma<GammaEvent[]>(`/events?active=true&closed=false&tag_id=${CS2_TAG}&order=endDate&ascending=false&limit=100&offset=${offset}`)),
+  );
+  return pages.flat().map(fromGammaEvent).filter((e) => teamsOf(e.title));
+}
+
 /**
  * A team name reduced to what identifies it: "Team Vitality", "VITALITY" and "Vitality.Bet"
  * all become "vitality". "NAVI Junior" stays "navijunior", so it never passes for NaVi.
@@ -128,7 +199,7 @@ let upcoming: { at: number; value: Promise<Event[]> } | undefined;
 
 function upcomingEvents(): Promise<Event[]> {
   if (upcoming && Date.now() - upcoming.at < 10 * 60_000) return upcoming.value;
-  const value = (async () => {
+  const value = tatumOr(async () => {
     const out: Event[] = [];
     let cursor: string | undefined;
     for (let page = 0; page < 10; page++) {
@@ -140,7 +211,7 @@ function upcomingEvents(): Promise<Event[]> {
       if (!cursor || !r.data.length) break;
     }
     return out;
-  })();
+  }, gammaListing);
   const last = upcoming?.value;
   upcoming = { at: Date.now(), value };
   value.catch(() => (upcoming = undefined));
@@ -167,14 +238,25 @@ function searchTeam(team: string): Promise<Event[]> {
   if (hit && Date.now() - hit.at < 2 * 60_000) return hit.value;
   // Search returns ten results, ranked loosely and mostly closed, so it's asked two ways; open events
   // come from the listing's own search, which matches the name as written ("mongolz" finds "TheMongolz").
+  const orNothing = (err: unknown): Event[] => {
+    if (isOutOfCredits(err)) throw err;
+    return [];
+  };
   const ask = (q: string) =>
     get<{ data?: { events?: Event[] } }>(`/search?q=${encodeURIComponent(q)}`)
       .then((r) => r.data?.events ?? [])
-      .catch(() => [] as Event[]);
-  const open = get<{ data: Event[] }>(`${ACTIVE_ESPORTS}&limit=50&search=${encodeURIComponent(key)}`)
-    .then((r) => r.data)
-    .catch(() => [] as Event[]);
-  const value = Promise.all([ask(`Counter-Strike: ${team}`), ask(team), open]).then((all) => {
+      .catch(orNothing);
+  const open = () =>
+    get<{ data: Event[] }>(`${ACTIVE_ESPORTS}&limit=50&search=${encodeURIComponent(key)}`)
+      .then((r) => r.data)
+      .catch(orNothing);
+  const value = tatumOr(
+    () => Promise.all([ask(`Counter-Strike: ${team}`), ask(team), open()]),
+    () =>
+      gamma<{ events?: GammaEvent[] }>(`/public-search?q=${encodeURIComponent(team)}&limit_per_type=20&keep_closed_markets=1`)
+        .then((r) => [(r.events ?? []).map(fromGammaEvent)])
+        .catch(() => [[] as Event[]]),
+  ).then((all) => {
     const byId = new Map(all.flat().map((e) => [e.id, e]));
     return [...byId.values()].filter((e) => teamsOf(e.title)?.some((t) => teamKey(t) === key));
   });
@@ -269,8 +351,14 @@ export async function nextMatch(team: string, by?: Date, opponent?: string | nul
 
 /** The match-winner market of an event (not a map, handicap or totals market). */
 async function matchWinner(eventId: string): Promise<Market | null> {
-  const r = await get<{ data: Market[] }>(`/markets?platform=polymarket&eventId=${encodeURIComponent(eventId)}&limit=50`);
-  return r.data.find((m) => teamsOf(m.question) && m.outcomes.length === 2) ?? null;
+  const markets = await tatumOr(
+    async () => (await get<{ data: Market[] }>(`/markets?platform=polymarket&eventId=${encodeURIComponent(eventId)}&limit=50`)).data,
+    async () => {
+      const e = await gamma<GammaEvent>(`/events/${encodeURIComponent(eventId)}`);
+      return (e.markets ?? []).map((m) => fromGammaMarket(m, eventId, e.slug));
+    },
+  );
+  return markets.find((m) => teamsOf(m.question) && m.outcomes.length === 2) ?? null;
 }
 
 /**
@@ -301,6 +389,7 @@ export async function findMatch(team: string, opponent: string, deadline: Date):
       url: market.source?.url ?? event.source?.url ?? "https://polymarket.com",
       outcome: pick.name,
       prob: pick.price,
+      ...(tatumOut() ? { direct: true } : {}),
     };
   }
   return null;
@@ -320,6 +409,18 @@ export function winnerOf(m: Pick<Market, "status" | "resolution" | "outcomes">):
 }
 
 export async function marketWinner(marketId: string): Promise<{ name: string; price?: number } | null> {
-  const r = await get<{ data?: Market } & Partial<Market>>(`/markets/${encodeURIComponent(marketId)}`);
-  return winnerOf((r.data ?? r) as Market);
+  const market = await tatumOr(
+    async () => {
+      const r = await get<{ data?: Market } & Partial<Market>>(`/markets/${encodeURIComponent(marketId)}`);
+      return (r.data ?? r) as Market;
+    },
+    async () => {
+      // Closed markets only come back when asked for.
+      const ask = (closed: boolean) => gamma<GammaMarket[]>(`/markets?condition_ids=${encodeURIComponent(marketId)}&closed=${closed}`);
+      const [m] = [...(await ask(false)), ...(await ask(true))];
+      if (!m) throw new Error(`no Polymarket market ${marketId}`);
+      return fromGammaMarket(m, "");
+    },
+  );
+  return winnerOf(market);
 }

@@ -2,6 +2,7 @@ import { ChannelCredentials } from "@grpc/grpc-js";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { GrpcTransport } from "@protobuf-ts/grpc-transport";
 import { config } from "./config";
+import { tatumOr } from "./fallback";
 import type { PoolRead } from "./proof";
 
 /**
@@ -71,17 +72,38 @@ function throttled<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/** The public Sui endpoint, for when Tatum is out of credits: public fullnodes dropped JSON-RPC. */
+async function graphql<T>(query: string, variables: Record<string, string>): Promise<T> {
+  const res = await fetch("https://graphql.mainnet.sui.io/graphql", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+    signal: AbortSignal.timeout(8_000),
+  });
+  const body = (await res.json()) as { data?: T; errors?: { message: string }[] };
+  if (!body.data || body.errors?.length) throw new Error(`Sui GraphQL: ${body.errors?.[0]?.message ?? res.status}`);
+  return body.data;
+}
+
 const decimals = new Map<string, number>();
 
 async function decimalsOf(coinType: string): Promise<number> {
   const normalized = coinType.startsWith("0x") ? coinType : `0x${coinType}`;
   if (!decimals.has(normalized)) {
     // A rate-limited lookup comes back empty rather than failing, so treat empty as retryable.
-    const coinMetadata = await throttled(async () => {
-      const { coinMetadata } = await sui().core.getCoinMetadata({ coinType: normalized });
-      if (!coinMetadata) throw new Error(`429? no metadata for ${normalized}`);
-      return coinMetadata;
-    });
+    const coinMetadata = await tatumOr(
+      () =>
+        throttled(async () => {
+          const { coinMetadata } = await sui().core.getCoinMetadata({ coinType: normalized });
+          if (!coinMetadata) throw new Error(`429? no metadata for ${normalized}`);
+          return coinMetadata;
+        }),
+      async () => {
+        const { coinMetadata } = await graphql<{ coinMetadata: { decimals: number } | null }>(`query($t: String!) { coinMetadata(coinType: $t) { decimals } }`, { t: normalized });
+        if (!coinMetadata) throw new Error(`no metadata for ${normalized}`);
+        return coinMetadata;
+      },
+    );
     decimals.set(normalized, coinMetadata.decimals);
   }
   return decimals.get(normalized)!;
@@ -110,8 +132,20 @@ function readPool(poolId: string): Promise<PoolPrice> {
   return value;
 }
 
+/** A pool object from the public endpoint, in the shape the gRPC client gives. */
+async function publicPool(poolId: string) {
+  const { object } = await graphql<{
+    object: { version: number; previousTransaction: { digest: string } | null; asMoveObject: { contents: { type: { repr: string }; json: unknown } } } | null;
+  }>(`query($a: SuiAddress!) { object(address: $a) { version previousTransaction { digest } asMoveObject { contents { type { repr } json } } } }`, { a: poolId });
+  if (!object) throw new Error(`no pool ${poolId}`);
+  return { type: object.asMoveObject.contents.type.repr, json: object.asMoveObject.contents.json, version: String(object.version), previousTransaction: object.previousTransaction?.digest ?? null };
+}
+
 async function fetchPool(poolId: string): Promise<PoolPrice> {
-  const { object } = await throttled(() => sui().core.getObject({ objectId: poolId, include: { json: true, previousTransaction: true } }));
+  const object = await tatumOr(
+    async () => (await throttled(() => sui().core.getObject({ objectId: poolId, include: { json: true, previousTransaction: true } }))).object,
+    () => publicPool(poolId),
+  );
   const [, coinA, coinB] = object.type.match(/::pool::Pool<(.+),\s*(.+)>$/) ?? [];
   const sqrt = (object.json as { current_sqrt_price?: string } | null)?.current_sqrt_price;
   if (!coinA || !coinB || !sqrt) throw new Error(`unexpected pool ${poolId}`);

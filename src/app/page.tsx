@@ -497,6 +497,11 @@ export default function Landing() {
       </Section>
 
       <Section id="prices" tab="Tatum" title="Prices you can check.">
+        <p className="mb-4 max-w-2xl text-sm text-muted">
+          Our Tatum credits ran out during the hackathon, so for now the bot
+          falls back to public endpoints whenever Tatum says so, and every
+          receipt names the source it really used.
+        </p>
         <p className="mb-8 max-w-2xl text-muted">
           Majors come from Tatum&apos;s Price API. Sui tokens like WAL, DEEP and
           NS aren&apos;t covered there, so the bot reads their price straight

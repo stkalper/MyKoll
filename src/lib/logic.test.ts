@@ -3,10 +3,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { recallQuestion } from "./ask";
+import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 import { claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
-import { startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
+import { fromGammaMarket, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
 import { scorecardLine, scoreMemory } from "./scorecard";
@@ -223,6 +224,31 @@ describe("who won a market", () => {
   it("waits while the match can still turn", () => {
     assert.equal(winnerOf(market(0.48, 0.52)), null);
     assert.equal(winnerOf(market(0.02, 0.98)), null);
+  });
+});
+
+describe("when Tatum is out of credits", () => {
+  it("recognises the 402 from every Tatum API, and nothing else", () => {
+    for (const message of ["Price API 402", "Received HTTP status code 402", "eth_blockNumber: 402", "prediction API 402 for /events"]) assert.ok(isOutOfCredits(new Error(message)), message);
+    for (const message of ["prediction API 500 for /events", "timeout", "price 4021"]) assert.equal(isOutOfCredits(new Error(message)), false, message);
+  });
+  it("passes other errors on, then uses the public source and stays there", async () => {
+    await assert.rejects(tatumOr(() => Promise.reject(new Error("timeout")), async () => "public"));
+    assert.equal(tatumOut(), false);
+    assert.equal(await tatumOr(async () => "tatum", async () => "public"), "tatum");
+    assert.equal(await tatumOr(() => Promise.reject(new Error("Price API 402")), async () => "public"), "public");
+    assert.equal(tatumOut(), true);
+    assert.equal(await tatumOr(async () => "tatum", async () => "public"), "public");
+  });
+  it("reads Polymarket's own market format", () => {
+    const base = { conditionId: "0xabc", question: "Counter-Strike: NRG vs Wildcard (BO3)", outcomes: '["NRG", "Wildcard"]' };
+    const open = fromGammaMarket({ ...base, outcomePrices: '["0.0005", "0.9995"]', closed: false }, "1", "cs2-nrg");
+    assert.equal(open.status, "active");
+    assert.deepEqual(open.outcomes, [{ name: "NRG", price: 0.0005 }, { name: "Wildcard", price: 0.9995 }]);
+    assert.equal(open.source?.url, "https://polymarket.com/event/cs2-nrg");
+    assert.deepEqual(winnerOf(open), { name: "Wildcard", price: 0.9995 });
+    const done = fromGammaMarket({ ...base, outcomePrices: '["0", "1"]', closed: true, umaResolutionStatus: "resolved" }, "1");
+    assert.deepEqual(winnerOf(done), { name: "Wildcard" });
   });
 });
 

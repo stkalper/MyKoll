@@ -1,6 +1,7 @@
 import { Stamp } from "@/components/file/Stamp";
 import { PenTail } from "@/components/landing/PenTail";
 import type { ReceiptView } from "@/lib/view";
+import { priceLabel } from "@/lib/proof";
 
 const usd = (n: number) => (n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toPrecision(3)}`);
 
@@ -20,13 +21,11 @@ export function ReceiptCard({
   const source =
     call.market === "cs2"
       ? call.polymarket
-        ? "Polymarket via Tatum"
+        ? call.polymarket.direct
+          ? "Polymarket"
+          : "Polymarket via Tatum"
         : "score confirmed in chat"
-      : call.priceSource === "sui-onchain"
-        ? "on-chain · Tatum Sui RPC"
-        : call.priceSource === "robinhood-onchain"
-          ? "Robinhood Chain · Tatum RPC"
-          : "Tatum Price API";
+      : priceLabel(call.priceSource);
   const price = call.entry !== undefined ? `${usd(call.entry)} → ${call.final !== undefined ? usd(call.final) : "…"}` : null;
   return (
     <article

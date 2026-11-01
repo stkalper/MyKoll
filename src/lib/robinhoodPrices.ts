@@ -1,3 +1,4 @@
+import { tatumOr } from "./fallback";
 import { config } from "./config";
 import type { PoolRead } from "./proof";
 
@@ -52,6 +53,7 @@ export const robinhoodKind = (symbol: string): RobinhoodKind | null => TOKENS[sy
 export const robinhoodTokens = () => Object.entries(TOKENS).map(([symbol, t]) => ({ symbol, ...t }));
 
 const RPC = "https://robinhood-mainnet.gateway.tatum.io";
+const PUBLIC_RPC = "https://rpc.mainnet.chain.robinhood.com";
 
 /**
  * The free plan allows a few requests a second and no batching, so requests go one at a
@@ -61,15 +63,21 @@ let queue: Promise<unknown> = Promise.resolve();
 let lastCall = 0;
 const SPACING_MS = 300;
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+const rpc = <T,>(method: string, params: unknown[]) =>
+  tatumOr(
+    () => rpcAt<T>(RPC, { "x-api-key": config.tatum.apiKey }, method, params),
+    () => rpcAt<T>(PUBLIC_RPC, {}, method, params),
+  );
+
+async function rpcAt<T>(url: string, auth: Record<string, string>, method: string, params: unknown[]): Promise<T> {
   const run = async (): Promise<T> => {
     for (let attempt = 0; ; attempt++) {
       const wait = lastCall + SPACING_MS - Date.now();
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       lastCall = Date.now();
-      const res = await fetch(RPC, {
+      const res = await fetch(url, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-api-key": config.tatum.apiKey },
+        headers: { "content-type": "application/json", ...auth },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
         signal: AbortSignal.timeout(8_000),
       });

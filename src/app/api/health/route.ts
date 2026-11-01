@@ -1,5 +1,6 @@
 import { MemWal } from "@mysten-incubation/memwal";
 import { config } from "@/lib/config";
+import { tatumOut } from "@/lib/fallback";
 import { upcomingCs2Matches } from "@/lib/polymarket";
 import { robinhoodQuote } from "@/lib/robinhoodPrices";
 import { suiTokenPriceUsd } from "@/lib/suiPrices";
@@ -23,6 +24,8 @@ export async function GET() {
       tatumRobinhoodRpc: { TSLA_onchain: robinhoodRpc },
       tatumPredictionApi: { upcoming_cs2_matches: prediction },
       walrusMemory: walrus,
+      // True while Tatum is out of credits and the reads above came from public endpoints.
+      publicFallback: tatumOut(),
     },
     { headers: { "Cache-Control": "public, s-maxage=60" } },
   );

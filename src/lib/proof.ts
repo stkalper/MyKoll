@@ -22,5 +22,18 @@ export function proofUrl(read: PoolRead): string {
   return read.tx ? `https://suiscan.xyz/mainnet/tx/${read.tx}` : `https://suiscan.xyz/mainnet/object/${read.pool}`;
 }
 
+/** Where a price came from, in a few words, for the receipt pages. */
+export const priceLabel = (source?: string) =>
+  (
+    ({
+      "sui-onchain": "on-chain · Tatum Sui RPC",
+      "robinhood-onchain": "Robinhood Chain · Tatum RPC",
+      binance: "Binance public API",
+      coingecko: "CoinGecko public API",
+      "sui-public": "on-chain · public Sui GraphQL",
+      "robinhood-public": "Robinhood Chain · public RPC",
+    }) as Record<string, string>
+  )[source ?? ""] ?? "Tatum Price API";
+
 /** The button or link text for a proof, naming the chain. */
 export const proofLabel = (read: PoolRead) => (read.chain === "robinhood" ? "Robinhood Chain" : "Sui");

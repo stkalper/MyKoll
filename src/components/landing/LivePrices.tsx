@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { priceLabel } from "@/lib/proof";
 
 interface Price {
   symbol: string;
   price?: number;
-  source?: "price-api" | "sui-onchain" | "robinhood-onchain";
+  source?: string;
   /** The explorer page behind this pool price, and which chain it's on. */
   proofUrl?: string;
   proofChain?: string;
@@ -38,11 +39,11 @@ export function LivePrices() {
               </div>
               <p className="mt-2 font-mono text-2xl tabular-nums">{p.price ? fmt(p.price) : "—"}</p>
               <p className="field-label mt-1">
-                {p.source === "sui-onchain" ? "on-chain · Tatum Sui RPC" : p.source === "robinhood-onchain" ? "Robinhood Chain · Tatum RPC" : "Tatum Price API"}
+                {priceLabel(p.source)}
               </p>
               {p.check && (
                 <p className={`mt-1 font-mono text-[0.65rem] ${p.check.apart > 0.02 ? "text-stamp-loss" : "text-ink-muted"}`}>
-                  Price API {fmt(p.check.price)} · {(p.check.apart * 100).toFixed(1)}% apart
+                  Price feed {fmt(p.check.price)} · {(p.check.apart * 100).toFixed(1)}% apart
                 </p>
               )}
               {p.proofUrl && (

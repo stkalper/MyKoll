@@ -122,7 +122,9 @@ Code: [`src/lib/learning.ts`](src/lib/learning.ts), [`src/lib/habits.ts`](src/li
 
 ## Tatum: prices you can check
 
-Every crypto call is judged by a price from Tatum, and each receipt records which source judged it. While a call is open the price is checked every 3 minutes, and the first check at or past the target settles it. So a spike shorter than that can pass unseen, and since the Price API averages across markets, it can sit a little off any one exchange’s chart.
+> **Tatum credits ran out.** While building, this project used up its Tatum plan's credits (402 from every Tatum API), and credits couldn't be granted for the hackathon. As Tatum's team suggested, the bot now falls back to public endpoints whenever Tatum answers 402: Binance and CoinGecko for prices, Polymarket's own API for CS2, Sui GraphQL and Robinhood Chain's public RPC for on-chain pools. Tatum stays the first choice and is asked again every 10 minutes, so restored credits take over on their own. Each receipt names the source it really used, and `/api/health` shows `publicFallback`.
+
+Every crypto call is judged by a price from Tatum (or, for now, the public fallback above), and each receipt records which source judged it. While a call is open the price is checked every 3 minutes, and the first check at or past the target settles it. So a spike shorter than that can pass unseen, and since the Price API averages across markets, it can sit a little off any one exchange’s chart.
 
 | Asset | Source | How |
 |---|---|---|

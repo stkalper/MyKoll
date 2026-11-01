@@ -445,7 +445,7 @@ function sourcing(q: Pick<Quote, "price" | "source" | "proof" | "check">): strin
   const read = q.proof?.[0];
   if (read?.tx) parts.push(`pool state from Sui tx ${read.tx}`);
   else if (read?.block) parts.push(`pool ${read.pool} at Robinhood Chain block ${read.block}`);
-  if (q.check) parts.push(`Tatum Price API said ${usd(q.check)}${gap(q.price, q.check) > DISAGREE ? ", the sources disagree" : ""}`);
+  if (q.check) parts.push(`the price feed said ${usd(q.check)}${gap(q.price, q.check) > DISAGREE ? ", the sources disagree" : ""}`);
   return parts.join("; ");
 }
 
@@ -469,7 +469,7 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
   let q: Quote | null = null;
   if (draft.market === "crypto") {
     q = await quote(draft.subject);
-    if (!q) return { error: `Tatum has no price for ${draft.subject}, so I can't keep score on it.` };
+    if (!q) return { error: `I can't get a price for ${draft.subject}, so I can't keep score on it.` };
     if (draft.targetPct) draft = { ...draft, target: Number((q.price * (1 + draft.targetPct / 100)).toPrecision(6)) };
     draft = { ...draft, direction: sideOf(draft.direction, draft.target, q.price) };
     if (draft.direction === "above" && q.price >= draft.target!) return { error: `${draft.subject} is already at ${usd(q.price)}, above ${usd(draft.target!)}.` };

@@ -53,8 +53,8 @@ function crossCheck(price: number | null, check: number | null): string | null {
   if (price === null || check === null) return null;
   const apart = gap(price, check);
   return apart > DISAGREE
-    ? `⚠️ Tatum Price API says ${usd(check)}, ${(apart * 100).toFixed(1)}% apart. The on-chain price is the one that counts.`
-    : `✓ Tatum Price API agrees: ${usd(check)} (${(apart * 100).toFixed(1)}% apart)`;
+    ? `⚠️ The price feed says ${usd(check)}, ${(apart * 100).toFixed(1)}% apart. The on-chain price is the one that counts.`
+    : `✓ The price feed agrees: ${usd(check)} (${(apart * 100).toFixed(1)}% apart)`;
 }
 
 function receiptText(call: CallRow, headline: string, reasons: string[] = [], learned: string[] = []): string {
@@ -74,7 +74,7 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
     lines.push(
       call.status === "win" && pct < 45
         ? `🎯 Called the upset: Polymarket had ${team} at ${pct}%`
-        : `📈 Polymarket gave ${team} ${pct}% when called${pct < 45 ? " — an underdog pick" : ""} (via Tatum)`,
+        : `📈 Polymarket gave ${team} ${pct}% when called${pct < 45 ? " — an underdog pick" : ""}${call.market_ref.direct ? "" : " (via Tatum)"}`,
     );
   }
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
