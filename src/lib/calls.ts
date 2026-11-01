@@ -452,6 +452,18 @@ function sourcing(q: Pick<Quote, "price" | "source" | "proof" | "check">): strin
 /** Who a call belongs to: the post's author when it was shared from one, else whoever said it. */
 export const ownerOf = (said: Author, d: Pick<Draft, "source">): Author => (d.source ? { id: sourceId(d.source), name: sourceName(d.source) } : said);
 
+/** The same call from the same author, word for word, logged in the last few minutes: a message sent twice, or two offers of it both tapped. */
+export async function justLogged(chatId: number, authorId: number, d: Pick<Draft, "market" | "subject" | "opponent" | "direction" | "target" | "quote">): Promise<number | null> {
+  const [same] = await db<{ id: number }>(
+    `select id from calls
+      where chat_id = $1 and author_id = $2 and market = $3 and subject = $4 and opponent is not distinct from $5 and direction = $6 and target is not distinct from $7 and quote = $8
+        and not hidden and made_at > now() - interval '10 minutes'
+      limit 1`,
+    [chatId, authorId, d.market, d.subject, d.opponent ?? null, d.direction, d.target ?? null, d.quote],
+  );
+  return same?.id ?? null;
+}
+
 export async function logCall(chat: { id: number; title?: string }, sharer: Author, draft: Draft, slateId: string | null = null): Promise<CallRow | { error: string }> {
   const author = ownerOf(sharer, draft);
   let q: Quote | null = null;
@@ -474,6 +486,9 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
     if (market && (market.prob >= 0.97 || market.prob <= 0.03))
       return { error: `Polymarket already has ${market.outcome} at ${Math.round(market.prob * 100)}%: that match looks decided.` };
   }
+
+  const repeat = await justLogged(chat.id, author.id, draft);
+  if (repeat) return { error: `Already logged: that's receipt #${repeat}.` };
 
   const [call] = await db<CallRow>(
     `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id, source, shared_by_id)
@@ -559,12 +574,6 @@ export interface Resolution {
   askScore?: boolean;
 }
 
-/**
- * Settles every open crypto call whose target was hit or whose deadline passed, and every
- * CS2 call whose Polymarket market has resolved. CS2 calls past their deadline with no result
- * yet move to "awaiting_score", where the chat can confirm the score (and Polymarket can still
- * settle them first). Safe to run as often as you like.
- */
 export const reached = (price: number, direction: Target["direction"], target: number) => (direction === "above" ? price >= target : price <= target);
 
 /** What the price checks between sweeps watch for: every level an open crypto call is waiting on. */
@@ -581,6 +590,12 @@ export async function anyTargetReached(targets: Target[]): Promise<boolean> {
   });
 }
 
+/**
+ * Settles every open crypto call whose target was hit or whose deadline passed, and every
+ * CS2 call whose Polymarket market has resolved. CS2 calls past their deadline with no result
+ * yet move to "awaiting_score", where the chat can confirm the score (and Polymarket can still
+ * settle them first). Safe to run as often as you like.
+ */
 export async function resolveDue(): Promise<Resolution[]> {
   const open = await db<CallRow>(
     `select * from calls where status = 'open' or (status = 'awaiting_score' and market_ref is not null) order by deadline`,
