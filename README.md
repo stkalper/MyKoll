@@ -17,12 +17,29 @@ Built for the **Tatum × Walrus “Total Recall”** hackathon, track *Markets &
 
 ## Try it in two minutes
 
-1. Add [@mykoll_bot](https://t.me/mykoll_bot) to a Telegram group, or open the [live demo of the Mini App](https://mykoll.vercel.app/app) with no account.
+1. Add [@mykoll_bot](https://t.me/mykoll_bot) to a Telegram group. No Telegram? Open [a real chat's public file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc), or the [demo chat](https://mykoll.vercel.app/app).
 2. Write a call the way you'd say it: `btc 80k tomorrow`, or `easy for furia`. Tap **Log it**: the receipt shows the price or the Polymarket odds at that moment, and its source.
 3. Paste a link to a signal post on X, or forward one from a Telegram channel: the call goes under the post's author.
 4. Ask `@mykoll_bot who called furia?`, or just `who called furia?`. The answer comes from Walrus Memory.
 5. Make a call that settles soon, such as `sui above 1 in 10 minutes`. The result comes on its own, with a link to where the call was sealed on Walrus before the result.
 6. [`/api/health`](https://mykoll.vercel.app/api/health) checks every integration live, and [`/api/stats`](https://mykoll.vercel.app/api/stats) has the live counts and the raw memory score.
+
+## Check it yourself
+
+Every claim in this README can be checked against the live bot, Walrus Mainnet, Sui or Polymarket, with no account and no Telegram. The receipts below are real calls from a real group chat, linked as they are.
+
+| Claim | Check it | What you'll see |
+|---|---|---|
+| It runs in real group chats | [A real chat's public file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc) · [`/api/stats`](https://mykoll.vercel.app/api/stats) | The chat's board, every receipt, what memory changed there; live counts of groups, calls and memories. The group's admin opened the file with `/public` and can close it again |
+| Each call is sealed on Walrus Mainnet before its result | [Receipt #41](https://mykoll.vercel.app/r/41-576b64f0f6d0) → [its blob on Walruscan](https://walruscan.com/mainnet/blob/BDAWHGg0B-Hl0TUTsb3QueATgvlngq80-OJmJo8cK54) | The blob was sealed when the call was logged, before the deadline it was judged at |
+| Prices come from the Tatum Price API | [Receipt #41](https://mykoll.vercel.app/r/41-576b64f0f6d0): “Bnb 705 in 3 hours” | BNB $702.92 when called, $705.06 at the deadline, source *Tatum Price API*: called it |
+| Sui tokens are priced on-chain through Tatum Sui RPC | [Receipt #4](https://mykoll.vercel.app/r/4-154c157cf7cf): “DEEP впаде нижче 0.015 за тиждень” | DEEP $0.0170 from its Cetus pool, source *on-chain · Tatum Sui RPC*; it settles on 4 November |
+| An on-chain price links the transaction behind it | [Receipt #44](https://mykoll.vercel.app/r/44-7aa9b7005a62) → [the Sui transaction](https://suiscan.xyz/mainnet/tx/FZJuTtoHKksTummub6rXz1cJKNg2zhSv41AyX6wqfshU) | SUI $0.898 → $0.899 from the Cetus pool, the transaction that last set the pool's price, and the Price API 0.2% apart. Read after Tatum's credits ran out, so through public Sui GraphQL, and the receipt says so |
+| CS2 picks are matched to Polymarket and settled from it | [Receipt #26](https://mykoll.vercel.app/r/26-405237a656c9) → [the market](https://polymarket.com/event/cs2-nemi1-furia-2026-10-31) | “Изи для фуріа”: FURIA to beat Nemiga, Polymarket at 72% when called, settled from the market: called it |
+| Memory changes what the bot does | [The public file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc), *What memory changed here* · `memoryEffects` in [`/api/stats`](https://mykoll.vercel.app/api/stats) | Each time a recalled record or habit changed a reply: a past call brought back, a call logged without asking |
+| The memory is scored honestly | `memoryCheck` in [`/api/stats`](https://mykoll.vercel.app/api/stats) | The bot's trust scored against outcomes next to a bot that forgets, even while memory isn't ahead yet ([why](#is-the-memory-earning-its-keep)) |
+| Every integration is up | [`/api/health`](https://mykoll.vercel.app/api/health) | A live read from every price source (the Price API, a Sui pool, a Robinhood Chain pool), Polymarket's upcoming CS2 matches and Walrus Memory, with `publicFallback: true` while Tatum is out of credits |
+| The code does what it says | [CI](https://github.com/stkalper/MyKoll/actions/workflows/ci.yml) · `npm test` | Lint, typecheck, tests and a build on every push |
 
 ## Why
 
@@ -225,6 +242,7 @@ By 2 November 2026, the 23 logged calls had been priced by: Tatum Price API 7, T
 | `/open` | Calls still waiting for their deadline |
 | `/hide 12` | Take your call off the board and out of the bot’s answers |
 | `/mode` | Admins choose *ask first* or *auto* logging |
+| `/public` | Admins open the chat's file (board, receipts, what memory changed) to anyone with the link, or close it. Nobody's own file and no hidden call is ever in it |
 
 CS2 calls settle from Polymarket when the match is listed there (see below); otherwise, or until Polymarket resolves it, someone other than the author confirms the winner with one tap.
 
