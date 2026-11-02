@@ -66,8 +66,15 @@ export default function MiniApp() {
       tg.setHeaderColor("#0b0e15");
       tg.setBackgroundColor("#0b0e15");
     }
-    // Outside Telegram there is no signed user, so show the demo chat.
-    if (!tg?.initData) return setView(demoBoard);
+    // Outside Telegram there is no signed user: a chat's public file if the link has one, else the demo chat.
+    if (!tg?.initData) {
+      const file = new URLSearchParams(window.location.search).get("file");
+      if (!file) return setView(demoBoard);
+      const res = await fetch(`/api/app/board?file=${encodeURIComponent(file)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setError(data.error ?? "Something went wrong.");
+      return setView(data);
+    }
     setInitData(tg.initData);
 
     const chat = tg.initDataUnsafe?.start_param;
@@ -95,6 +102,15 @@ export default function MiniApp() {
   }
 
   const isDemo = view?.chat.id === "demo";
+  /** A chat's public file: a real chat, seen by someone outside it. */
+  const isPublic = !!view && !isDemo && !view.me;
+  const tabs = (
+    [
+      ["board", "Board"],
+      ["calls", "Calls"],
+      ["me", "My file"],
+    ] as const
+  ).filter(([id]) => id !== "me" || !isPublic);
 
   const settledCount = view ? view.boards.crypto.reduce((n, s) => n + s.calls, 0) + view.boards.cs2.reduce((n, s) => n + s.calls, 0) : 0;
 
@@ -109,6 +125,8 @@ export default function MiniApp() {
         </div>
         {isDemo ? (
           <span className="stamp text-[0.65rem] text-loss">demo</span>
+        ) : isPublic ? (
+          <span className="stamp text-[0.65rem] text-win">live · public</span>
         ) : (
           view && (
             <span className="text-muted">
@@ -119,6 +137,12 @@ export default function MiniApp() {
       </header>
 
       {error && <p className="paper mt-8 rounded-sm p-5 font-mono text-sm">{error}</p>}
+
+      {isPublic && (
+        <p className="mt-4 font-mono text-xs leading-relaxed text-muted">
+          A real group chat that made its file public. Every call here was said in the chat, priced when it was said and settled by the bot. Members can hide any call of theirs.
+        </p>
+      )}
 
       {!view && chats && (
         <>
@@ -269,13 +293,7 @@ export default function MiniApp() {
 
       <nav className="fixed inset-x-0 bottom-5 mx-auto flex w-full max-w-md items-center justify-between px-4">
         <div className="flex gap-1 rounded-lg border-2 border-outline bg-paper p-1 shadow-[4px_4px_0_rgba(0,0,0,0.5)]">
-          {(
-            [
-              ["board", "Board"],
-              ["calls", "Calls"],
-              ["me", "My file"],
-            ] as const
-          ).map(([id, label]) => (
+          {tabs.map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}

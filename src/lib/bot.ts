@@ -7,6 +7,7 @@ import {
   extractCall,
   finishedSlate,
   hideCall,
+  isPublicChat,
   leaderboard,
   addReason,
   logCall,
@@ -17,6 +18,7 @@ import {
   reasonsFor,
   resolveDue,
   setChatMode,
+  setChatPublic,
   touchChat,
   undoCall,
   UNDO_MINUTES,
@@ -35,7 +37,7 @@ import { config, llmEnabled } from "./config";
 import { db } from "./db";
 import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
 import { noteForNewCall, trackRecords } from "./learning";
-import { shareUrl } from "./receipts";
+import { fileUrl, shareUrl } from "./receipts";
 import { memoryScorecard, scorecardLine } from "./scorecard";
 import { forwardedPost, justTheLink, postLinkIn, readPost, sourceName, type ForwardOrigin, type Post, type PostLink } from "./posts";
 import { blobUrl, proofLabel, proofUrl } from "./proof";
@@ -368,6 +370,26 @@ export function createBot(): Bot {
     await ctx.editMessageText(`Mode set.\n\n${MODE_TEXT[mode]}`, { parse_mode: "HTML", reply_markup: modeKeyboard(mode) });
   });
 
+  const PUBLIC_TEXT =
+    "Anyone with the link can see this chat's board, receipts and what memory changed — never anyone's own file, and never hidden calls. Members can still /hide any call of theirs.";
+  const publicKeyboard = (on: boolean) => new InlineKeyboard().text(on ? "Make it private" : "Make it public", on ? "public:off" : "public:on");
+  const publicStatus = (chatId: number, on: boolean) =>
+    on ? `🌐 This chat's file is public:\n${fileUrl(chatId)}\n\n${PUBLIC_TEXT}` : `🔒 This chat's file is private.\n\nMaking it public: ${PUBLIC_TEXT}`;
+
+  bot.command("public", async (ctx) => {
+    if (ctx.chat.type === "private") return ctx.reply("Use /public in a group.");
+    const on = await isPublicChat(ctx.chat.id);
+    await ctx.reply(`${publicStatus(ctx.chat.id, on)}\n\nOnly group admins can switch.`, { reply_markup: publicKeyboard(on), link_preview_options: { is_disabled: true } });
+  });
+
+  bot.callbackQuery(/^public:(on|off)$/, async (ctx) => {
+    if (!(await isAdmin(ctx))) return ctx.answerCallbackQuery({ text: "Only group admins can change this.", show_alert: true });
+    const on = ctx.match![1] === "on";
+    await setChatPublic(ctx.chat!.id, on);
+    await ctx.answerCallbackQuery({ text: on ? "The file is public" : "The file is private" });
+    await ctx.editMessageText(publicStatus(ctx.chat!.id, on), { reply_markup: publicKeyboard(on), link_preview_options: { is_disabled: true } });
+  });
+
   bot.callbackQuery(/^undo:(\d+)$/, async (ctx) => {
     const res = await undoCall(Number(ctx.match![1]), ctx.from.id);
     if (res === "not_yours") return ctx.answerCallbackQuery({ text: "Only the author can undo their call.", show_alert: true });
@@ -556,4 +578,5 @@ export const BOT_COMMANDS = [
   { command: "why", description: "Add why you made a call: /why 12 ETF inflows" },
   { command: "hide", description: "Hide one of your calls" },
   { command: "mode", description: "Ask before logging calls, or log them automatically" },
+  { command: "public", description: "Open this chat's file to anyone with the link, or close it" },
 ];

@@ -53,7 +53,8 @@ export interface LearnedView {
 
 export interface BoardView {
   chat: { id: string; title: string };
-  me: { id: number };
+  /** Null on a chat's public file, which shows nobody's own file. */
+  me: { id: number } | null;
   boards: Record<Market, StandingView[]>;
   recent: ReceiptView[];
   mine: ReceiptView[];

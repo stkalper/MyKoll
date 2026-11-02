@@ -828,3 +828,22 @@ export async function chatMode(chatId: number | string): Promise<ChatMode> {
 export async function setChatMode(chatId: number | string, mode: ChatMode) {
   await db(`insert into chat_settings (chat_id, mode) values ($1, $2) on conflict (chat_id) do update set mode = excluded.mode`, [chatId, mode]);
 }
+
+/** Whether an admin opened this chat's file to anyone with the link. */
+export async function isPublicChat(chatId: number | string): Promise<boolean> {
+  const [row] = await db<{ public: boolean }>(`select public from chat_settings where chat_id = $1`, [chatId]);
+  return row?.public ?? false;
+}
+
+export async function setChatPublic(chatId: number | string, on: boolean) {
+  await db(`insert into chat_settings (chat_id, public) values ($1, $2) on conflict (chat_id) do update set public = excluded.public`, [chatId, on]);
+}
+
+/** Chats whose file is public, the busiest first. */
+export async function publicChats(): Promise<{ chat_id: string; title: string | null; calls: number }[]> {
+  return db(
+    `select s.chat_id, c.title, (select count(*)::int from calls where chat_id = s.chat_id and not hidden) as calls
+       from chat_settings s left join chats c on c.chat_id = s.chat_id
+      where s.public order by calls desc`,
+  );
+}

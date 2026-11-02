@@ -138,6 +138,8 @@ create table if not exists chat_settings (
   chat_id  bigint primary key,
   mode     text not null default 'ask' check (mode in ('ask', 'auto'))
 );
+-- An admin can open the chat's file (board, receipts, what memory changed) to anyone with the link.
+alter table chat_settings add column if not exists public boolean not null default false;
 `;
 
 let ready: Promise<Query> | undefined;

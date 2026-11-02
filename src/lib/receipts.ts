@@ -46,6 +46,18 @@ const sign = (id: number) => createHmac("sha256", config.telegram.webhookSecret 
 export const shareSlug = (id: number) => `${id}-${sign(id)}`;
 export const shareUrl = (id: number) => `${config.publicUrl}/r/${shareSlug(id)}`;
 
+/** A chat's public file link, signed the same way, so chats can't be enumerated by id either. */
+const signChat = (chatId: string) =>
+  createHmac("sha256", config.telegram.webhookSecret || config.telegram.botToken).update(`file:${chatId}`).digest("hex").slice(0, 12);
+
+export const fileUrl = (chatId: number | string) => `${config.publicUrl}/app?file=${chatId}_${signChat(String(chatId))}`;
+
+/** The chat behind a public file link, if the signature holds (whether it's public is checked separately). */
+export function chatOfFile(slug: string): string | null {
+  const [, chatId, sig] = slug.match(/^(-?\d+)_([0-9a-f]{12})$/) ?? [];
+  return chatId && sig === signChat(chatId) ? chatId : null;
+}
+
 /** The receipt behind a public link, unless the link is forged or the author hid the call. */
 export async function sharedReceipt(slug: string): Promise<ReceiptView | null> {
   const [, idText, sig] = slug.match(/^(\d+)-([0-9a-f]{12})$/) ?? [];
