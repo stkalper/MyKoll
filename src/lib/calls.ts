@@ -231,6 +231,9 @@ Reply with JSON only:
  */
 export async function extractCall(text: string, posted?: Date): Promise<Draft | Slate | Unplaced | null> {
   const teams = [...(await teamWords(text)).values()];
+  // A bare list of teams is always a set of picks; the model says so only some of the time.
+  const listed = teamList(text, teams);
+  if (listed) return slateOf(listed.map((team) => ({ team, opponent: null })), null, quoteOf(text), null);
   const reply = await complete(
     [
       { role: "system", content: callPrompt(text, teams, posted) },
@@ -298,6 +301,25 @@ export async function extractCall(text: string, posted?: Date): Promise<Draft | 
     quote: quoted,
     why,
   };
+}
+
+/** Nothing but separators and "and" left once the team names are taken out. */
+const ONLY_JOINERS = /^(?:[\s,;:.!?()+&/|\-–—]|(?<![\p{L}])(?:and|і|й|та|и)(?![\p{L}]))*$/iu;
+
+/**
+ * The teams of a message that is only a list of them ("Legacy, mongolz, mouz", "наві віталіті"),
+ * in the order written; null when it says anything else, which the model has to read.
+ */
+export function teamList(text: string, teams: string[]): string[] | null {
+  if (teams.length < 2) return null;
+  const at = (t: string) => text.toLowerCase().indexOf(t.toLowerCase());
+  const ordered = teams.filter((t) => at(t) >= 0).sort((a, b) => at(a) - at(b));
+  let rest = text;
+  // Longest first, so "Eternal Fire" goes before a shorter name inside it.
+  for (const t of [...ordered].sort((a, b) => b.length - a.length)) {
+    rest = rest.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu"), " ");
+  }
+  return ordered.length >= 2 && ONLY_JOINERS.test(rest) ? ordered : null;
 }
 
 /** How long a call made on a chart timeframe runs, when it names no time. */
