@@ -156,7 +156,7 @@ export function teamKey(name: string): string {
     .toLowerCase()
     .replace(/['’.\s-]/g, "")
     .replace(/^team/, "")
-    .replace(/(esports|gaming|clan|bet)$/, "");
+    .replace(/(esports|gaming|clan|bet|team)$/, "");
   return ALIASES[k] ?? k;
 }
 
@@ -180,6 +180,9 @@ const ALIASES: Record<string, string> = {
   астраліс: "astralis",
   астралис: "astralis",
   c9: "cloud9",
+  bb: "betboom",
+  бб: "betboom",
+  бетбум: "betboom",
 };
 
 /** Both teams of a Polymarket CS2 event, from its title: "Counter-Strike: MOUZ vs FURIA (BO3) - …". */

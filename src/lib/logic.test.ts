@@ -162,6 +162,8 @@ describe("CS2 on Polymarket", () => {
     assert.equal(teamKey("FURIA Esports"), teamKey("FURIA"));
     assert.equal(teamKey("НАВІ"), "navi");
     assert.equal(teamKey("BC.Game Esports"), "bcgame");
+    assert.equal(teamKey("BetBoom Team"), teamKey("betboom"));
+    assert.equal(teamKey("BB"), teamKey("BetBoom Team"));
   });
   it("reads when a match starts from its description, in New York time", () => {
     const at = (when: string) => startOf({ description: `the match, initially scheduled for ${when} ET. More text`, closeTime: "2026-10-31T03:25:00Z" }).toISOString();

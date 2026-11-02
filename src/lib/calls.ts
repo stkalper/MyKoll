@@ -100,7 +100,7 @@ const MAX_QUOTE = 280;
 // \b only knows ASCII letters, so word edges are spelled out to work for Cyrillic too.
 const word = (alts: string) => new RegExp(`(?<![\\p{L}\\d])(${alts})(?![\\p{L}])`, "iu");
 const CS2_TEAMS = word(
-  "navi|na'vi|natus vincere|нави|наві|faze|фейз|vitality|віталіті|виталити|spirit|спіріт|спирит|g2|mouz|мауз|falcons|liquid|astralis|астраліс|астралис|heroic|furia|фурі\\p{L}*|фури\\p{L}*|(?:the\\s?)?mongolz|монголз|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|parivision|legacy|mibr|imperial|og|fnatic|фнатік\\p{L}*|фнатик\\p{L}*|cloud9|c9|ence|passion ua|tyloo|lynn vision|wildcard|fluxo|nemiga|немиг\\p{L}*|saw|m80|gentle mates|nrg|sashi|bestia",
+  "navi|na'vi|natus vincere|нави|наві|faze|фейз|vitality|віталіті|виталити|spirit|спіріт|спирит|g2|mouz|мауз|falcons|liquid|astralis|астраліс|астралис|heroic|furia|фурі\\p{L}*|фури\\p{L}*|(?:the\\s?)?mongolz|монголз|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|бетбум|bb|бб|parivision|legacy|mibr|imperial|og|fnatic|фнатік\\p{L}*|фнатик\\p{L}*|cloud9|c9|ence|passion ua|tyloo|lynn vision|wildcard|fluxo|nemiga|немиг\\p{L}*|saw|m80|gentle mates|nrg|sashi|bestia",
 );
 const CRYPTO = word(
   "\\$[a-z]{2,10}|#[a-z]{2,10}|[a-z]{2,10}/?usdt|navx|haedal|ika|hippo|lofi|scallop|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|trx|tron|трон\\p{L}*|трх|ltc|bch|atom|algo|xlm|matic|vet|cro|chz|tsla|tesla|тесл\\p{L}*|nvda|nvidia|нвід\\p{L}*|aapl|msft|amzn|googl|pons|понс|cashcat|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|бтс|бтц|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
