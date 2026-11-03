@@ -123,6 +123,23 @@ export async function learnFrom(call: CallRow): Promise<TrackRecord | null> {
   return record;
 }
 
+/**
+ * Recomputes a member's stored record after one of their calls is hidden or brought back, so the
+ * record the bot recalls never counts a call the member took off the board.
+ */
+export async function refreshRecord(chatId: number | string, authorId: number | string): Promise<void> {
+  const record = await computeTrackRecord(chatId, authorId);
+  if (!record) {
+    await db(`delete from track_records where chat_id = $1 and author_id = $2`, [chatId, authorId]);
+    return;
+  }
+  await db(
+    `insert into track_records (chat_id, author_id, author_name, summary, stats, updated_at) values ($1, $2, $3, $4, $5, now())
+     on conflict (chat_id, author_id) do update set author_name = excluded.author_name, summary = excluded.summary, stats = excluded.stats, updated_at = now()`,
+    [chatId, authorId, record.authorName, record.summary, JSON.stringify(record)],
+  );
+}
+
 export async function trackRecords(chatId: number | string): Promise<Map<string, TrackRecord>> {
   const rows = await db<{ author_id: string; stats: TrackRecord }>(`select author_id, stats from track_records where chat_id = $1`, [chatId]);
   return new Map(rows.map((r) => [String(r.author_id), r.stats]));

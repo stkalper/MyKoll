@@ -751,7 +751,16 @@ export async function callsBy(chatId: number | string, authorId: number | string
 /** Lets an author take a call off the board and out of the bot's answers, or bring it back. */
 export async function setHidden(callId: number, authorId: number, hidden: boolean): Promise<boolean> {
   // A call shared from a post belongs to an outside account, so the member who shared it manages it.
-  const rows = await db(`update calls set hidden = $3 where id = $1 and (author_id = $2 or shared_by_id = $2) returning id`, [callId, authorId, hidden]);
+  const rows = await db<{ chat_id: string; author_id: string; status: string }>(
+    `update calls set hidden = $3 where id = $1 and (author_id = $2 or shared_by_id = $2) returning chat_id, author_id, status`,
+    [callId, authorId, hidden],
+  );
+  const [call] = rows;
+  // A settled call counted in the author's record, so the record is worked out again without it.
+  if (call && (call.status === "win" || call.status === "loss")) {
+    const { refreshRecord } = await import("./learning");
+    await refreshRecord(call.chat_id, call.author_id);
+  }
   return rows.length > 0;
 }
 
