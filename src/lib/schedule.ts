@@ -18,7 +18,14 @@ const WATCH_SECONDS = 3 * 60;
 export type Target = { subject: string; direction: "above" | "below"; target: number };
 export type WatchMessage = { targets: Target[] };
 
-/** Every deployment sends the same keyed messages; the queue keeps the first. */
+/**
+ * Queue messages run on the deployment that sent them, so keys are per deployment: with one key
+ * for all, an older deployment that still runs its own chain would take each slot first, and a new
+ * deployment's chain would never start.
+ */
+const keyed = (key: string) => `${process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_URL ?? "local"}-${key}`;
+
+/** Within a deployment, everyone sends the same keyed messages; the queue keeps the first. */
 const unlessDuplicate = (what: string) => (err: { name?: string }) => {
   if (!/duplicate/i.test(String(err?.name ?? err))) console.error(`could not queue ${what}`, err);
 };
@@ -41,13 +48,13 @@ export async function wakeAt(callId: number, at: Date | string) {
  * Keeps one sweep queued for the next quarter hour, so results reach the chats on their own even
  * when nobody writes: a target hit early, a match Polymarket resolves late. Everyone may ask for the
  * next sweep (a new call, chat traffic, the daily cron, the sweep itself); the idempotency key per
- * quarter hour keeps it to one. The sweep stops asking once no call is left running.
+ * quarter hour keeps it to one per deployment. The sweep stops asking once no call is left running.
  */
 export async function nextSweep() {
   if (!process.env.VERCEL) return;
   const slot = Math.ceil((Date.now() + 1000) / (SWEEP_SECONDS * 1000)) * SWEEP_SECONDS * 1000;
   const delaySeconds = Math.ceil((slot - Date.now()) / 1000) + 5;
-  await send(DEADLINE_TOPIC, { sweep: true } satisfies WakeMessage, { delaySeconds, retentionSeconds: 3_600, idempotencyKey: `sweep-${slot}` }).catch(unlessDuplicate("the sweep"));
+  await send(DEADLINE_TOPIC, { sweep: true } satisfies WakeMessage, { delaySeconds, retentionSeconds: 3_600, idempotencyKey: keyed(`sweep-${slot}`) }).catch(unlessDuplicate("the sweep"));
 }
 
 /**
@@ -60,7 +67,7 @@ export async function queueWatches(targets: Target[]) {
   const checks = Array.from({ length: SWEEP_SECONDS / WATCH_SECONDS - 1 }, (_, i) => slot + (i + 1) * WATCH_SECONDS * 1000);
   await Promise.all(
     checks.map((at) =>
-      send(WATCH_TOPIC, { targets } satisfies WatchMessage, { delaySeconds: Math.max(0, Math.ceil((at - Date.now()) / 1000)), retentionSeconds: SWEEP_SECONDS, idempotencyKey: `watch-${at}` }).catch(
+      send(WATCH_TOPIC, { targets } satisfies WatchMessage, { delaySeconds: Math.max(0, Math.ceil((at - Date.now()) / 1000)), retentionSeconds: SWEEP_SECONDS, idempotencyKey: keyed(`watch-${at}`) }).catch(
         unlessDuplicate("a price check"),
       ),
     ),
