@@ -1,1 +1,7 @@
 video
+# Local only: the embedded dev database, secrets (production reads them from the Vercel project), build caches.
+.data
+.env*
+!.env.example
+.next
+tsconfig.tsbuildinfo
