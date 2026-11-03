@@ -7,9 +7,10 @@ import { memoryScorecard } from "@/lib/scorecard";
 import { chatMember } from "@/lib/telegramAuth";
 import type { BoardView, StandingView } from "@/lib/view";
 
-const toStanding = (records: Map<string, TrackRecord>) => (s: Standing): StandingView => {
+const toStanding = (records: Map<string, TrackRecord>, cs2 = false) => (s: Standing): StandingView => {
   const record = records.get(String(s.author_id));
-  return { name: s.author_name, calls: s.calls, hits: s.hits, insight: record ? insightLine(record) || undefined : undefined };
+  const edge = cs2 && record?.marketEdge !== undefined ? Math.round(record.marketEdge * 100) : undefined;
+  return { name: s.author_name, calls: s.calls, hits: s.hits, insight: record ? insightLine(record) || undefined : undefined, vsMarket: edge };
 };
 
 /**
@@ -52,7 +53,7 @@ async function chatView(chatId: string, userId: number | null): Promise<BoardVie
   return {
     chat: { id: chatId, title: title ?? recent[0]?.chat_title ?? "Your chat" },
     me: userId ? { id: userId } : null,
-    boards: { crypto: crypto.map(toStanding(records)), cs2: cs2.map(toStanding(records)) },
+    boards: { crypto: crypto.map(toStanding(records)), cs2: cs2.map(toStanding(records, true)) },
     recent: recent.map((c) => toView(c, reasons)),
     mine: mine.map((c) => toView(c, reasons)),
     learned: mineLearned && {

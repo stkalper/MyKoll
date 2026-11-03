@@ -39,7 +39,12 @@ export interface StandingView {
   hits: number;
   /** What the bot has learned about them, e.g. "strong: CS2 picks · weak: Sui tokens". */
   insight?: string;
+  /** CS2 only: how many points their hit rate beats (or trails) the odds Polymarket gave their picks. */
+  vsMarket?: number;
 }
+
+/** "+12 pts vs Polymarket" / "−8 pts vs Polymarket". */
+export const vsMarketText = (pts: number) => `${pts >= 0 ? "+" : "−"}${Math.abs(pts)} pts vs Polymarket`;
 
 /** The bot's learned view of the viewer, from their settled calls. */
 export interface LearnedView {

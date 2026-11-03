@@ -44,6 +44,7 @@ import { blobUrl, proofLabel, proofUrl } from "./proof";
 import { nextSweep } from "./schedule";
 import { noteEffect } from "./effects";
 import { DISAGREE, gap, sourceLabel } from "./tatum";
+import { vsMarketText } from "./view";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -291,15 +292,25 @@ export function createBot(): Bot {
   });
 
   bot.command("board", async (ctx) => {
-    const [crypto, cs2, scorecard] = await Promise.all([leaderboard(ctx.chat.id, "crypto"), leaderboard(ctx.chat.id, "cs2"), memoryScorecard(ctx.chat.id)]);
+    const [crypto, cs2, scorecard, records] = await Promise.all([
+      leaderboard(ctx.chat.id, "crypto"),
+      leaderboard(ctx.chat.id, "cs2"),
+      memoryScorecard(ctx.chat.id),
+      trackRecords(ctx.chat.id),
+    ]);
     const check = scorecardLine(scorecard);
-    const section = (title: string, rows: typeof crypto) =>
+    // On CS2, how each member's picks did against the odds Polymarket gave them.
+    const vsMarket = (r: (typeof cs2)[number]) => {
+      const edge = records.get(String(r.author_id))?.marketEdge;
+      return edge === undefined ? "" : ` · ${vsMarketText(Math.round(edge * 100))}`;
+    };
+    const section = (title: string, rows: typeof crypto, extra: (r: (typeof crypto)[number]) => string = () => "") =>
       rows.length
-        ? `<b>${title}</b>\n` + rows.map((r, i) => `${i + 1}. ${esc(r.author_name)} — ${Math.round((r.hits / r.calls) * 100)}% (${r.hits}/${r.calls})`).join("\n")
+        ? `<b>${title}</b>\n` + rows.map((r, i) => `${i + 1}. ${esc(r.author_name)} — ${Math.round((r.hits / r.calls) * 100)}% (${r.hits}/${r.calls})${extra(r)}`).join("\n")
         : `<b>${title}</b>\nno settled calls yet`;
     // Groups can't host web_app buttons, so link to the bot's Main Mini App with the chat as start_param.
     const open = new InlineKeyboard().url("📊 Open the board", `https://t.me/${ctx.me.username}?startapp=${ctx.chat.id}`);
-    await ctx.reply(`🏆 Who calls it right\n\n${section("Crypto", crypto)}\n\n${section("CS2", cs2)}${check ? `\n\n${esc(check)}` : ""}`, {
+    await ctx.reply(`🏆 Who calls it right\n\n${section("Crypto", crypto)}\n\n${section("CS2", cs2, vsMarket)}${check ? `\n\n${esc(check)}` : ""}`, {
       parse_mode: "HTML",
       reply_markup: open,
     });

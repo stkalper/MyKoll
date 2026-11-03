@@ -7,7 +7,7 @@ import { MemoryCheck } from "@/components/file/MemoryCheck";
 import { Tally } from "@/components/file/Tally";
 import { ReceiptCard } from "@/components/ReceiptCard";
 import { demoBoard } from "@/lib/demo";
-import { hitRate, type BoardView, type Market } from "@/lib/view";
+import { hitRate, vsMarketText, type BoardView, type Market } from "@/lib/view";
 
 interface TelegramWebApp {
   initData: string;
@@ -191,6 +191,11 @@ export default function MiniApp() {
                   <p className="field-label">
                     {s.hits} of {s.calls} right
                   </p>
+                  {s.vsMarket !== undefined && (
+                    <p className={`mt-0.5 font-mono text-[0.65rem] font-semibold uppercase tracking-wider ${s.vsMarket >= 0 ? "text-stamp-win" : "text-stamp-loss"}`}>
+                      {vsMarketText(s.vsMarket)}
+                    </p>
+                  )}
                   {s.insight && <p className="mt-1 truncate font-hand text-lg leading-none text-ink-muted">{s.insight}</p>}
                 </div>
                 <span className={`font-mono text-2xl font-semibold tabular-nums ${hitRate(s) >= 50 ? "text-stamp-win" : "text-stamp-loss"}`}>{hitRate(s)}%</span>
