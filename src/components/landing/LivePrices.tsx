@@ -1,60 +1,43 @@
-"use client";
-
-import { useEffect, useState } from "react";
+import type { LivePrice } from "@/lib/live";
 import { priceLabel } from "@/lib/proof";
-
-interface Price {
-  symbol: string;
-  price?: number;
-  source?: string;
-  /** The explorer page behind this pool price, and which chain it's on. */
-  proofUrl?: string;
-  proofChain?: string;
-  /** The Price API's price for the same token, when it has one. */
-  check?: { price: number; apart: number };
-}
 
 const fmt = (n: number) => (n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toPrecision(3)}`);
 
 /** The prices calls are judged by right now, labelled with where each one comes from. */
-export function LivePrices() {
-  const [prices, setPrices] = useState<Price[] | null>(null);
-
-  useEffect(() => {
-    fetch("/api/prices")
-      .then((r) => r.json())
-      .then((d) => setPrices(d.prices))
-      .catch(() => setPrices([]));
-  }, []);
-
+export function LivePrices({ prices }: { prices: LivePrice[] }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {(prices ?? Array.from({ length: 6 }, (_, i): Price => ({ symbol: String(i) }))).map((p) => (
+      {prices.map((p) => (
         <div key={p.symbol} className="paper rounded-sm p-4">
-          {prices ? (
-            <>
-              <div className="flex items-center justify-between">
-                <span className="font-form text-sm font-extrabold uppercase">{p.symbol}</span>
-                <span className={`h-2 w-2 rounded-full ${p.price ? "bg-stamp-win" : "bg-ink-muted"}`} />
-              </div>
-              <p className="mt-2 font-mono text-2xl tabular-nums">{p.price ? fmt(p.price) : "—"}</p>
-              <p className="field-label mt-1">
-                {priceLabel(p.source)}
-              </p>
-              {p.check && (
-                <p className={`mt-1 font-mono text-[0.65rem] ${p.check.apart > 0.02 ? "text-stamp-loss" : "text-ink-muted"}`}>
-                  Price feed {fmt(p.check.price)} · {(p.check.apart * 100).toFixed(1)}% apart
-                </p>
-              )}
-              {p.proofUrl && (
-                <a href={p.proofUrl} target="_blank" rel="noreferrer" className="mt-1 block font-mono text-[0.65rem] text-ink-muted underline decoration-dotted underline-offset-2">
-                  {p.proofChain === "Robinhood Chain" ? "pool on Blockscout ↗" : "pool tx on Suiscan ↗"}
-                </a>
-              )}
-            </>
-          ) : (
-            <div className="h-[96px] animate-pulse" />
+          <div className="flex items-center justify-between">
+            <span className="font-form text-sm font-extrabold uppercase">{p.symbol}</span>
+            <span className={`h-2 w-2 rounded-full ${p.price ? "bg-stamp-win" : "bg-ink-muted"}`} />
+          </div>
+          <p className="mt-2 font-mono text-2xl tabular-nums">{p.price ? fmt(p.price) : "—"}</p>
+          <p className="field-label mt-1">{priceLabel(p.source)}</p>
+          {p.check && (
+            <p className={`mt-1 font-mono text-[0.65rem] ${p.check.apart > 0.02 ? "text-stamp-loss" : "text-ink-muted"}`}>
+              Price feed {fmt(p.check.price)} · {(p.check.apart * 100).toFixed(1)}% apart
+            </p>
           )}
+          {p.proofUrl && (
+            <a href={p.proofUrl} target="_blank" rel="noreferrer" className="mt-1 block font-mono text-[0.65rem] text-ink-muted underline decoration-dotted underline-offset-2">
+              {p.proofChain === "Robinhood Chain" ? "pool on Blockscout ↗" : "pool tx on Suiscan ↗"}
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Six blank slips while the prices load. */
+export function LivePricesSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="paper rounded-sm p-4">
+          <div className="h-[96px] animate-pulse" />
         </div>
       ))}
     </div>

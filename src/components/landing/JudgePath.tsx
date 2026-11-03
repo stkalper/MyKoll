@@ -1,6 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
+import type { LiveStats } from "@/lib/live";
 
 const GITHUB = "https://github.com/stkalper/MyKoll";
 /** The demo video, once it's up. */
@@ -10,16 +8,8 @@ const VIDEO = "";
  * Where a judge can see the bot at work without joining a Telegram group: a real chat's public
  * file (if an admin opened one), the README's check-it-yourself table, and the live endpoints.
  */
-export function JudgePath() {
-  const [file, setFile] = useState<{ title: string; calls: number; url: string } | null>(null);
-
-  useEffect(() => {
-    fetch("/api/stats")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((s) => setFile(s?.publicFiles?.[0] ?? null))
-      .catch(() => setFile(null));
-  }, []);
-
+export function JudgePath({ stats }: { stats: LiveStats | null }) {
+  const file = stats?.publicFiles[0];
   const items = [
     file
       ? { label: "A real chat, live", title: file.title, text: `${file.calls} calls as they were made, priced and settled, with what memory changed there. No Telegram needed.`, href: file.url }

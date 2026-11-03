@@ -1,27 +1,14 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { MemoryCheck } from "@/components/file/MemoryCheck";
-import { effectLabel, memoryCheckReady, type MemoryCheckView, type MemoryEffectKind } from "@/lib/view";
+import type { LiveStats } from "@/lib/live";
+import { effectLabel, memoryCheckReady, type MemoryEffectKind } from "@/lib/view";
 
 /**
- * What the memory has done across every chat, live from production: how often it changed what the
- * bot did, and the memory check once there's enough to score it.
+ * What the memory has done across every chat, from production: how often it changed what the bot
+ * did, and the memory check once there's enough to score it.
  */
-export function LiveMemoryCheck() {
-  const [check, setCheck] = useState<MemoryCheckView | null>(null);
-  const [effects, setEffects] = useState<[MemoryEffectKind, number][]>([]);
-
-  useEffect(() => {
-    fetch("/api/stats")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        setCheck(d?.memoryCheck ?? null);
-        setEffects(Object.entries(d?.memoryEffects ?? {}) as [MemoryEffectKind, number][]);
-      })
-      .catch(() => setCheck(null));
-  }, []);
-
+export function LiveMemoryCheck({ stats }: { stats: LiveStats | null }) {
+  const check = stats?.memoryCheck;
+  const effects = Object.entries(stats?.memoryEffects ?? {}) as [MemoryEffectKind, number][];
   const ready = check && memoryCheckReady(check);
   if (!ready && !effects.length) return null;
   return (

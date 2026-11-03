@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { MemberBadge } from "@/components/file/MemberBadge";
 import { ChatPreview } from "@/components/landing/ChatPreview";
-import { LivePrices } from "@/components/landing/LivePrices";
+import { Suspense } from "react";
+import { LivePrices, LivePricesSkeleton } from "@/components/landing/LivePrices";
 import { LiveMemoryCheck } from "@/components/landing/LiveMemoryCheck";
 import { LiveStats } from "@/components/landing/LiveStats";
 import { JudgePath } from "@/components/landing/JudgePath";
+import { cachedPrices, cachedStats } from "@/lib/live";
 import { PenTail } from "@/components/landing/PenTail";
 import { SameCall } from "@/components/landing/SameCall";
 import { ScrollPen } from "@/components/landing/ScrollPen";
@@ -265,6 +267,13 @@ function Sheet({
   );
 }
 
+/* The live parts of the page, rendered on the server from a shared two-minute cache (lib/live.ts),
+   so they arrive with the page rather than after it. */
+const Stats = async () => <LiveStats stats={await cachedStats()} />;
+const MemorySoFar = async () => <LiveMemoryCheck stats={await cachedStats()} />;
+const Prices = async () => <LivePrices prices={await cachedPrices()} />;
+const ForJudges = async () => <JudgePath stats={await cachedStats()} />;
+
 export default function Landing() {
   return (
     <main className="glow relative isolate flex-1">
@@ -326,7 +335,9 @@ export default function Landing() {
             How it works
           </a>
         </div>
-        <LiveStats />
+        <Suspense>
+          <Stats />
+        </Suspense>
 
         {/* Receipts taped straight onto the desk. The pen's route starts at the first one. */}
         <div className="mt-16 grid items-start gap-10 md:grid-cols-3">
@@ -442,7 +453,9 @@ export default function Landing() {
             ))}
           </ul>
         </div>
-        <LiveMemoryCheck />
+        <Suspense>
+          <MemorySoFar />
+        </Suspense>
         <div className="grid gap-10 lg:grid-cols-2">
           <div className="grid gap-5 sm:grid-cols-2">
             {memoryPoints.map((p) => (
@@ -523,7 +536,9 @@ export default function Landing() {
           match when only a team is named. Live right now:
         </p>
         <div data-pen="5" data-pen-points="0.12,0.5">
-          <LivePrices />
+          <Suspense fallback={<LivePricesSkeleton />}>
+            <Prices />
+          </Suspense>
         </div>
         <p className="mt-6 text-sm text-muted">
           Every receipt records which source judged it.{" "}
@@ -596,7 +611,9 @@ export default function Landing() {
       </Section>
 
       <Section id="judges" tab="For judges" title="See it work without joining a chat.">
-        <JudgePath />
+        <Suspense fallback={<JudgePath stats={null} />}>
+          <ForJudges />
+        </Suspense>
       </Section>
 
       <section className="mx-auto max-w-6xl px-4 pt-10 pb-24 text-center sm:px-6">

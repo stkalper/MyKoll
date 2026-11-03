@@ -1,27 +1,7 @@
-"use client";
+import type { LiveStats as Stats } from "@/lib/live";
 
-import { useEffect, useState } from "react";
-
-interface Stats {
-  groups: number;
-  calls: number;
-  settled: number;
-  members: number;
-  memories: number | null;
-  publicFiles?: { title: string; calls: number; url: string }[];
-}
-
-/** What's on file right now, live from production: a slip stuck under the hero. */
-export function LiveStats() {
-  const [stats, setStats] = useState<Stats | null>(null);
-
-  useEffect(() => {
-    fetch("/api/stats")
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setStats)
-      .catch(() => setStats(null));
-  }, []);
-
+/** What's on file right now, from production: a slip stuck under the hero. */
+export function LiveStats({ stats }: { stats: Stats | null }) {
   if (!stats) return null;
   const items: [number, string][] = [
     [stats.groups, stats.groups === 1 ? "group" : "groups"],
@@ -30,7 +10,7 @@ export function LiveStats() {
     [stats.members, stats.members === 1 ? "member with a record" : "members with a record"],
   ];
   if (stats.memories !== null) items.push([stats.memories, "memories on Walrus mainnet"]);
-  const live = stats.publicFiles?.[0];
+  const live = stats.publicFiles[0];
 
   return (
     <div className="mt-8">
