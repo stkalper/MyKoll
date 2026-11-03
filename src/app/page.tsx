@@ -4,7 +4,9 @@ import { ChatPreview } from "@/components/landing/ChatPreview";
 import { LivePrices } from "@/components/landing/LivePrices";
 import { LiveMemoryCheck } from "@/components/landing/LiveMemoryCheck";
 import { LiveStats } from "@/components/landing/LiveStats";
+import { JudgePath } from "@/components/landing/JudgePath";
 import { PenTail } from "@/components/landing/PenTail";
+import { SameCall } from "@/components/landing/SameCall";
 import { ScrollPen } from "@/components/landing/ScrollPen";
 import { ReceiptCard, Taped } from "@/components/ReceiptCard";
 import { demoCalls } from "@/lib/demo";
@@ -191,6 +193,7 @@ const commands = [
   ["/open", "Calls still waiting for their deadline"],
   ["/hide 12", "Take your call off the board and out of answers"],
   ["/mode", "Admins: ask first, or log automatically"],
+  ["/public", "Admins: open the chat’s file to anyone with the link"],
 ];
 
 const privacy = [
@@ -279,6 +282,9 @@ export default function Landing() {
           </a>
           <a href="#prices" className="hidden hover:text-text sm:inline">
             Prices
+          </a>
+          <a href="#judges" className="hidden hover:text-text sm:inline">
+            For judges
           </a>
           <a href={GITHUB} className="hidden hover:text-text sm:inline">
             GitHub
@@ -410,6 +416,7 @@ export default function Landing() {
       </Section>
 
       <Section id="memory" tab="Walrus Memory" title="Why it needs a memory.">
+        <SameCall />
         <div className="paper mb-14 rounded-sm p-5 sm:p-6">
           <div className="hidden grid-cols-[1fr_1fr_2fr] gap-6 border-b-2 border-ink pb-2 sm:grid">
             <span className="field-label">In the chat</span>
@@ -586,6 +593,10 @@ export default function Landing() {
             </li>
           ))}
         </ul>
+      </Section>
+
+      <Section id="judges" tab="For judges" title="See it work without joining a chat.">
+        <JudgePath />
       </Section>
 
       <section className="mx-auto max-w-6xl px-4 pt-10 pb-24 text-center sm:px-6">
