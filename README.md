@@ -224,9 +224,7 @@ Real calls from the live bot, each sealed on Walrus Mainnet. The blobs are encry
 |---|---|---|---|
 | #42 | 2026-11-01 | Binance (public fallback) | [`q6i7_TJWAP…`](https://walruscan.com/mainnet/blob/q6i7_TJWAPelWYnr-I2np7Pf1efSR-2wcetRNaIe27Q) |
 | #41 | 2026-10-31 | Tatum Price API | [`BDAWHGg0B-…`](https://walruscan.com/mainnet/blob/BDAWHGg0B-Hl0TUTsb3QueATgvlngq80-OJmJo8cK54) |
-| #40 | 2026-10-31 | Tatum Price API | [`1sdVz9rDae…`](https://walruscan.com/mainnet/blob/1sdVz9rDaeyzTEeuA8BSU7RR_Z2A1_L8zVBln_yb8lU) |
 | #39 | 2026-10-31 | Tatum Price API | [`DL-8yoGMFV…`](https://walruscan.com/mainnet/blob/DL-8yoGMFVypViETrWWt0DxFUbQLznTOWjx2kbnH8Z0) |
-| #38 | 2026-10-31 | Tatum Price API | [`3EbORj_tAV…`](https://walruscan.com/mainnet/blob/3EbORj_tAVnYVNZEixP4Vx4G2LOd0EO4KGjucTMQSu8) |
 | #37 | 2026-10-31 | CS2 pick (no price) | [`CcmxHFu3CC…`](https://walruscan.com/mainnet/blob/CcmxHFu3CCNUYhllHVAGzB9X2L5CyZnGaJ_lKoVYuSo) |
 
 By 2 November 2026, the 23 logged calls had been priced by: Tatum Price API 7, Tatum Sui RPC 1, public fallback 1. The other 14 are CS2 picks, matched on Polymarket through Tatum's Prediction Market API or, after the credits ran out, directly.
