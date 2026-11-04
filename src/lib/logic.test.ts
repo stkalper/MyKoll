@@ -2,7 +2,7 @@
 //   npm test
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { recallQuestion } from "./ask";
+import { recallQuestion, shownMemory, sourcesText } from "./ask";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 import { claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
@@ -292,6 +292,17 @@ describe("questions about past calls", () => {
   it("stays out of ordinary chat", () => {
     for (const q of ["who's watching tonight?", "who called me?!", "navi beat faze", "whoever called this is a genius", "хто йде на матч", "btc 102k tomorrow"])
       assert.equal(recallQuestion(q), false, q);
+  });
+  it("shows what an answer was based on, minus hidden calls and the bot's own bookkeeping", () => {
+    const hidden = new Set([12]);
+    assert.ok(shownMemory("[CALL #41] @craffny called \"Bnb 705 in 3 hours\".", hidden));
+    assert.equal(shownMemory("[RESULT #12] @max's call was RIGHT.", hidden), false);
+    assert.equal(shownMemory("[TRACK RECORD @max] @max is 3/5 right.", hidden), false);
+    assert.equal(shownMemory("[NOT A CALL @max] BTC below $90,000", hidden), false);
+    const text = sourcesText([{ text: "[CALL #41] <b>BNB</b> & co", blobId: "BDAW" }, { text: "[HABIT @max] logs without asking" }]);
+    assert.match(text, /1\. \[CALL #41\] &lt;b&gt;BNB&lt;\/b&gt; &amp; co · <a href="https:\/\/walruscan\.com\/mainnet\/blob\/BDAW">sealed on Walrus<\/a>/);
+    assert.match(text, /2\. \[HABIT @max\] logs without asking\n/);
+    assert.match(sourcesText([]), /hidden/);
   });
 });
 

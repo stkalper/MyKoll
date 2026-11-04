@@ -22,5 +22,7 @@ console.log("board:", await leaderboard(chat.id, "crypto"));
 
 // Walrus writes are asynchronous; give the relayer a moment before asking.
 await new Promise((r) => setTimeout(r, 20_000));
-console.log("ask:", await answer(chat.id, "що Іван казав про SUI?"));
+const reply = await answer(chat.id, "що Іван казав про SUI?");
+console.log("ask:", reply.text);
+console.log(`recalled ${reply.sources.length}:`, reply.sources.map((s) => `${s.text.slice(0, 60)} · ${s.blobId ?? "no blob"}`));
 process.exit(0);

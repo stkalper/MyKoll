@@ -89,6 +89,14 @@ create table if not exists pending_calls (
   created_at  timestamptz not null default now()
 );
 
+-- The memories an answer was based on, kept for its "What I recalled" button (cleared after two weeks).
+create table if not exists answer_sources (
+  id          text primary key,
+  chat_id     bigint not null,
+  sources     jsonb not null,
+  created_at  timestamptz not null default now()
+);
+
 -- Chat members confirming a CS2 score.
 create table if not exists score_votes (
   call_id   integer not null references calls (id),

@@ -15,6 +15,7 @@ export async function GET(req: Request) {
   // Restarts the quarter-hourly sweep if it ever stopped.
   await nextSweep();
   await db(`delete from seen_updates where seen_at < now() - interval '2 days'`);
+  await db(`delete from answer_sources where created_at < now() - interval '14 days'`);
   const params = new URL(req.url).searchParams;
   const digest = !params.has("noDigest") && (new Date().getUTCDay() === 0 || params.has("digest"));
   if (digest) await postWeeklyDigests(bot);

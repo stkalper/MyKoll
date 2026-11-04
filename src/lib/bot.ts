@@ -1,11 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { Bot, InlineKeyboard, type Context } from "grammy";
-import { answer, recallQuestion } from "./ask";
+import { answer, recallQuestion, shownMemory, sourcesText, type Source } from "./ask";
 import {
   chatMode,
   claim,
   extractCall,
   finishedSlate,
+  hiddenIds,
   hideCall,
   isPublicChat,
   leaderboard,
@@ -325,11 +326,42 @@ export function createBot(): Bot {
     );
   });
 
+  /**
+   * Answers from the chat's memory, with a button that shows which memories the answer came from
+   * and where each is sealed on Walrus, so nobody has to take the bot's word for what it remembers.
+   */
+  async function replyFromMemory(ctx: Context, question: string, replyTo?: number) {
+    await ctx.replyWithChatAction("typing");
+    const { text, sources } = await answer(ctx.chat!.id, question);
+    let kb: InlineKeyboard | undefined;
+    if (sources.length) {
+      const id = randomBytes(6).toString("hex");
+      await db(`insert into answer_sources (id, chat_id, sources) values ($1, $2, $3)`, [id, ctx.chat!.id, JSON.stringify(sources)]);
+      kb = new InlineKeyboard().text(`🧠 What I recalled (${sources.length})`, `recalled:${id}`);
+    }
+    await ctx.reply(text, { reply_markup: kb, ...(replyTo ? { reply_parameters: { message_id: replyTo } } : {}) });
+  }
+
   bot.command("ask", async (ctx) => {
     const q = ctx.match.trim();
     if (!q) return ctx.reply("Ask me something, e.g. /ask what did Max say about SOL?");
-    await ctx.replyWithChatAction("typing");
-    await ctx.reply(await answer(ctx.chat.id, q));
+    await replyFromMemory(ctx, q);
+  });
+
+  bot.callbackQuery(/^recalled:(\w+)$/, async (ctx) => {
+    const [row] = await db<{ chat_id: string; sources: Source[] }>(`select chat_id, sources from answer_sources where id = $1`, [ctx.match![1]]);
+    if (!row || String(row.chat_id) !== String(ctx.chat?.id)) return ctx.answerCallbackQuery({ text: "This one expired. Ask me again." });
+    // A call hidden since the answer was given drops out here too.
+    const hidden = await hiddenIds(ctx.chat!.id);
+    const sources = row.sources.filter((s) => shownMemory(s.text, hidden));
+    await ctx.answerCallbackQuery();
+    await ctx.reply(sourcesText(sources), {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+      reply_parameters: { message_id: ctx.callbackQuery.message!.message_id },
+    });
+    // Shown once per answer; the list stays in the chat right under it.
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
   });
 
   async function saveReason(ctx: Context, callId: number, text: string) {
@@ -478,10 +510,7 @@ export function createBot(): Bot {
     // A question to the bot: "@mykoll_bot what did Jake say about SUI?", or plainly "who called nemiga?"
     if (text.includes(mention) || (repliedToMe && ctx.chat.type !== "private") || recallQuestion(text)) {
       const q = text.replace(mention, "").trim();
-      if (q) {
-        await ctx.replyWithChatAction("typing");
-        return ctx.reply(await answer(ctx.chat.id, q), { reply_parameters: { message_id: ctx.message.message_id } });
-      }
+      if (q) return replyFromMemory(ctx, q, ctx.message.message_id);
     }
 
     if (ctx.chat.type === "private" || !llmEnabled) return;

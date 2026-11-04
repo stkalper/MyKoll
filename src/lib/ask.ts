@@ -2,7 +2,8 @@ import { hiddenIds, leaderboard, when } from "./calls";
 import { llmEnabled } from "./config";
 import { trackRecords } from "./learning";
 import { complete } from "./llm";
-import { callIdsIn, recall } from "./memory";
+import { callIdsIn, recall, type Recalled } from "./memory";
+import { blobUrl } from "./proof";
 import { memoryScorecard, scorecardLine } from "./scorecard";
 
 /**
@@ -15,8 +16,47 @@ const RECALL =
 
 export const recallQuestion = (text: string) => RECALL.test(text.trim());
 
+/** A memory as the answer used it: its words, and the Walrus blob it is sealed in. */
+export type Source = Pick<Recalled, "text" | "blobId">;
+
+export interface Answer {
+  text: string;
+  /** The memories recalled for this answer, so the chat can see what it was based on. */
+  sources: Source[];
+}
+
+/** Memories the bot recalls but never shows or answers from (see `answer`). */
+export const shownMemory = (text: string, hidden: Set<number>) =>
+  !text.startsWith("[TRACK RECORD") && !text.startsWith("[NOT A CALL") && !callIdsIn(text).some((id) => hidden.has(id));
+
+const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** The memories behind an answer, each with a link to its blob on Walrus Mainnet (Telegram HTML). */
+export function sourcesText(sources: Source[]): string {
+  if (!sources.length) return "Nothing I recalled for that answer is still shown: the calls behind it were hidden.";
+  // Long ids (Polymarket markets, pools) say nothing in a chat; the receipt links them anyway.
+  const short = (t: string) => {
+    const s = t.replace(/0x[0-9a-f]{10,}/gi, (id) => `${id.slice(0, 8)}…`);
+    return s.length > 200 ? `${s.slice(0, 199)}…` : s;
+  };
+  const lines = sources.map((s, i) => `${i + 1}. ${escHtml(short(s.text))}${s.blobId ? ` · <a href="${blobUrl(s.blobId)}">sealed on Walrus</a>` : ""}`);
+  // Telegram caps a message at 4096 characters of visible text; link targets don't count.
+  const footer = "<i>The blobs are encrypted, so a link shows when a memory was sealed, not what it says.</i>";
+  let shown = lines.length;
+  const visible = (n: number) => lines.slice(0, n).join("\n").replace(/<a href="[^"]*">/g, "").length;
+  while (shown > 1 && visible(shown) > 3600) shown--;
+  return [
+    `🧠 <b>What I recalled from this chat's Walrus Memory</b> (${sources.length})`,
+    "",
+    ...lines.slice(0, shown),
+    ...(shown < lines.length ? [`…and ${lines.length - shown} more`] : []),
+    "",
+    footer,
+  ].join("\n");
+}
+
 /** Answers a question about the chat's past calls from its Walrus Memory. */
-export async function answer(chatId: number, question: string): Promise<string> {
+export async function answer(chatId: number, question: string): Promise<Answer> {
   const [memories, hidden, crypto, cs2, records, scorecard] = await Promise.all([
     recall(chatId, question, 12),
     hiddenIds(chatId),
@@ -27,17 +67,16 @@ export async function answer(chatId: number, question: string): Promise<string> 
   ]);
   // Older track records are superseded by the current ones below, so they don't argue with them;
   // misreads are the bot's own mistakes, not something anyone said.
-  const visible = memories.filter(
-    (m) => !m.text.startsWith("[TRACK RECORD") && !m.text.startsWith("[NOT A CALL") && !callIdsIn(m.text).some((id) => hidden.has(id)),
-  );
-  if (!visible.length && !records.size) return "I don't remember anything about that in this chat yet.";
-  if (!llmEnabled) return visible.map((m) => `• ${m.text}`).join("\n");
+  const visible = memories.filter((m) => shownMemory(m.text, hidden));
+  const sources = visible.map(({ text, blobId }) => ({ text, blobId }));
+  if (!visible.length && !records.size) return { text: "I don't remember anything about that in this chat yet.", sources };
+  if (!llmEnabled) return { text: visible.map((m) => `• ${m.text}`).join("\n"), sources };
 
   const board = (name: string, rows: typeof crypto) =>
     rows.length ? `${name}: ${rows.map((r) => `${r.author_name} ${r.hits}/${r.calls}`).join(", ")}` : `${name}: no settled calls yet`;
   const learned = [...records.values()].map((r) => `- ${r.summary}`).join("\n") || "- nothing yet";
 
-  return complete(
+  const text = await complete(
     [
       {
         role: "system",
@@ -61,4 +100,5 @@ ${visible.map((m) => `- ${m.text}`).join("\n")}`,
     ],
     { temperature: 0.4, maxTokens: 400 },
   );
+  return { text, sources };
 }
