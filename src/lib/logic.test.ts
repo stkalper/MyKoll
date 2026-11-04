@@ -7,7 +7,7 @@ import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 import { claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { segmentsOf, trackRecordOf, trustOn } from "./learning";
-import { fromGammaMarket, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
+import { fromGammaMarket, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
 import { scorecardLine, scoreMemory } from "./scorecard";
@@ -164,6 +164,13 @@ describe("CS2 on Polymarket", () => {
     assert.equal(teamKey("BC.Game Esports"), "bcgame");
     assert.equal(teamKey("BetBoom Team"), teamKey("betboom"));
     assert.equal(teamKey("BB"), teamKey("BetBoom Team"));
+  });
+  it("spells out team nicknames in a question to memory, and leaves other words alone", () => {
+    assert.equal(spellTeams("who called bb"), "who called bb (BetBoom Team)");
+    assert.equal(spellTeams("хто казав про наві і бб?"), "хто казав про наві і бб? (Natus Vincere, BetBoom Team)");
+    assert.equal(spellTeams("who called c9"), "who called c9 (Cloud9)");
+    assert.equal(spellTeams("who called bnb"), "who called bnb");
+    assert.equal(spellTeams("who called furia"), "who called furia");
   });
   it("reads when a match starts from its description, in New York time", () => {
     const at = (when: string) => startOf({ description: `the match, initially scheduled for ${when} ET. More text`, closeTime: "2026-10-31T03:25:00Z" }).toISOString();

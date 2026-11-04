@@ -185,6 +185,36 @@ const ALIASES: Record<string, string> = {
   бетбум: "betboom",
 };
 
+/** Each aliased team as calls name it (Polymarket's spelling), for searching memory. */
+const FULL_NAMES: Record<string, string> = {
+  navi: "Natus Vincere",
+  vp: "Virtus.pro",
+  mouz: "MOUZ",
+  faze: "FaZe",
+  vitality: "Vitality",
+  spirit: "Spirit",
+  fnatic: "Fnatic",
+  mongolz: "The MongolZ",
+  furia: "FURIA",
+  astralis: "Astralis",
+  cloud9: "Cloud9",
+  betboom: "BetBoom Team",
+};
+
+/**
+ * A question with the full name of each team it calls by a nickname: "who called bb" →
+ * "who called bb (BetBoom Team)". Memory is searched by meaning, and "bb" on its own reads
+ * closer to BNB than to BetBoom.
+ */
+export function spellTeams(text: string): string {
+  const names = new Set<string>();
+  for (const w of text.split(/[\s,;:!?()"«»/+]+/)) {
+    const team = ALIASES[w.toLowerCase().replace(/['’.-]/g, "")];
+    if (team && FULL_NAMES[team]) names.add(FULL_NAMES[team]);
+  }
+  return names.size ? `${text} (${[...names].join(", ")})` : text;
+}
+
 /** Both teams of a Polymarket CS2 event, from its title: "Counter-Strike: MOUZ vs FURIA (BO3) - …". */
 export function teamsOf(title: string): [string, string] | null {
   const m = title.match(/^Counter-Strike:\s*(.+?)\s+vs\.?\s+(.+?)\s*\(BO\d\)/i);

@@ -3,6 +3,7 @@ import { llmEnabled } from "./config";
 import { trackRecords } from "./learning";
 import { complete } from "./llm";
 import { callIdsIn, recall, type Recalled } from "./memory";
+import { spellTeams } from "./polymarket";
 import { blobUrl } from "./proof";
 import { memoryScorecard, scorecardLine } from "./scorecard";
 
@@ -56,7 +57,8 @@ export function sourcesText(sources: Source[]): string {
 }
 
 /** Answers a question about the chat's past calls from its Walrus Memory. */
-export async function answer(chatId: number, question: string): Promise<Answer> {
+export async function answer(chatId: number, asked: string): Promise<Answer> {
+  const question = spellTeams(asked);
   const [memories, hidden, crypto, cs2, records, scorecard] = await Promise.all([
     recall(chatId, question, 12),
     hiddenIds(chatId),
