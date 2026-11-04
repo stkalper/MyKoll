@@ -70,6 +70,8 @@ export interface BoardView {
   memoryCheck?: MemoryCheckView;
   /** The latest times what the bot remembered changed what it did in this chat. */
   memoryEffects?: { kind: MemoryEffectKind; text: string; when: string }[];
+  /** Each member's changes of mind, oldest first: how the bot's view of them was built up. */
+  mindChanges?: { member: string; changes: { after: string; what: string; when: string }[] }[];
 }
 
 export type MemoryEffectKind = "weak_spot" | "strong_spot" | "last_time" | "room" | "logged_without_asking" | "asked_first" | "stayed_quiet" | "record_changed";

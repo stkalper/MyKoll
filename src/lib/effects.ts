@@ -15,6 +15,26 @@ export async function noteEffect(chatId: number | string, kind: MemoryEffectKind
 export const recentEffects = (chatId: number | string, limit = 12) =>
   db<{ kind: MemoryEffectKind; text: string; created_at: Date }>(`select kind, text, created_at from memory_effects where chat_id = $1 order by created_at desc limit $2`, [chatId, limit]);
 
+/**
+ * Every time a result changed what the bot thinks a member is good or bad at, grouped by member,
+ * oldest first: how its view of each of them was built up over time. Reads the feed lines written
+ * by `changeText` ("Changed its view of @x after "<quote>": <changes>.").
+ */
+export async function changesOfMind(chatId: number | string): Promise<{ member: string; changes: { after: string; what: string; at: Date }[] }[]> {
+  const rows = await db<{ text: string; created_at: Date }>(
+    `select text, created_at from memory_effects where chat_id = $1 and kind = 'record_changed' order by created_at limit 200`,
+    [chatId],
+  );
+  const byMember = new Map<string, { after: string; what: string; at: Date }[]>();
+  for (const r of rows) {
+    const m = r.text.match(/^Changed its view of (.+?) after "(.*)": (.+)\.$/);
+    if (!m) continue;
+    byMember.set(m[1], [...(byMember.get(m[1]) ?? []), { after: m[2], what: m[3], at: r.created_at }]);
+  }
+  // Members whose view changed most often first: theirs is the longest story.
+  return [...byMember.entries()].map(([member, changes]) => ({ member, changes })).sort((a, b) => b.changes.length - a.changes.length);
+}
+
 /** How many times each kind of change happened across these chats, with nothing that identifies anyone. */
 export async function effectCounts(chatIds: (number | string)[]): Promise<Partial<Record<MemoryEffectKind, number>>> {
   if (!chatIds.length) return {};

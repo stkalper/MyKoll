@@ -1,5 +1,5 @@
 import { callsBy, chatTitle, isPublicChat, leaderboard, reasonsFor, recentCalls, when, withBlobs, type Standing } from "@/lib/calls";
-import { recentEffects } from "@/lib/effects";
+import { changesOfMind, recentEffects } from "@/lib/effects";
 import { habitsView } from "@/lib/habits";
 import { insightLine, trackRecords, type TrackRecord } from "@/lib/learning";
 import { chatOfFile, toView } from "@/lib/receipts";
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
 }
 
 async function chatView(chatId: string, userId: number | null): Promise<BoardView> {
-  const [crypto, cs2, latest, myCalls, title, records, habits, effects] = await Promise.all([
+  const [crypto, cs2, latest, myCalls, title, records, habits, effects, minds] = await Promise.all([
     leaderboard(chatId, "crypto"),
     leaderboard(chatId, "cs2"),
     recentCalls(chatId),
@@ -43,6 +43,7 @@ async function chatView(chatId: string, userId: number | null): Promise<BoardVie
     trackRecords(chatId),
     userId ? habitsView(chatId, userId) : undefined,
     recentEffects(chatId),
+    changesOfMind(chatId),
   ]);
   const sealed = new Map((await withBlobs([...new Map([...latest, ...myCalls].map((c) => [c.id, c])).values()])).map((c) => [c.id, c]));
   const recent = latest.map((c) => sealed.get(c.id) ?? c);
@@ -67,5 +68,6 @@ async function chatView(chatId: string, userId: number | null): Promise<BoardVie
     habits,
     memoryCheck: memoryCheck.calls ? memoryCheck : undefined,
     memoryEffects: effects.map((e) => ({ kind: e.kind, text: e.text, when: when(e.created_at) })),
+    mindChanges: minds.map((m) => ({ member: m.member, changes: m.changes.map((c) => ({ after: c.after, what: c.what, when: when(c.at) })) })),
   };
 }

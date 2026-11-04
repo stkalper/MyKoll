@@ -82,4 +82,18 @@ export const demoBoard: BoardView = {
     { kind: "logged_without_asking", text: `Logged @max's "nah, SUI bleeds" without asking: every call they were asked about, they confirmed.`, when: "Tuesday 28 Oct, 19:40" },
     { kind: "stayed_quiet", text: `Stayed quiet on @emma: they said twice that messages like this aren't calls.`, when: "Monday 27 Oct, 11:15" },
   ],
+  mindChanges: [
+    {
+      member: "@jake",
+      changes: [
+        { after: "SUI 2 by the weekend", what: "now strong on bullish calls (1/1 → 2/2)", when: "Saturday 18 Oct, 23:59" },
+        { after: "WAL breaks 4 cents", what: "now weak on Sui tokens (0/1 → 0/2)", when: "Thursday 23 Oct, 18:00" },
+        { after: "DEEP 0.03 tomorrow", what: "no longer strong on bullish calls (3/4 → 3/6)", when: "Tuesday 28 Oct, 12:00" },
+      ],
+    },
+    {
+      member: "@max",
+      changes: [{ after: "nah, SUI bleeds", what: "now strong on SUI calls (1/1 → 2/2); now strong on bearish calls (1/1 → 2/2)", when: "Wednesday 22 Oct, 20:00" }],
+    },
+  ],
 };

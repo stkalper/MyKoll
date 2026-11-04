@@ -221,6 +221,33 @@ export default function MiniApp() {
               </ul>
             </div>
           )}
+          {!!view.mindChanges?.length && (
+            <div className="paper mt-6 rounded-sm px-5 py-4 rotate-[0.3deg]">
+              <p className="field-label">How my view of each member changed</p>
+              <p className="mt-1 font-hand text-lg leading-tight text-ink-muted">Each time a result moved someone clearly across the line, oldest first.</p>
+              <div className="mt-3 space-y-5">
+                {view.mindChanges.map((m) => (
+                  <div key={m.member}>
+                    <p className="font-mono text-sm font-semibold">{m.member}</p>
+                    <ol className="mt-2 space-y-2 border-l-2 border-ink pl-3">
+                      {m.changes.map((c) => (
+                        <li key={`${c.when}${c.what}`} className="font-mono text-xs leading-relaxed">
+                          {c.what.split("; ").map((part) => (
+                            <span key={part} className={`block ${/^(now strong|no longer weak)/.test(part) ? "text-stamp-win" : "text-stamp-loss"}`}>
+                              {/^(now strong|no longer weak)/.test(part) ? "↑" : "↓"} {part}
+                            </span>
+                          ))}
+                          <span className="mt-0.5 block text-[0.65rem] text-ink-muted">
+                            after “{c.after}” · {c.when}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 
