@@ -20,7 +20,8 @@ const lone = await add("Bnb 720 by Friday");
 process.argv = [process.argv[0], "hide-duplicates", String(first), String(lone), "--yes"];
 const exit = process.exit;
 process.exit = (() => undefined) as never;
-await import("./hide-duplicates.mts");
+// Through a URL, so the type check doesn't read the .mts extension as an import it must resolve.
+await import(new URL("./hide-duplicates.mts", import.meta.url).href);
 process.exit = exit;
 const rows = await db<{ id: number; hidden: boolean }>(`select id, hidden from calls where chat_id = $1 order by id`, [chat]);
 console.log(rows.map((r) => `#${r.id} hidden=${r.hidden}`).join(" · "), `(want #${first} hidden, #${second} and #${lone} visible)`);
