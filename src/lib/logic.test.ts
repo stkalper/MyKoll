@@ -6,7 +6,7 @@ import { recallQuestion, shownMemory, sourcesText } from "./ask";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 import { claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
-import { segmentsOf, trackRecordOf, trustOn } from "./learning";
+import { recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { fromGammaMarket, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
@@ -198,6 +198,30 @@ describe("CS2 on Polymarket", () => {
   });
 });
 
+describe("changing its mind", () => {
+  const bnb = (id: number, status: "win" | "loss") => call({ id, subject: "BNB", direction: "above", status, made_at: new Date(id * DAY), resolved_at: new Date(id * DAY + 1) });
+  const after = (...calls: CallRow[]) => trackRecordOf(calls)!;
+  const twoRight = after(bnb(1, "win"), bnb(2, "win"));
+  const twoOfFour = after(bnb(1, "win"), bnb(2, "win"), bnb(3, "loss"), bnb(4, "loss"));
+
+  it("says when a strength is gone, with the numbers before and after", () => {
+    assert.ok(recordChanges(twoRight, twoOfFour).includes("no longer strong on BNB calls (2/2 → 2/4)"));
+  });
+  it("says when a weakness appears", () => {
+    const twoOfSix = after(bnb(1, "win"), bnb(2, "win"), bnb(3, "loss"), bnb(4, "loss"), bnb(5, "loss"), bnb(6, "loss"));
+    assert.ok(recordChanges(twoOfFour, twoOfSix).includes("now weak on BNB calls (2/4 → 2/6)"));
+  });
+  it("stays quiet when nothing it believes has changed, and on a first record", () => {
+    assert.deepEqual(recordChanges(twoRight, after(bnb(1, "win"), bnb(2, "win"), bnb(3, "win"))), []);
+    assert.deepEqual(recordChanges(undefined, twoRight), []);
+  });
+  it("doesn't call a strength lost when it only slipped out of the summary's top two", () => {
+    const sui = (id: number) => call({ id, subject: "SUI", direction: "above", status: "win", made_at: new Date(id * DAY), resolved_at: new Date(id * DAY + 1) });
+    const more = after(bnb(1, "win"), bnb(2, "win"), sui(3), sui(4), sui(5));
+    assert.ok(!recordChanges(twoRight, more).some((c) => c.startsWith("no longer strong on BNB")));
+  });
+});
+
 describe("memory scorecard", () => {
   // Jake misses on Sui tokens again and again; Max keeps getting SUI right.
   const at = (day: number) => new Date(day * DAY);
@@ -215,6 +239,8 @@ describe("memory scorecard", () => {
   it("beats a bot that forgets when records are telling, and flags the weak spots", () => {
     const s = scoreMemory(history);
     assert.ok(s.brierMemory! < s.brierForgetful!);
+    // Half the chat's calls come true, so knowing only that is no help; knowing who made them is.
+    assert.ok(s.brierMemory! < s.brierChatRate!);
     assert.equal(s.spots.weak.hits, 0);
     assert.ok(s.spots.weak.calls >= 2);
     assert.equal(s.spots.strong.hits, s.spots.strong.calls);

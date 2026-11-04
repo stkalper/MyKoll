@@ -59,6 +59,39 @@ export interface TrackRecord {
 const rate = (r: { hits: number; calls: number }) => r.hits / r.calls;
 const fmt = (r: SegmentRecord) => `${r.segment} ${r.hits}/${r.calls}`;
 
+// A pattern needs at least two settled calls before the bot calls it a strength or weakness.
+const isTelling = (r: SegmentRecord) => r.calls >= 2 && r.segment !== "crypto calls";
+const isStrong = (r: SegmentRecord) => isTelling(r) && rate(r) >= 0.67;
+const isWeak = (r: SegmentRecord) => isTelling(r) && rate(r) <= 0.34;
+
+/**
+ * How a result changed the bot's view of someone: a strength or weakness it now sees, or one it
+ * no longer does, with the numbers before and after. Only clear crossings count: a strength
+ * (67%+) is new when the rate was under 60% before, and gone when it falls under 60%; a weakness
+ * (34% or less) likewise against 40%. So 2/2 → 2/3 → 3/4 isn't reported as three changes of mind.
+ * A spot that only slipped out of the summary's top two hasn't changed either.
+ */
+export function recordChanges(before: TrackRecord | undefined, after: TrackRecord): string[] {
+  if (!before) return [];
+  const find = (r: TrackRecord, segment: string) => r.segments.find((s) => s.segment === segment);
+  const was = (r?: SegmentRecord) => (r ? `${r.hits}/${r.calls}` : "none");
+  const out: string[] = [];
+  for (const [kind, gone] of [
+    ["strong", (r?: SegmentRecord) => !r || !isTelling(r) || rate(r) < 0.6],
+    ["weak", (r?: SegmentRecord) => !r || !isTelling(r) || rate(r) > 0.4],
+  ] as const) {
+    for (const r of kind === "strong" ? after.strong : after.weak) {
+      const old = find(before, r.segment);
+      if (gone(old)) out.push(`now ${kind} on ${r.segment} (${was(old)} → ${r.hits}/${r.calls})`);
+    }
+    for (const r of kind === "strong" ? before.strong : before.weak) {
+      const current = find(after, r.segment);
+      if (gone(current)) out.push(`no longer ${kind} on ${r.segment} (${r.hits}/${r.calls} → ${was(current)})`);
+    }
+  }
+  return out;
+}
+
 /** Works out an author's track record in a chat from their settled calls. */
 export async function computeTrackRecord(chatId: number | string, authorId: number | string): Promise<TrackRecord | null> {
   const settled = await db<CallRow>(
@@ -82,10 +115,9 @@ export function trackRecordOf(settled: CallRow[]): TrackRecord | null {
     }
   }
   const segments = [...bySegment.values()];
-  // A pattern needs at least two settled calls before the bot calls it a strength or weakness.
-  const telling = segments.filter((r) => r.calls >= 2 && r.segment !== "crypto calls").sort((a, b) => b.calls - a.calls);
-  const strong = telling.filter((r) => rate(r) >= 0.67).slice(0, 2);
-  const weak = telling.filter((r) => rate(r) <= 0.34).slice(0, 2);
+  const telling = segments.filter((r) => isTelling(r)).sort((a, b) => b.calls - a.calls);
+  const strong = telling.filter(isStrong).slice(0, 2);
+  const weak = telling.filter(isWeak).slice(0, 2);
 
   const hits = settled.filter((c) => c.status === "win").length;
   const name = settled[settled.length - 1].author_name;
@@ -107,10 +139,29 @@ export function trackRecordOf(settled: CallRow[]): TrackRecord | null {
   return { authorName: name, hits, calls: settled.length, strong, weak, segments, marketEdge, summary: parts.join("; ") + "." };
 }
 
+/** The feed line for a change of mind; a long or multi-line quote (a forwarded signal post) is cut to its start. */
+export function changeText(call: Pick<CallRow, "author_name" | "quote">, changes: string[]): string {
+  const line = call.quote.split("\n")[0].trim();
+  const quote = line.length > 60 ? `${line.slice(0, 59)}…` : line + (call.quote.includes("\n") ? " …" : "");
+  return `Changed its view of ${call.author_name} after "${quote}": ${changes.join("; ")}.`;
+}
+
 /** Recomputes the author's track record after a result, stores it, and adds it to memory. */
 export async function learnFrom(call: CallRow): Promise<TrackRecord | null> {
-  const record = await computeTrackRecord(call.chat_id, call.author_id);
+  const [record, [stored]] = await Promise.all([
+    computeTrackRecord(call.chat_id, call.author_id),
+    db<{ stats: TrackRecord }>(`select stats from track_records where chat_id = $1 and author_id = $2`, [call.chat_id, call.author_id]),
+  ]);
   if (!record) return null;
+  // Said out loud when a result changes what the bot thinks someone is good or bad at.
+  const changes = recordChanges(stored?.stats, record);
+  if (changes.length) {
+    await noteEffect(call.chat_id, "record_changed", changeText(call, changes), call.id);
+    await remember(
+      call.chat_id,
+      `[RECORD CHANGE ${record.authorName}] ${new Date().toISOString().slice(0, 10)}, after call #${call.id}: ${record.authorName} is ${changes.join("; ")}.`,
+    ).catch((err) => console.error("memory write failed", err));
+  }
   await db(
     `insert into track_records (chat_id, author_id, author_name, summary, stats, updated_at) values ($1, $2, $3, $4, $5, now())
      on conflict (chat_id, author_id) do update set author_name = excluded.author_name, summary = excluded.summary, stats = excluded.stats, updated_at = now()`,
@@ -219,7 +270,7 @@ const sameQuestion = (a: CallRow, b: CallRow) =>
  * from simulated chats (scripts/try-trust.mts), not from real calls, so they aren't fitted to the
  * score they're judged by.
  */
-const PRIOR_CALLS = 16;
+export const PRIOR_CALLS = 16;
 const PRIOR_KIND_CALLS = 16;
 
 export function trustOn(record: TrackRecord | undefined, c: CallRow): { weight: number; basis: string } {

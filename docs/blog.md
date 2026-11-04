@@ -47,6 +47,8 @@ The screenshots below are from a real group of friends, not a demo. Its file is 
 
 **It weighed the room.** When @crypcort called BetBoom over MOUZ while @craffny already had MOUZ, the bot didn't just count heads. It weighed both by their record on that kind of pick and showed which way the people worth listening to lean.
 
+**It changed its mind.** A record isn't a verdict. When a result moves someone clearly across the line, the bot says so: after “Btc 78k in 30 min” missed, @craffny went from 1/2 to 1/3 on majors: *now weak on majors*. The bot says that in the chat under the result and writes it into memory, so its history shows when and why its view of someone changed. Near the line it stays quiet, so 2/2 → 2/3 → 3/4 isn't three changes of mind. Replayed over both chats' history, that happened [11] times in [49] settled calls.
+
 **It measured people against the market.** CS2 picks are matched to the Polymarket match-winner market, so the bot knows the odds at the moment of the call. Picks under 45% are filed as underdog picks, and each member gets an edge against the market. The best moment so far: Liquid over Aurora, which Polymarket had at **31%**. It won. But honest numbers matter more than highlights, so the board shows the whole picture: over all their CS2 picks, @crypcort is [10] points ahead of Polymarket and @craffny is [1] point behind. Earlier in the week, both were behind.
 
 Every one of these moments is written down. The chat's file has a feed called *What memory changed here*, and the site counts them across all chats: [12] times in this chat so far.
@@ -55,13 +57,15 @@ Every one of these moments is written down. The chat's file has a feed called *W
 
 It's easy to claim a memory makes a bot smarter. I wanted a number that could also say *no*.
 
-The **Memory Check** takes the trust the bot had in each call *at the moment it was made* (no peeking at later results), scores it against how the call ended (Brier score, lower is better), and puts it next to a bot that forgets and trusts everyone 50/50, which always scores 0.25.
+The **Memory Check** takes the trust the bot had in each call *at the moment it was made* (no peeking at later results), scores it against how the call ended (Brier score, lower is better), and puts it next to two bots that know less. One forgets everything and trusts everyone 50/50, which always scores 0.25. The other remembers nothing about anyone, only how often calls in the chat have come true so far. The memory has to beat that second one to show it learned something about *people*, not just about the chat.
 
 The first time it had enough calls to say anything, at 30 settled calls, the memory scored **0.251**: a tie with forgetting. I was ready to publish that, because that is what the data said.
 
-Then the chats kept going. On [49] settled calls the memory scores **[0.235]** against forgetting's 0.25. The flags explain where the lead comes from: calls the bot marked as a member's **strong spot** came true [8] times out of [9], while calls with no flag came true [22] of [39], barely better than a coin flip.
+Then the chats kept going. On [49] settled calls the memory scores **[0.235]** against forgetting's 0.25. That looked like a win, until I added the second bot: knowing only that [61]% of these chats' calls come true already scores **[0.237]**. Almost all of the lead over 50/50 is the chat being right more often than not. Against the bot that knows that, it's a tie.
 
-It's a lead, not a proof. Trust starts at 50/50 and moves only as far as the evidence takes it (a record counts as if 16 coin-flip calls came before it), so one lucky call can't make anyone an oracle, and a handful of confident misses would bring the score back to a tie. In simulated chats where members really differ and have a real history, memory wins clearly; with four members and a week or two of calls, it's only starting to. The score is shown in the chat and on the site from 30 calls, and the raw number is always at [/api/stats](https://mykoll.vercel.app/api/stats).
+Where the memory does show something is the flags. Calls the bot marked as a member's **strong spot** came true [8] times out of [9]. Calls with no flag came true [22] of [39]. The score averages that signal away, because most calls aren't flagged yet.
+
+It's a tie, not a failure. Trust starts at 50/50 and moves only as far as the evidence takes it (a record counts as if 16 coin-flip calls came before it), so one lucky call can't make anyone an oracle, and it takes many calls per member before their record moves the trust far from the chat's average. In simulated chats like these (four members, right 60% of the time, who really differ), memory is ahead of the hit-rate bot in a bit over half the chats at 50 calls, three in four at 100 and four in five at 200 ([the simulation](https://github.com/stkalper/MyKoll/blob/main/scripts/try-trust.mts)). At [49] calls, a tie is what to expect. The score is shown in the chat and on the site from 30 calls, and the raw number is always at [/api/stats](https://mykoll.vercel.app/api/stats).
 
 The score is the slow part. The behaviour is what the chat feels every day: what gets brought back, flagged, skipped or asked.
 

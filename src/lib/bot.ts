@@ -106,8 +106,14 @@ function receiptButtons(call: CallRow, kb = new InlineKeyboard()): InlineKeyboar
 /** What the bot has learned that bears on this call: shown when it's made, and after it settles. */
 const learnedForNew = (call: CallRow) => noteForNewCall(call).catch(() => [] as string[]);
 async function learnedAfter(call: CallRow): Promise<string[]> {
-  const record = (await trackRecords(call.chat_id).catch(() => new Map())).get(String(call.author_id));
-  return record ? [`📈 Updated record: ${record.summary}`] : [];
+  const [records, changed] = await Promise.all([
+    trackRecords(call.chat_id).catch(() => new Map()),
+    db<{ text: string }>(`select text from memory_effects where call_id = $1 and kind = 'record_changed'`, [call.id]).catch(() => []),
+  ]);
+  const record = records.get(String(call.author_id));
+  // The effect reads `Changed its view of @x after "<quote>": <changes>.`; the quote may hold anything.
+  const change = changed[0]?.text.match(/^.*": (.+)\.$/)?.[1];
+  return [...(record ? [`📈 Updated record: ${record.summary}`] : []), ...(change ? [`🔄 I changed my mind: ${change}`] : [])];
 }
 
 /** Reasons the author gave in the message itself, shown on the receipt as its first "why". */
