@@ -24,6 +24,20 @@ Built for the **Tatum × Walrus “Total Recall”** hackathon, track *Markets &
 5. Make a call that settles soon, such as `sui above 1 in 10 minutes`. The result comes on its own, with a link to where the call was sealed on Walrus before the result.
 6. [`/api/health`](https://mykoll.vercel.app/api/health) checks every integration live, and [`/api/stats`](https://mykoll.vercel.app/api/stats) has the live counts and the raw memory score.
 
+## By the numbers
+
+Measured from the live bot on **4 November 2026**. Today's numbers are at [`/api/stats`](https://mykoll.vercel.app/api/stats), and `npx tsx scripts/blog-numbers.mts` prints them.
+
+| | |
+|---|---|
+| Real group chats | 2, with 4 members making calls |
+| Calls logged | 50, of which 49 settled |
+| Memories on Walrus Mainnet | 158 |
+| Memory Check (Brier, lower is better) | **0.235** with memory vs 0.25 for a bot that forgets, on 49 settled calls |
+| Calls the bot flagged as a strong spot | 8 of 9 came true (no flag: 22 of 39) |
+| Times memory changed what the bot did | 19: 8 calls logged without asking, 6 past calls brought back, 4 strong spots flagged, 1 room weighed by record |
+| CS2 picks against Polymarket | @crypcort 10 points ahead of the market, @craffny 1 point behind |
+
 ## Check it yourself
 
 Every claim in this README can be checked against the live bot, Walrus Mainnet, Sui or Polymarket, with no account and no Telegram. The receipts below are real calls from a real group chat, linked as they are.
@@ -37,7 +51,8 @@ Every claim in this README can be checked against the live bot, Walrus Mainnet, 
 | An on-chain price links the transaction behind it | [Receipt #44](https://mykoll.vercel.app/r/44-7aa9b7005a62) → [the Sui transaction](https://suiscan.xyz/mainnet/tx/FZJuTtoHKksTummub6rXz1cJKNg2zhSv41AyX6wqfshU) | SUI $0.898 → $0.899 from the Cetus pool, the transaction that last set the pool's price, and the Price API 0.2% apart. Read after Tatum's credits ran out, so through public Sui GraphQL, and the receipt says so |
 | CS2 picks are matched to Polymarket and settled from it | [Receipt #26](https://mykoll.vercel.app/r/26-405237a656c9) → [the market](https://polymarket.com/event/cs2-nemi1-furia-2026-10-31) | “Изи для фуріа”: FURIA to beat Nemiga, Polymarket at 72% when called, settled from the market: called it |
 | Memory changes what the bot does | [The public file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc), *What memory changed here* · `memoryEffects` in [`/api/stats`](https://mykoll.vercel.app/api/stats) | Each time a recalled record or habit changed a reply: a past call brought back, a call logged without asking |
-| The memory is scored honestly | `memoryCheck` in [`/api/stats`](https://mykoll.vercel.app/api/stats) | The bot's trust scored against outcomes next to a bot that forgets, even while memory isn't ahead yet ([why](#is-the-memory-earning-its-keep)) |
+| The memory is scored honestly | `memoryCheck` in [`/api/stats`](https://mykoll.vercel.app/api/stats) | The bot's trust scored against outcomes next to a bot that forgets. It was a tie at 30 calls and is a small lead now; it would be published either way ([why](#is-the-memory-earning-its-keep)) |
+| Answers come from memory, not from the model | Ask `@mykoll_bot who called furia?` in a group, then tap **🧠 What I recalled** | The memories the answer was built from, each linked to its blob on Walruscan |
 | Every integration is up | [`/api/health`](https://mykoll.vercel.app/api/health) | A live read from every price source (the Price API, a Sui pool, a Robinhood Chain pool), Polymarket's upcoming CS2 matches and Walrus Memory, with `publicFallback: true` while Tatum is out of credits |
 | The code does what it says | [CI](https://github.com/stkalper/MyKoll/actions/workflows/ci.yml) · `npm test` | Lint, typecheck, tests and a build on every push |
 
@@ -156,7 +171,7 @@ Trust starts at 50/50 and moves only as far as the evidence takes it. A member's
 
 The Memory Check scores that trust against how each call ended (Brier, lower is better), using only what was known when the call was made, next to a bot that forgets and trusts everyone 50/50 (always 0.25). It's shown in chat and on the site from 30 settled calls: below that, one call can move the score past 0.25. The raw number is always public at [`/api/stats`](https://mykoll.vercel.app/api/stats).
 
-The score has limits worth saying out loud. In simulated chats, memory wins clearly only when members really differ and have a real history. When everyone is about equally good, no memory can beat a coin flip, and this score stays a little above 0.25.
+The score has limits worth saying out loud. In simulated chats, memory wins clearly only when members really differ and have a real history. When everyone is about equally good, no memory can beat a coin flip, and this score stays a little above 0.25. In the real chats it was 0.251 on 30 settled calls (a tie) and 0.235 on 49 (4 November): a lead, but a small one that a handful of confident misses would undo.
 
 ### What memory changed
 
@@ -235,7 +250,7 @@ By 2 November 2026, the 23 logged calls had been priced by: Tatum Price API 7, T
 |---|---|
 | `/call SUI to $5 by Friday` | Log a call (or just say it in the chat); `/call <link to a post>` files the call in that post |
 | `/why 12 ETF inflows` | Add your reasoning to call #12 (or reply to its receipt) |
-| `/ask what did Max say about SOL?` | Answer from the chat’s memory (or mention the bot) |
+| `/ask what did Max say about SOL?` | Answer from the chat’s memory (or mention the bot). **🧠 What I recalled** under the answer lists the memories it used, each linked to its Walrus blob |
 | `/board` | Leaderboard, plus a button that opens the Mini App |
 | `/open` | Calls still waiting for their deadline |
 | `/hide 12` | Take your call off the board and out of the bot’s answers |

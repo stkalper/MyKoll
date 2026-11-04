@@ -1,5 +1,5 @@
 <!--
-Draft for Medium. Numbers marked [N] are from the live bot on 3 November 2026 and get refreshed
+Draft for Medium. Numbers marked [N] are from the live bot on 4 November 2026 and get refreshed
 before publishing (scripts/blog-numbers.mts prints the current ones). Video link: [VIDEO].
 -->
 
@@ -31,7 +31,7 @@ What the chat actually wants is the history: *who said what, when, why, and how 
 [HABIT @craffny] @craffny confirmed their last 3 calls, so I log theirs without asking.
 ```
 
-Memories are recalled by meaning, not keywords: “who was bullish on BNB?” finds those calls though the word “bullish” never appears in them. Each call is sealed on Walrus Mainnet when it is logged, so there is a timestamped record of every call from before its result was known.
+Memories are recalled by meaning, not keywords: “who was bullish on BNB?” finds those calls though the word “bullish” never appears in them. Every answer has a **🧠 What I recalled** button that lists the memories it was built from, each linked to its blob on Walrus, so nobody has to take the bot's word for what it remembers. Each call is sealed on Walrus Mainnet when it is logged, so there is a timestamped record of every call from before its result was known.
 
 ## How it learned, in a real chat
 
@@ -43,11 +43,11 @@ The screenshots below are from a real group of friends, not a demo. Its file is 
 
 **It started bringing up the past.** When @crypcort wrote “Bnb 700 in 3hours”, the receipt came back with their last call like it, recalled from memory: *“Bnb 708 in 2 hours”, right*. And it flagged the new call as a **strong spot**: bullish calls 2/2. It was right again.
 
-**It stopped asking.** After a member confirms three spotted calls in a row, the bot logs theirs without asking, says why, and leaves an undo button. In this chat that has already happened [5] times. It works the other way too: when two of someone's last three spotted calls were “not a call”, the bot asks first even in auto mode. When it misreads a message, it stores *its own misreading* (“BTC below $90,000”), never the message itself, and stops offering the same kind of call after two rejections.
+**It stopped asking.** After a member confirms three spotted calls in a row, the bot logs theirs without asking, says why, and leaves an undo button. In this chat that has already happened [4] times. It works the other way too: when two of someone's last three spotted calls were “not a call”, the bot asks first even in auto mode. When it misreads a message, it stores *its own misreading* (“BTC below $90,000”), never the message itself, and stops offering the same kind of call after two rejections.
 
 **It weighed the room.** When @crypcort called BetBoom over MOUZ while @craffny already had MOUZ, the bot didn't just count heads. It weighed both by their record on that kind of pick and showed which way the people worth listening to lean.
 
-**It measured people against the market.** CS2 picks are matched to the Polymarket match-winner market, so the bot knows the odds at the moment of the call. Picks under 45% are filed as underdog picks, and each member gets an edge against the market. The best moment so far: Liquid over Aurora, which Polymarket had at **31%**. It won. But honest numbers matter more than highlights. Over all their CS2 picks, both members still trail Polymarket slightly ([−5] and [−2] points), and the board says so.
+**It measured people against the market.** CS2 picks are matched to the Polymarket match-winner market, so the bot knows the odds at the moment of the call. Picks under 45% are filed as underdog picks, and each member gets an edge against the market. The best moment so far: Liquid over Aurora, which Polymarket had at **31%**. It won. But honest numbers matter more than highlights, so the board shows the whole picture: over all their CS2 picks, @crypcort is [10] points ahead of Polymarket and @craffny is [1] point behind. Earlier in the week, both were behind.
 
 Every one of these moments is written down. The chat's file has a feed called *What memory changed here*, and the site counts them across all chats: [12] times in this chat so far.
 
@@ -57,11 +57,13 @@ It's easy to claim a memory makes a bot smarter. I wanted a number that could al
 
 The **Memory Check** takes the trust the bot had in each call *at the moment it was made* (no peeking at later results), scores it against how the call ended (Brier score, lower is better), and puts it next to a bot that forgets and trusts everyone 50/50, which always scores 0.25.
 
-On [30] settled calls across both chats the memory scores **[0.251]**. That is a tie with forgetting.
+The first time it had enough calls to say anything, at 30 settled calls, the memory scored **0.251**: a tie with forgetting. I was ready to publish that, because that is what the data said.
 
-I'm publishing it anyway, because that is what the data says. Trust starts at 50/50 and moves only as far as the evidence takes it (a record counts as if 16 coin-flip calls came before it), so a member with a handful of settled calls is still trusted close to 50/50, by design: one lucky call shouldn't make anyone an oracle. In simulated chats where members really differ and have a real history, memory wins clearly; with a few members and a few weeks of calls, it can't yet. The score is shown in the chat and on the site from 30 calls, and the raw number is always at [/api/stats](https://mykoll.vercel.app/api/stats).
+Then the chats kept going. On [49] settled calls the memory scores **[0.235]** against forgetting's 0.25. The flags explain where the lead comes from: calls the bot marked as a member's **strong spot** came true [8] times out of [9], while calls with no flag came true [22] of [39], barely better than a coin flip.
 
-The useful part isn't the score yet. It's the behaviour: what gets brought back, flagged, skipped or asked.
+It's a lead, not a proof. Trust starts at 50/50 and moves only as far as the evidence takes it (a record counts as if 16 coin-flip calls came before it), so one lucky call can't make anyone an oracle, and a handful of confident misses would bring the score back to a tie. In simulated chats where members really differ and have a real history, memory wins clearly; with four members and a week or two of calls, it's only starting to. The score is shown in the chat and on the site from 30 calls, and the raw number is always at [/api/stats](https://mykoll.vercel.app/api/stats).
+
+The score is the slow part. The behaviour is what the chat feels every day: what gets brought back, flagged, skipped or asked.
 
 ## You decide what it keeps
 
