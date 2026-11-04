@@ -72,7 +72,7 @@ export interface BoardView {
   memoryEffects?: { kind: MemoryEffectKind; text: string; when: string }[];
 }
 
-export type MemoryEffectKind = "weak_spot" | "strong_spot" | "last_time" | "room" | "logged_without_asking" | "asked_first" | "stayed_quiet";
+export type MemoryEffectKind = "weak_spot" | "strong_spot" | "last_time" | "room" | "logged_without_asking" | "asked_first" | "stayed_quiet" | "record_changed";
 
 /** What each kind of change is called when they're counted. */
 export const effectLabel: Record<MemoryEffectKind, string> = {
@@ -83,6 +83,7 @@ export const effectLabel: Record<MemoryEffectKind, string> = {
   logged_without_asking: "logged without asking",
   asked_first: "asked first after a misread",
   stayed_quiet: "misreads not repeated",
+  record_changed: "minds changed about someone",
 };
 
 /** Below this, a score says more about luck than about the memory: one call can move it past 0.25. */
@@ -98,6 +99,11 @@ export interface MemoryCheckView {
   withRecord: number;
   brierMemory: number | null;
   brierForgetful: number | null;
+  /**
+   * A bot that remembers nothing about anyone, only how often calls in the chat came true so far.
+   * The memory has to beat this to show it learned something about people, not just about the chat.
+   */
+  brierChatRate?: number | null;
   spots: Record<"weak" | "strong" | "none", { calls: number; hits: number }>;
 }
 

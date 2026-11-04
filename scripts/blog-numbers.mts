@@ -9,7 +9,7 @@ const check = stats.memoryCheck;
 
 console.log("Across all chats");
 console.log(`  groups ${stats.groups} · calls ${stats.calls} · settled ${stats.settled} · memories ${stats.memories}`);
-console.log(`  Memory Check: ${check.calls} calls, memory ${check.brierMemory?.toFixed(3)} vs forgetful ${check.brierForgetful}`);
+console.log(`  Memory Check: ${check.calls} calls, memory ${check.brierMemory?.toFixed(3)} vs chat hit rate ${check.brierChatRate?.toFixed(3)} vs forgetful ${check.brierForgetful}`);
 console.log(`  weak spots ${check.spots.weak.hits}/${check.spots.weak.calls} · strong spots ${check.spots.strong.hits}/${check.spots.strong.calls} · no flag ${check.spots.none.hits}/${check.spots.none.calls}`);
 console.log(`  memory effects: ${JSON.stringify(stats.memoryEffects)}`);
 

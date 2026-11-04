@@ -3,6 +3,7 @@
 //   npx tsx --env-file=.env.local scripts/try-trust.mts
 import type { CallRow } from "../src/lib/calls";
 import { trackRecordOf, trustOn, type TrackRecord } from "../src/lib/learning";
+import { scoreMemory } from "../src/lib/scorecard";
 
 const DAY = 86_400_000;
 const COINS = ["BTC", "SOL", "WAL"];
@@ -17,9 +18,9 @@ function laplace(record: TrackRecord | undefined, c: CallRow) {
 }
 
 /** One chat's settled calls, in the order they were made, each settled before the next. */
-function chat(members: number, total: number, skill: number): CallRow[] {
+function chat(members: number, total: number, skill: number, rightAt = 0.5): CallRow[] {
   const people = Array.from({ length: members }, () => {
-    const base = 0.5 + normal() * skill;
+    const base = rightAt + normal() * skill;
     return COINS.map(() => clamp(base + normal() * skill * 0.8));
   });
   return Array.from({ length: total }, (_, i) => {
@@ -74,5 +75,28 @@ for (const [total, skill, label] of [
     if (now < 0.25) wins++;
   }
   console.log(`${total} | ${label} | ${(before / RUNS).toFixed(4)} | ${(after / RUNS).toFixed(4)} | ${Math.round((wins / RUNS) * 100)}% of chats`);
+}
+
+// Beating a coin flip can just mean the chat is usually right. The Memory Check's second baseline
+// knows only the chat's hit rate so far; this is how often memory beats it, in chats of four that
+// are right 60% of the time, like the real ones.
+console.log("\ncalls | how different members are | memory | chat hit rate only | memory ahead in");
+for (const [total, skill, label] of [
+  [50, 0.15, "quite different"],
+  [100, 0.15, "quite different"],
+  [200, 0.15, "quite different"],
+  [50, 0.08, "a little different"],
+  [200, 0.08, "a little different"],
+] as const) {
+  let memory = 0;
+  let chatRate = 0;
+  let wins = 0;
+  for (let i = 0; i < RUNS / 5; i++) {
+    const s = scoreMemory(chat(4, total, skill, 0.6));
+    memory += s.brierMemory!;
+    chatRate += s.brierChatRate!;
+    if (s.brierMemory! < s.brierChatRate!) wins++;
+  }
+  console.log(`${total} | ${label} | ${(memory / (RUNS / 5)).toFixed(4)} | ${(chatRate / (RUNS / 5)).toFixed(4)} | ${Math.round((wins / (RUNS / 5)) * 100)}% of chats`);
 }
 process.exit(0);

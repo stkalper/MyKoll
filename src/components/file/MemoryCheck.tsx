@@ -4,7 +4,8 @@ const pct = (x: { calls: number; hits: number }) => Math.round((x.hits / x.calls
 
 /**
  * Is the memory earning its keep? The bot's trust in each call, scored against how it ended
- * (Brier, lower is better), next to a bot that forgets and trusts everyone 50/50.
+ * (Brier, lower is better), next to a bot that only knows the chat's hit rate so far and a bot
+ * that forgets and trusts everyone 50/50.
  */
 export function MemoryCheck({ check, className = "" }: { check: MemoryCheckView; className?: string }) {
   if (!memoryCheckReady(check))
@@ -19,8 +20,9 @@ export function MemoryCheck({ check, className = "" }: { check: MemoryCheckView;
 
   const bars = [
     { label: "With memory", value: check.brierMemory!, tone: "bg-stamp-win" },
+    { label: "Only the chat's hit rate", value: check.brierChatRate ?? null, tone: "bg-ink-muted" },
     { label: "A bot that forgets", value: check.brierForgetful!, tone: "bg-ink-muted" },
-  ];
+  ].filter((b): b is { label: string; value: number; tone: string } => b.value !== null);
   return (
     <div className={`paper rounded-sm px-5 py-4 ${className}`}>
       <p className="field-label">Memory check · {check.calls} settled calls</p>

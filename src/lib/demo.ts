@@ -74,6 +74,7 @@ export const demoBoard: BoardView = {
     withRecord: 109,
     brierMemory: 0.207,
     brierForgetful: 0.25,
+    brierChatRate: 0.243,
     spots: { weak: { calls: 21, hits: 5 }, strong: { calls: 33, hits: 25 }, none: { calls: 70, hits: 39 } },
   },
   memoryEffects: [
