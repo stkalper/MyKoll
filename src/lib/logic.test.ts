@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { recallQuestion, shownMemory, sourcesText } from "./ask";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
-import { claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, usd, type CallRow } from "./calls";
+import { claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { fromGammaMarket, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
@@ -353,5 +353,18 @@ describe("prices", () => {
   });
   it("measures how far two sources are apart", () => {
     assert.ok(Math.abs(gap(100, 102) - 0.02) < 1e-12);
+  });
+});
+
+describe("a list of picks with teams the bot has no alias for", () => {
+  it("keeps the words that could be team names", () => {
+    assert.deepEqual(unknownNames("navi mouz og fokus 9ine acend", ["navi", "mouz", "og"]), ["fokus", "9ine", "acend"]);
+    assert.deepEqual(unknownNames("navi, mouz і fokus", ["navi", "mouz"]), ["fokus"]);
+  });
+  it("leaves sentences and scores to the model", () => {
+    assert.equal(unknownNames("navi and mouz are going to lose this one tomorrow for sure", ["navi", "mouz"]), null);
+    assert.equal(unknownNames("navi 2:0 mouz", ["navi", "mouz"]), null);
+    assert.equal(unknownNames("navi fokus", ["navi"]), null);
+    assert.equal(unknownNames("navi mouz", ["navi", "mouz"]), null);
   });
 });

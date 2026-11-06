@@ -6,7 +6,7 @@ import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
 import { remember, sealedBlobs } from "./memory";
 import { firstCheck, nextSweep, wakeAt } from "./schedule";
-import { findMatch, listedTeams, marketWinner, nextMatch, startedMatch, teamKey, type MarketRef } from "./polymarket";
+import { findMatch, knownTeam, listedTeams, marketWinner, nextMatch, startedMatch, teamKey, type MarketRef } from "./polymarket";
 import { sourceId, sourceName, type PostSource } from "./posts";
 import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
@@ -232,7 +232,7 @@ Reply with JSON only:
 export async function extractCall(text: string, posted?: Date): Promise<Draft | Slate | Unplaced | null> {
   const teams = [...(await teamWords(text)).values()];
   // A bare list of teams is always a set of picks; the model says so only some of the time.
-  const listed = teamList(text, teams);
+  const listed = teamList(text, teams) ?? (await listWithUnknownTeams(text, teams));
   if (listed) return slateOf(listed.map((team) => ({ team, opponent: null })), null, quoteOf(text), null);
   const reply = await complete(
     [
@@ -320,6 +320,39 @@ export function teamList(text: string, teams: string[]): string[] | null {
     rest = rest.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu"), " ");
   }
   return ordered.length >= 2 && ONLY_JOINERS.test(rest) ? ordered : null;
+}
+
+/** At most this many words a list may hold beyond the teams the bot knows. */
+const MAX_UNKNOWN = 6;
+const WORD_SPLIT = /[\s,;:.!?()+&/|\-–—]+/u;
+const JOINER = /^(?:and|і|й|та|и)$/iu;
+
+/**
+ * The words of a message left once the known teams are taken out ("navi mouz og fokus" → og, fokus),
+ * when there are few and each could be a team's name; null when the rest reads like a sentence.
+ */
+export function unknownNames(text: string, teams: string[]): string[] | null {
+  if (teams.length < 2) return null;
+  let rest = text;
+  for (const t of [...teams].sort((a, b) => b.length - a.length)) rest = rest.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu"), " ");
+  const words = rest.split(WORD_SPLIT).filter((w) => w && !JOINER.test(w));
+  if (!words.length || words.length > MAX_UNKNOWN) return null;
+  return words.every((w) => /^[\p{L}\d]{2,14}$/u.test(w)) ? words : null;
+}
+
+/**
+ * A list of picks that names smaller teams the bot has no alias for ("navi mouz og fokus 9ine acend"):
+ * each unknown word must be a team Polymarket has listed, or the message goes to the model as usual,
+ * so "navi and mouz are trash" stays a sentence. Teams come back in the order written.
+ */
+async function listWithUnknownTeams(text: string, teams: string[]): Promise<string[] | null> {
+  const words = unknownNames(text, teams);
+  if (!words) return null;
+  const found = await Promise.all(words.map((w) => knownTeam(w).catch(() => null)));
+  if (found.some((t) => !t)) return null;
+  const at = (t: string) => text.toLowerCase().indexOf(t.toLowerCase());
+  const named = [...teams.map((t) => ({ name: t, at: at(t) })), ...words.map((w, i) => ({ name: found[i]!, at: at(w) }))];
+  return named.sort((a, b) => a.at - b.at).map((t) => t.name);
 }
 
 /** How long a call made on a chart timeframe runs, when it names no time. */

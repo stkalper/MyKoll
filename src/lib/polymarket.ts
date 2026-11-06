@@ -297,6 +297,18 @@ function searchTeam(team: string): Promise<Event[]> {
   return value;
 }
 
+/**
+ * The name Polymarket gives a CS2 team if it has ever listed a match of theirs ("fokus" → "FOKUS",
+ * "og" → "OG"), and null for a word that isn't a team. Lets a list of picks name smaller teams the
+ * bot has no alias for.
+ */
+export async function knownTeam(word: string): Promise<string | null> {
+  const key = teamKey(word);
+  if (key.length < 2) return null;
+  const event = (await searchTeam(word).catch(() => [] as Event[]))[0];
+  return event ? sides(event, key)[0] : null;
+}
+
 /** The two teams of an event, the given team first. */
 function sides(e: Event, key: string): [string, string] {
   const teams = teamsOf(e.title)!;
