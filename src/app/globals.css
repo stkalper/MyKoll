@@ -165,3 +165,169 @@ body {
   padding-top: calc(var(--tooth) + 0.35rem);
   padding-bottom: calc(var(--tooth) + 0.35rem);
 }
+
+/*
+ * The landing's opening (components/landing/Intro.tsx), 3.4 s: the pen comes down (0-0.45 s),
+ * ink spills from its nib (0.45-1.1 s), the pen lifts away (0.95-1.4 s), "MyKoll" is written
+ * into the blot (1.15-2.25 s), then the view pushes through the word into the page (2.45-3.4 s).
+ */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--bg);
+  cursor: pointer;
+  animation: intro-fade 0.35s 3.05s ease-in forwards;
+}
+.intro[data-skipping] {
+  animation: intro-fade 0.2s ease-out forwards;
+}
+.intro[data-done] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro {
+    display: none;
+  }
+}
+@keyframes intro-fade {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+.intro-stage {
+  position: relative;
+  width: min(94vw, 760px);
+  aspect-ratio: 600 / 360;
+  container-type: inline-size;
+  /* The middle of the word, between the K and the o. */
+  transform-origin: 52% 50%;
+  animation: intro-push 1s 2.4s forwards;
+}
+/* A slow lean in, then a rush through the word: by the time the page shows, the ink fills the screen. */
+@keyframes intro-push {
+  0% {
+    transform: scale(1);
+    animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+  }
+  55% {
+    transform: scale(1.6);
+    animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6);
+  }
+  100% {
+    transform: scale(45);
+  }
+}
+
+.intro-blot {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.intro-drop {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0);
+  animation: intro-spill 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.25) forwards;
+}
+.intro-drop.d0 { animation-delay: 0.45s; }
+.intro-drop.d1 { animation-delay: 0.56s; }
+.intro-drop.d2 { animation-delay: 0.6s; }
+.intro-drop.d3 { animation-delay: 0.7s; }
+.intro-drop.d4 { animation-delay: 0.74s; }
+.intro-drop.d5 { animation-delay: 0.66s; }
+.intro-drop.d6 { animation-delay: 0.68s; }
+.intro-drop.d7 { animation-delay: 0.84s; }
+.intro-drop.d8 { animation-delay: 0.88s; }
+.intro-drop.d9 { animation-delay: 0.9s; }
+.intro-drop.d10 { animation-delay: 0.92s; }
+.intro-drop.s0 { animation-delay: 0.62s; }
+.intro-drop.s1 { animation-delay: 0.66s; }
+.intro-drop.s2 { animation-delay: 0.7s; }
+.intro-drop.s3 { animation-delay: 0.72s; }
+.intro-drop.s4 { animation-delay: 0.75s; }
+.intro-drop.s5 { animation-delay: 0.78s; }
+.intro-drop.s6 { animation-delay: 0.68s; }
+.intro-drop.s7 { animation-delay: 0.74s; }
+.intro-shine {
+  opacity: 0;
+  animation: intro-shine 0.5s 1s ease-out forwards;
+}
+@keyframes intro-shine {
+  to {
+    opacity: 0.13;
+  }
+}
+@keyframes intro-spill {
+  to {
+    transform: scale(1);
+  }
+}
+
+.intro-word {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding-bottom: 2%;
+  font-family: var(--font-caveat), cursive;
+  font-weight: 700;
+  font-size: 19cqw;
+  line-height: 1;
+  color: var(--paper);
+  transform: rotate(-4deg);
+  clip-path: inset(0 100% 0 0);
+  animation: intro-write 1.1s 1.15s cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards;
+}
+@keyframes intro-write {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.intro-pen {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8cqw;
+  height: auto;
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.45));
+  animation:
+    intro-pen-in 0.45s ease-out both,
+    intro-pen-out 0.45s 0.95s ease-in forwards;
+}
+@keyframes intro-pen-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 70px)) rotate(-8deg);
+  }
+}
+@keyframes intro-pen-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 90px)) rotate(10deg);
+  }
+}
+
+.intro-skip {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface);
+}
+.intro-skip:hover {
+  color: var(--text);
+}

@@ -7,6 +7,7 @@ import { LiveMemoryCheck } from "@/components/landing/LiveMemoryCheck";
 import { LiveStats } from "@/components/landing/LiveStats";
 import { JudgePath } from "@/components/landing/JudgePath";
 import { cachedPrices, cachedStats } from "@/lib/live";
+import { Intro } from "@/components/landing/Intro";
 import { PenTail } from "@/components/landing/PenTail";
 import { SameCall } from "@/components/landing/SameCall";
 import { ScrollPen } from "@/components/landing/ScrollPen";
@@ -277,6 +278,7 @@ const ForJudges = async () => <JudgePath stats={await cachedStats()} />;
 export default function Landing() {
   return (
     <main className="glow relative isolate flex-1">
+      <Intro />
       <ScrollPen />
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6">
         <span className="font-form text-lg font-extrabold uppercase tracking-[0.06em]">
