@@ -59,6 +59,7 @@ export function ReceiptCard({
             ↗
           </a>
         )}
+        {call.polymarket?.book && <span className="block">bookmakers then: {call.polymarket.book}</span>}
         {call.proofUrl && (
           <a href={call.proofUrl} target="_blank" rel="noreferrer" className="block underline decoration-dotted underline-offset-2">
             check the price on {call.proofChain ?? "Sui"} ↗

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { recallQuestion, shownMemory, sourcesText } from "./ask";
+import { bookChance, bookLine, consensus, type BookmakerOdds } from "./bookmakers";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 import { backedTeam, claim, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
@@ -375,6 +376,11 @@ describe("one team backed in a few words", () => {
     assert.deepEqual(backedTeam("фут виграє", ["фут"]), ["фут"]);
     assert.deepEqual(backedTeam("ez fut", ["fut"]), ["fut"]);
   });
+  it("needs no other words once a map score was taken out", () => {
+    assert.deepEqual(backedTeam("fut  ", ["fut"], true), ["fut"]);
+    assert.equal(backedTeam("fut  ", ["fut"]), null);
+    assert.equal(backedTeam("fut   who knows", ["fut"], true), null);
+  });
   it("leaves anything else to the model", () => {
     assert.equal(backedTeam("фут", ["фут"]), null);
     assert.equal(backedTeam("фут сьогодні грає погано", ["фут"]), null);
@@ -431,5 +437,47 @@ describe("map-score picks", () => {
   it("reads a 50/50 resolution as no result", () => {
     const m = fromGammaMarket({ conditionId: "x", question: "Games Total: O/U 2.5", outcomes: '["Over","Under"]', outcomePrices: '["0.5","0.5"]', closed: true, umaResolutionStatus: "resolved" } as never, "");
     assert.equal(winnerOf(m), null);
+  });
+});
+
+describe("bookmaker odds", () => {
+  const leg = (price: number) => ({ players: { "0": { price, active: true } } });
+  // Pinnacle on The MongolZ (first) vs NaVi, 7 Nov: winner, maps handicap -1.5 and +1.5 for The MongolZ.
+  const pinnacle = {
+    markets: {
+      "171": { marketActive: true, outcomes: { "171": leg(3.05), "172": leg(1.408) } },
+      "1725": { marketActive: true, outcomes: { "1725": leg(5.95), "1726": leg(1.144) } },
+      "1737": { marketActive: true, outcomes: { "1737": leg(1.657), "1738": leg(2.3) } },
+    },
+  };
+  const near = (a: number | null, b: number) => assert.ok(a !== null && Math.abs(a - b) < 0.005, `${a} vs ${b}`);
+
+  it("takes the margin out of a match winner price", () => {
+    near(bookChance(pinnacle, false), 0.684);
+    near(bookChance(pinnacle, true), 0.316);
+  });
+
+  it("reads each map score from the handicap, adding up to the win", () => {
+    near(bookChance(pinnacle, false, "2-0"), 0.419);
+    near(bookChance(pinnacle, false, "2-1"), 0.265);
+    near(bookChance(pinnacle, true, "2-0"), 0.161);
+    near(bookChance(pinnacle, true, "2-1"), 0.155);
+  });
+
+  it("skips a suspended book, a closed market and a score without a handicap", () => {
+    assert.equal(bookChance({ ...pinnacle, suspended: true }, true), null);
+    assert.equal(bookChance({ markets: { "171": { ...pinnacle.markets["171"], marketActive: false } } }, true), null);
+    assert.equal(bookChance({ markets: { "171": pinnacle.markets["171"] } }, true, "2-0"), null);
+  });
+
+  it("prefers Pinnacle, otherwise takes the median of the books", () => {
+    const book = (a: number, b: number) => ({ markets: { "171": { marketActive: true, outcomes: { "171": leg(a), "172": leg(b) } } } });
+    const odds: BookmakerOdds = { pinnacle, bet365: book(2.75, 1.37), "pinnacle+": book(9, 1.01), demo: book(9, 1.01) };
+    assert.deepEqual(consensus(odds, false), { book: "Pinnacle", prob: bookChance(pinnacle, false)!, books: 2 });
+    const rest = consensus({ a: book(2, 2), b: book(3, 1.5), c: book(4, 1.33) }, true)!;
+    assert.equal(rest.book, "bookmakers");
+    near(rest.prob, 1 / 3);
+    assert.equal(bookLine(rest), "bookmakers 33% (median of 3)");
+    assert.equal(bookLine({ book: "Pinnacle", prob: 0.684, books: 175 }), "Pinnacle 68%");
   });
 });

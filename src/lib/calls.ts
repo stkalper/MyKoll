@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { inBackground } from "./background";
+import { bookLine, bookOdds } from "./bookmakers";
 import { config } from "./config";
 import { db } from "./db";
 import { complete, parseJson } from "./llm";
@@ -263,7 +264,7 @@ export async function extractCall(text: string, posted?: Date): Promise<Draft | 
   if (listed) return slateOf(listed.map((team) => ({ team, opponent: null })), null, quoteOf(text), null);
   // One team backed in a few words, maybe with a map score ("фут 2:0"), which the model reads as football.
   const score = scoreIn(text);
-  const backed = backedTeam(score ? text.replace(SCORE, " ") : text, teams);
+  const backed = score ? backedTeam(text.replace(SCORE, " "), teams, true) : backedTeam(text, teams);
   if (backed) {
     const pick = await slateOf(backed.map((team) => ({ team, opponent: null })), null, quoteOf(text), null);
     return score && "subject" in pick ? { ...pick, score } : pick;
@@ -365,12 +366,15 @@ export function teamList(text: string, teams: string[]): string[] | null {
 const BACKING =
   /^(?:ставлю|ставка|ставку|ставки|на|за|виграє|виграють|переможе|переможуть|выиграет|победит|забере|заберуть|тащить|тащит|затащить|затащит|изи|ізі|ez|easy|win|wins|fav|lock|pick|my|go|гоу|плюс|\+|\+1)$/iu;
 
-/** One team and only words that back it: a call on that team, which the model misses in short Ukrainian. */
-export function backedTeam(text: string, teams: string[]): string[] | null {
+/**
+ * One team and only words that back it: a call on that team, which the model misses in short Ukrainian.
+ * With `scored` (a map score was in the message and is taken out) the team alone is enough: "фут 2:0".
+ */
+export function backedTeam(text: string, teams: string[], scored = false): string[] | null {
   if (teams.length !== 1) return null;
   const rest = text.replace(new RegExp(teams[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu"), " ");
   const words = rest.split(/[\s,;:.!?()]+/u).filter(Boolean);
-  return words.length && words.every((w) => BACKING.test(w)) ? [teams[0]] : null;
+  return (words.length || scored) && words.every((w) => BACKING.test(w)) ? [teams[0]] : null;
 }
 
 /** At most this many words a list may hold beyond the teams the bot knows. */
@@ -603,6 +607,7 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
       draft = { ...draft, score: null };
       note = "No maps market for this match on Polymarket, so it's judged on the winner only.";
     }
+    if (market) market = await withBook(market, draft.opponent!, new Date(draft.deadline));
   }
   if (draft.waiting) note = `Waiting for Polymarket to list ${draft.subject}'s next match (up to ${WAIT_DAYS} days).`;
 
@@ -631,7 +636,8 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
   const priceNote = q
     ? ` ${call.subject} was ${usd(q.price)} ${draft.source ? "when it was shared" : "at the time"} (${sourcing(q)}).`
     : market
-      ? ` Polymarket had ${pickName(market)} at ${Math.round(market.prob * 100)}%${market.score ? "" : " to win"} (Tatum Prediction Market API, market ${market.marketId}).`
+      ? ` Polymarket had ${pickName(market)} at ${Math.round(market.prob * 100)}%${market.score ? "" : " to win"} (Tatum Prediction Market API, market ${market.marketId}).` +
+        (market.book ? ` The bookmakers: ${bookLine(market.book)}.` : "")
       : draft.waiting
         ? ` No match of theirs was listed yet, so it waits for their next one.`
         : "";
@@ -724,7 +730,7 @@ async function placeWaiting(call: CallRow): Promise<CallRow | null> {
   const over = new Date(Math.max(match.at.getTime() + 4 * 3_600_000, Date.now() + 3_600_000));
   const found = await findMatch(match.team, match.opponent, over, call.score).catch(() => null);
   // Its odds are from now, not from when it was called, so they don't count towards the edge on the market.
-  const market = found ? { ...found, late: true } : null;
+  const market = found ? await withBook({ ...found, late: true }, match.opponent, over) : null;
   const score = market?.score ? call.score : null;
   const [row] = await db<CallRow>(
     `update calls set subject = $2, opponent = $3, deadline = $4, market_ref = $5, score = $6, waiting = false, result_note = null
@@ -736,9 +742,21 @@ async function placeWaiting(call: CallRow): Promise<CallRow | null> {
   await remember(
     row.chat_id,
     `[CALL #${row.id}] ${row.author_name}'s pick "${row.quote}" found its match: ${claim(row)}, ${when(match.at)}.` +
-      (market ? ` Polymarket had ${pickName(market)} at ${Math.round(market.prob * 100)}% when the match was listed, after the call was made.` : ""),
+      (market
+        ? ` Polymarket had ${pickName(market)} at ${Math.round(market.prob * 100)}% when the match was listed, after the call was made` +
+          (market.book ? `; the bookmakers: ${bookLine(market.book)}.` : ".")
+        : ""),
   ).catch((err) => console.error("memory write failed", err));
   return row;
+}
+
+/** The bookmakers' price for the same pick, added to the Polymarket match when OddsPapi has a line on it. */
+async function withBook(market: MarketRef, opponent: string, at: Date): Promise<MarketRef> {
+  const book = await bookOdds(market.outcome, opponent, at, market.score).catch((err) => {
+    console.error("bookmaker odds failed", err);
+    return null;
+  });
+  return book ? { ...market, book } : market;
 }
 
 /** Drops a call that can't be judged: no result, no record, and said why. */
@@ -858,7 +876,10 @@ async function settle(call: CallRow, outcome: "win" | "loss", note: string, q: Q
   await remember(
     row.chat_id,
     `[RESULT #${row.id}] ${row.author_name}'s call "${row.quote}" (${claim(row)}) was ${outcome === "win" ? "RIGHT" : "WRONG"}: ${note}${q ? ` (${sourcing(q)})` : ""}.` +
-      (row.market_ref ? ` Polymarket had ${pickName(row.market_ref)} at ${Math.round(row.market_ref.prob * 100)}% when ${row.market_ref.late ? "the match was listed" : "it was called"}.` : ""),
+      (row.market_ref
+        ? ` Polymarket had ${pickName(row.market_ref)} at ${Math.round(row.market_ref.prob * 100)}% when ${row.market_ref.late ? "the match was listed" : "it was called"}` +
+          (row.market_ref.book ? `, ${bookLine(row.market_ref.book)}.` : ".")
+        : ""),
   ).catch((err) => console.error("memory write failed", err));
   await learnFrom(row).catch((err) => console.error("learning failed", err));
   return row;

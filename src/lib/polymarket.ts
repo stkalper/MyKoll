@@ -1,4 +1,5 @@
 import { config } from "./config";
+import type { BookOdds } from "./bookmakers";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 
 /**
@@ -32,6 +33,8 @@ export interface MarketRef {
   mapsMarketId?: string;
   /** Set when the match was found after the call was made (the pick waited for Polymarket to list it), so its odds are from then. */
   late?: boolean;
+  /** The bookmakers' chance for the same pick at the same moment (OddsPapi: Pinnacle, or the median of the books). */
+  book?: BookOdds;
 }
 
 /** The pick as a receipt names it: "FURIA", or "FURIA 2:0" for a map-score pick. */

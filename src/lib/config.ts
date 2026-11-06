@@ -23,6 +23,11 @@ export const config = {
     suiGrpcHost: env("TATUM_SUI_GRPC_HOST", "sui-mainnet-grpc.gateway.tatum.io:443"),
   },
 
+  /** OddsPapi: bookmaker odds on CS2 (Pinnacle and the rest), read once when a call is made. Free tier: 250 requests a month. */
+  oddspapi: {
+    apiKey: env("ODDSPAPI_API_KEY"),
+  },
+
   memwal: {
     key: env("MEMWAL_PRIVATE_KEY"),
     accountId: env("MEMWAL_ACCOUNT_ID"),

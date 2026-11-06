@@ -38,6 +38,7 @@ import { config, llmEnabled } from "./config";
 import { db } from "./db";
 import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
 import { noteForNewCall, trackRecords } from "./learning";
+import { bookLine } from "./bookmakers";
 import { pickName } from "./polymarket";
 import { fileUrl, shareUrl } from "./receipts";
 import { memoryScorecard, scorecardLine } from "./scorecard";
@@ -90,6 +91,7 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
           ? `🎯 Called the upset: Polymarket had ${pick} at ${pct}%`
           : `📈 Polymarket gave ${pick} ${pct}% ${at}${pct < 45 ? " — an underdog pick" : ""}${via}`,
     );
+    if (ref.book) lines.push(`🏦 Bookmakers then: ${esc(bookLine(ref.book))}`);
   }
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
   if (learned.length) lines.push("", ...learned.map(esc));
@@ -175,7 +177,9 @@ function slateOffer(s: Slate): string {
 function slateLogged(author: string, s: Slate, calls: CallRow[], errors: string[]): string {
   const lines = [`🧾 <b>${calls.length} pick${calls.length === 1 ? "" : "s"} logged</b> · ${esc(author)}: “${esc(s.quote)}”`, ""];
   for (const c of calls) {
-    const odds = c.market_ref ? ` · Polymarket ${Math.round(c.market_ref.prob * 100)}%` : "";
+    const odds = c.market_ref
+      ? ` · Polymarket ${Math.round(c.market_ref.prob * 100)}%${c.market_ref.book ? `, ${esc(bookLine(c.market_ref.book))}` : ""}`
+      : "";
     lines.push(c.opponent ? `#${c.id} ${esc(c.subject)} to beat ${esc(c.opponent)}${odds}` : `#${c.id} ${esc(c.subject)} on their next match, once it's listed`);
   }
   if (errors.length) lines.push("", `<i>Not logged: ${esc(errors.join("; "))}</i>`);
@@ -225,7 +229,10 @@ export async function announceResolutions(bot: Bot) {
     const call = sealed.get(resolved.id) ?? resolved;
     if (placed) {
       const ref = call.market_ref;
-      const odds = ref ? `\n📈 Polymarket gives ${esc(pickName(ref))} ${Math.round(ref.prob * 100)}% now (the match wasn't listed when it was called)` : "";
+      const odds = ref
+        ? `\n📈 Polymarket gives ${esc(pickName(ref))} ${Math.round(ref.prob * 100)}% now (the match wasn't listed when it was called)` +
+          (ref.book ? `\n🏦 Bookmakers: ${esc(bookLine(ref.book))}` : "")
+        : "";
       await bot.api.sendMessage(
         call.chat_id,
         `📌 <b>Receipt #${call.id}</b> found its match · ${esc(call.author_name)}: “${esc(call.quote)}”\n\n<i>${esc(claim(call))}</i> · judged ${esc(when(call.deadline))}${odds}`,

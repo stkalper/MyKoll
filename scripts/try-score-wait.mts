@@ -9,7 +9,7 @@ const { db } = await import("../src/lib/db");
 const chat = { id: -424242, title: "score/wait test" };
 const me = { id: 4242, name: "@tester" };
 
-for (const text of ["фут 2:0", "spirit 2-1", "ставлю на fokus"]) {
+for (const text of ["фут 2:0", "spirit 2-1", "mouz g2 изи", "ставлю на fokus"]) {
   const draft = await extractCall(text);
   if (!draft || "reason" in draft || "picks" in draft) {
     console.log(text, "→", draft);
@@ -17,7 +17,7 @@ for (const text of ["фут 2:0", "spirit 2-1", "ставлю на fokus"]) {
   }
   const call = await logCall(chat, me, draft);
   if ("error" in call) console.log(text, "→ error", call.error);
-  else console.log(`#${call.id}`, JSON.stringify(text), "→", claim(call), "| odds", call.market_ref?.prob?.toFixed(3) ?? "-", "| waiting", call.waiting, "|", call.result_note ?? "");
+  else console.log(`#${call.id}`, JSON.stringify(text), "→", claim(call), "| odds", call.market_ref?.prob?.toFixed(3) ?? "-", "| book", call.market_ref?.book ? `${call.market_ref.book.book} ${call.market_ref.book.prob.toFixed(3)} (${call.market_ref.book.books})` : "-", "| waiting", call.waiting, "|", call.result_note ?? "");
 }
 
 // Pretend the FOKUS pick was made while nothing was listed, and a match of FUT's is listed now.

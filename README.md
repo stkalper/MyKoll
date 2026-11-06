@@ -231,8 +231,9 @@ A CS2 call is matched to the **Polymarket match-winner market** for the same two
 - **Match times come from the description.** An event’s `closeTime` is a few hours after the market went up, not the match, and CS2 markets keep trading during play, so neither says when a match starts. The start is read from the event text instead (“initially scheduled for October 30, 2026 at 5:15 PM ET”, converted from New York time).
 - **The call settles from Polymarket’s resolution** (Polymarket resolves CS2 from HLTV) the moment it resolves, so nobody has to confirm the score. Until then, the chat’s one-tap confirmation still works.
 - **The bot learns who beats the market.** Picks are filed as *underdog picks* (under 45%) or *favourite picks* (over 55%), and each member’s record gets an edge against the market: their hit rate minus the average price Polymarket gave their picks (`beats Polymarket by 12 pts on CS2`). A win the market had under 45% comes back as `🎯 Called the upset`.
+- **The bookmakers’ view, next to the market’s.** The same pick is priced by the bookmakers through [OddsPapi](https://oddspapi.io) at the moment it’s called: Pinnacle when it has a line, otherwise the median of every book that does (often 100+ on a tier-1 match). The margin is taken out of each price, so it reads as a chance like Polymarket’s: `🏦 Bookmakers then: Pinnacle 68%`. A map score is priced from the maps handicap (−1.5 is the 2:0). It’s shown on the receipt and written to memory with the call; results still come from Polymarket. OddsPapi’s free tier is 250 requests a month, so the odds are read once per call and cached, and without a key or quota the line is simply left out.
 
-Code: [`src/lib/polymarket.ts`](src/lib/polymarket.ts). Checks: [`scripts/try-polymarket.mts`](scripts/try-polymarket.mts) maps calls to upcoming matches; [`scripts/try-cs2.mts`](scripts/try-cs2.mts) logs a call with its odds and settles one from a played match.
+Code: [`src/lib/polymarket.ts`](src/lib/polymarket.ts), [`src/lib/bookmakers.ts`](src/lib/bookmakers.ts). Checks: [`scripts/try-polymarket.mts`](scripts/try-polymarket.mts) maps calls to upcoming matches; [`scripts/try-cs2.mts`](scripts/try-cs2.mts) logs a call with its odds and settles one from a played match.
 
 ## Mainnet evidence
 
@@ -272,6 +273,7 @@ flowchart LR
   BOT -- Sui token price --> GRPC[Tatum Sui gRPC] --> CETUS[(Cetus pools<br/>Sui mainnet)]
   BOT -- stock token price --> RH[Tatum Robinhood Chain RPC] --> UNI[(Uniswap v3 pools<br/>Robinhood Chain)]
   BOT -- CS2 match, odds, result --> PRED[Tatum Prediction Market API] --> PM[(Polymarket)]
+  BOT -- bookmaker odds at the call --> ODDS[OddsPapi] --> BOOKS[(Pinnacle + 100s of books)]
   BOT -- remember / recall --> WALRUS[(Walrus Memory<br/>namespace per chat)]
   BOT -- calls, reasons --> DB[(Neon Postgres)]
   BOT -- delayed message<br/>at deadline --> Q[Vercel Queue] --> SETTLE["/api/queues/deadline"] --> TG
