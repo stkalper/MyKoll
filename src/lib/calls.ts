@@ -100,7 +100,7 @@ const MAX_QUOTE = 280;
 // \b only knows ASCII letters, so word edges are spelled out to work for Cyrillic too.
 const word = (alts: string) => new RegExp(`(?<![\\p{L}\\d])(${alts})(?![\\p{L}])`, "iu");
 const CS2_TEAMS = word(
-  "navi|na'vi|natus vincere|нави|наві|faze|фейз|vitality|віталіті|виталити|spirit|спіріт|спирит|g2|mouz|мауз|falcons|liquid|astralis|астраліс|астралис|heroic|furia|фурі\\p{L}*|фури\\p{L}*|(?:the\\s?)?mongolz|монголз|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|бетбум|bb|бб|parivision|legacy|mibr|imperial|og|fnatic|фнатік\\p{L}*|фнатик\\p{L}*|cloud9|c9|ence|passion ua|tyloo|lynn vision|wildcard|fluxo|nemiga|немиг\\p{L}*|saw|m80|gentle mates|nrg|sashi|bestia",
+  "navi|na'vi|natus vincere|нави|наві|faze|фейз|vitality|віталіті|виталити|spirit|спіріт|спирит|g2|mouz|мауз|falcons|liquid|astralis|астраліс|астралис|heroic|furia|фурі\\p{L}*|фури\\p{L}*|(?:the\\s?)?mongolz|монголз|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|бетбум|bb|бб|parivision|legacy|mibr|imperial|og|fnatic|фнатік\\p{L}*|фнатик\\p{L}*|cloud9|c9|ence|passion ua|tyloo|lynn vision|wildcard|fluxo|nemiga|немиг\\p{L}*|saw|m80|gentle mates|nrg|sashi|bestia|fut|фут|fokus|9ine|acend|bc\.?game|sinners|rare atom|metizport",
 );
 const CRYPTO = word(
   "\\$[a-z]{2,10}|#[a-z]{2,10}|[a-z]{2,10}/?usdt|navx|haedal|ika|hippo|lofi|scallop|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|trx|tron|трон\\p{L}*|трх|ltc|bch|atom|algo|xlm|matic|vet|cro|chz|tsla|tesla|тесл\\p{L}*|nvda|nvidia|нвід\\p{L}*|aapl|msft|amzn|googl|pons|понс|cashcat|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|бтс|бтц|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
@@ -232,7 +232,7 @@ Reply with JSON only:
 export async function extractCall(text: string, posted?: Date): Promise<Draft | Slate | Unplaced | null> {
   const teams = [...(await teamWords(text)).values()];
   // A bare list of teams is always a set of picks; the model says so only some of the time.
-  const listed = teamList(text, teams) ?? (await listWithUnknownTeams(text, teams));
+  const listed = teamList(text, teams) ?? (await listWithUnknownTeams(text, teams)) ?? backedTeam(text, teams);
   if (listed) return slateOf(listed.map((team) => ({ team, opponent: null })), null, quoteOf(text), null);
   const reply = await complete(
     [
@@ -320,6 +320,21 @@ export function teamList(text: string, teams: string[]): string[] | null {
     rest = rest.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu"), " ");
   }
   return ordered.length >= 2 && ONLY_JOINERS.test(rest) ? ordered : null;
+}
+
+/**
+ * Words that back a team and say nothing else: "ставлю на фут", "фут виграє", "ez fut". Times
+ * ("завтра") aren't here: a call that names a day goes to the model, which reads the deadline.
+ */
+const BACKING =
+  /^(?:ставлю|ставка|ставку|ставки|на|за|виграє|виграють|переможе|переможуть|выиграет|победит|забере|заберуть|тащить|тащит|затащить|затащит|изи|ізі|ez|easy|win|wins|fav|lock|pick|my|go|гоу|плюс|\+|\+1)$/iu;
+
+/** One team and only words that back it: a call on that team, which the model misses in short Ukrainian. */
+export function backedTeam(text: string, teams: string[]): string[] | null {
+  if (teams.length !== 1) return null;
+  const rest = text.replace(new RegExp(teams[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu"), " ");
+  const words = rest.split(/[\s,;:.!?()]+/u).filter(Boolean);
+  return words.length && words.every((w) => BACKING.test(w)) ? [teams[0]] : null;
 }
 
 /** At most this many words a list may hold beyond the teams the bot knows. */

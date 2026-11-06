@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { recallQuestion, shownMemory, sourcesText } from "./ask";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
-import { claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
+import { backedTeam, claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { fromGammaMarket, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
@@ -366,5 +366,19 @@ describe("a list of picks with teams the bot has no alias for", () => {
     assert.equal(unknownNames("navi 2:0 mouz", ["navi", "mouz"]), null);
     assert.equal(unknownNames("navi fokus", ["navi"]), null);
     assert.equal(unknownNames("navi mouz", ["navi", "mouz"]), null);
+  });
+});
+
+describe("one team backed in a few words", () => {
+  it("is a pick on that team", () => {
+    assert.deepEqual(backedTeam("ставлю на фут", ["фут"]), ["фут"]);
+    assert.deepEqual(backedTeam("фут виграє", ["фут"]), ["фут"]);
+    assert.deepEqual(backedTeam("ez fut", ["fut"]), ["fut"]);
+  });
+  it("leaves anything else to the model", () => {
+    assert.equal(backedTeam("фут", ["фут"]), null);
+    assert.equal(backedTeam("фут сьогодні грає погано", ["фут"]), null);
+    assert.equal(backedTeam("фут завтра виграє", ["фут"]), null);
+    assert.equal(backedTeam("ставлю на наві проти мауз", ["наві", "мауз"]), null);
   });
 });

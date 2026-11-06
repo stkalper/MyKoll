@@ -183,6 +183,7 @@ const ALIASES: Record<string, string> = {
   bb: "betboom",
   бб: "betboom",
   бетбум: "betboom",
+  фут: "fut",
 };
 
 /** Each aliased team as calls name it (Polymarket's spelling), for searching memory. */
@@ -198,6 +199,7 @@ const FULL_NAMES: Record<string, string> = {
   furia: "FURIA",
   astralis: "Astralis",
   cloud9: "Cloud9",
+  fut: "FUT Esports",
   betboom: "BetBoom Team",
 };
 
