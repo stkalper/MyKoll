@@ -1,5 +1,6 @@
 import { config } from "./config";
 import { tatumOr, tatumOut } from "./fallback";
+import { hyperliquidPrice } from "./hyperliquid";
 import type { PoolRead } from "./proof";
 import { isRobinhoodToken, robinhoodQuote } from "./robinhoodPrices";
 import { isSuiToken, suiTokenQuote } from "./suiPrices";
@@ -7,15 +8,17 @@ import { isSuiToken, suiTokenQuote } from "./suiPrices";
 /**
  * Where a price came from: Tatum's Price API, an on-chain Sui pool read over Tatum's Sui
  * gRPC, or an on-chain Robinhood Chain pool read over Tatum's Robinhood Chain RPC. The rest are
- * the public endpoints used while Tatum is out of credits.
+ * the public endpoints used while Tatum is out of credits; Hyperliquid also prices the coins
+ * Tatum doesn't know.
  */
-export type PriceSource = "price-api" | "sui-onchain" | "robinhood-onchain" | "binance" | "coingecko" | "sui-public" | "robinhood-public";
+export type PriceSource = "price-api" | "sui-onchain" | "robinhood-onchain" | "binance" | "hyperliquid" | "coingecko" | "sui-public" | "robinhood-public";
 
 export const sourceLabel: Record<PriceSource, string> = {
   "price-api": "Tatum Price API",
   "sui-onchain": "on-chain Cetus pool via Tatum Sui RPC",
   "robinhood-onchain": "on-chain Uniswap pool on Robinhood Chain via Tatum RPC",
   binance: "Binance public API",
+  hyperliquid: "Hyperliquid public API (mid price)",
   coingecko: "CoinGecko public API",
   "sui-public": "on-chain Cetus pool via public Sui GraphQL",
   "robinhood-public": "on-chain Uniswap pool via public Robinhood Chain RPC",
@@ -24,7 +27,13 @@ export const sourceLabel: Record<PriceSource, string> = {
 /** Tickers the Price API knows under another symbol. */
 const API_SYMBOL: Record<string, string> = { TRX: "TRON" };
 
-/** A ticker's USD price from public APIs: Binance's pair if it has one, else CoinGecko's top match. */
+/** A ticker's mid price on Hyperliquid, which trades many coins Binance has no USDT pair for. */
+async function hyperliquid(ticker: string): Promise<{ price: number; source: PriceSource } | null> {
+  const price = await hyperliquidPrice(ticker).catch(() => null);
+  return price ? { price, source: "hyperliquid" } : null;
+}
+
+/** A ticker's USD price from public APIs: Binance's pair if it has one, else Hyperliquid's, else CoinGecko's top match. */
 async function publicPrice(ticker: string): Promise<{ price: number; source: PriceSource } | null> {
   const read = async (url: string) => {
     const res = await fetch(url, { signal: AbortSignal.timeout(6_000) }).catch(() => null);
@@ -32,6 +41,8 @@ async function publicPrice(ticker: string): Promise<{ price: number; source: Pri
   };
   const binance = Number((await read(`https://data-api.binance.vision/api/v3/ticker/price?symbol=${encodeURIComponent(ticker)}USDT`))?.price);
   if (binance > 0) return { price: binance, source: "binance" };
+  const hl = await hyperliquid(ticker);
+  if (hl) return hl;
   const key = ticker.toLowerCase();
   const gecko = await read(`https://api.coingecko.com/api/v3/simple/price?symbols=${encodeURIComponent(key)}&vs_currencies=usd`);
   const usd = Number((gecko?.[key] as { usd?: number } | undefined)?.usd);
@@ -44,7 +55,7 @@ export function priceFeed(symbol: string): Promise<{ price: number; source: Pric
   return tatumOr(
     async () => {
       const value = await tatumPrice(ticker);
-      return value ? { price: value, source: "price-api" as const } : null;
+      return value ? { price: value, source: "price-api" as const } : hyperliquid(ticker);
     },
     () => publicPrice(ticker),
   );

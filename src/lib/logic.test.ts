@@ -5,8 +5,9 @@ import { describe, it } from "node:test";
 import { recallQuestion, shownMemory, sourcesText } from "./ask";
 import { bookChance, bookLine, consensus, type BookmakerOdds } from "./bookmakers";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
-import { backedTeam, claim, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
+import { backedTeam, claim, coinNamed, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
+import { coinWords, midsFrom, priceIn } from "./hyperliquid";
 import { recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { fromGammaMarket, pickName, scoreOdds, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
@@ -479,5 +480,28 @@ describe("bookmaker odds", () => {
     near(rest.prob, 1 / 3);
     assert.equal(bookLine(rest), "bookmakers 33% (median of 3)");
     assert.equal(bookLine({ book: "Pinnacle", prob: 0.684, books: 175 }), "Pinnacle 68%");
+  });
+});
+
+describe("Hyperliquid prices", () => {
+  const prices = midsFrom({ BTC: "76020.5", HYPE: "78.57", kPEPE: "0.004972", "PURR/USDC": "0.1004", "@107": "12.3", "#1234": "0.5", KAITO: "1.1", BAD: "0" });
+
+  it("keeps named coins only, with a price", () => {
+    assert.deepEqual([...prices.keys()].sort(), ["BTC", "HYPE", "KAITO", "KPEPE", "PURR/USDC"]);
+  });
+
+  it("finds a perp, a spot pair, and a thousand-unit perp", () => {
+    assert.equal(priceIn(prices, "hype"), 78.57);
+    assert.equal(priceIn(prices, "PURR"), 0.1004);
+    assert.equal(priceIn(prices, "PEPE"), 0.000004972);
+    assert.equal(priceIn(prices, "DOGE"), null);
+  });
+
+  it("spots a lower-case coin, not a short name or an everyday word", () => {
+    const coins = new Set(coinWords(["kPEPE", "KAITO", "PURR/USDC", "FARTCOIN", "S", "MOVE", "AI"]));
+    assert.deepEqual([...coins].sort(), ["fartcoin", "kaito", "pepe", "purr"]);
+    assert.ok(coinNamed("fartcoin 0.2 завтра", coins));
+    assert.ok(!coinNamed("move to 5 tomorrow", coins));
+    assert.ok(!coinNamed("purring cat", coins));
   });
 });

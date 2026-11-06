@@ -188,7 +188,7 @@ Each call also links to its blob on Walrus Mainnet, sealed before the result was
 >
 > | Tatum API | Public fallback |
 > |---|---|
-> | Price API | Binance, then CoinGecko |
+> | Price API | Binance, then Hyperliquid, then CoinGecko |
 > | Sui gRPC | Sui GraphQL (`graphql.mainnet.sui.io`) |
 > | Robinhood Chain RPC | `rpc.mainnet.chain.robinhood.com` |
 > | Prediction Market API | Polymarket's own API (`gamma-api.polymarket.com`) |
@@ -198,6 +198,7 @@ Every crypto call is judged by a price from Tatum (or, for now, the public fallb
 | Asset | Source | How |
 |---|---|---|
 | BTC, ETH, SOL and other majors | **Tatum Price API** | `GET /v4/data/rate/symbol` |
+| Coins the Price API doesn't list: HYPE, FARTCOIN, PURR, ZEREBRO, MOODENG and the rest of Hyperliquid’s 230+ | **Hyperliquid public API** | `POST /info {"type":"allMids"}`: the perp’s mid price, else the spot pair against USDC (`kPEPE` is 1,000 PEPE). Its coin list also lets the filter spot a call written in lower case (“fartcoin 0.2 завтра”), and the names found are passed to the LLM so “zerebro” reads as ZEREBRO |
 | SUI, WAL, DEEP, CETUS, HAEDAL, NAVX, NS, IKA, HIPPO, SCA, LOFI | **Tatum Sui RPC (gRPC)** | Reads the token’s deepest **Cetus CLMM pool on Sui mainnet** and converts `current_sqrt_price` (Q64.64) to USD |
 | Stock tokens TSLA, NVDA, AAPL, SPY, MSFT, AMZN, GOOGL, META, COIN; memecoins PONS, CASHCAT | **Tatum Robinhood Chain RPC** | Reads the token’s deepest **Uniswap v3 pool on Robinhood Chain**, quoted in USDG or via WETH/USDG, and converts `sqrtPriceX96` (Q64.96) to USD |
 

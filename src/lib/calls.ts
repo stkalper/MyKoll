@@ -3,6 +3,7 @@ import { inBackground } from "./background";
 import { bookLine, bookOdds } from "./bookmakers";
 import { config } from "./config";
 import { db } from "./db";
+import { hyperliquidCoins } from "./hyperliquid";
 import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
 import { remember, sealedBlobs } from "./memory";
@@ -162,8 +163,21 @@ async function teamWords(text: string): Promise<Map<string, string>> {
 export async function mightBeCallNow(text: string): Promise<boolean> {
   if (mightBeCall(text)) return true;
   if (text.length < 4 || text.length > MAX_MESSAGE || text.startsWith("/")) return false;
+  // A coin Hyperliquid trades, written in lower case ("fartcoin 0.2 tomorrow"), isn't on the fixed list.
+  if (PREDICTION.test(text) && coinNamed(text, await hyperliquidCoins().catch(() => new Set<string>()))) return true;
   const named = await teamWords(text);
   return named.size >= 2 || (named.size >= 1 && PREDICTION.test(text));
+}
+
+const wordsOf = (text: string) => text.toLowerCase().split(/[^\p{L}\d]+/u);
+
+/** Whether a message names one of these coins as a word of its own. */
+export const coinNamed = (text: string, coins: Set<string>) => wordsOf(text).some((w) => coins.has(w));
+
+/** Hyperliquid coins a message names that the fixed list doesn't know ("zerebro"), for the model. */
+async function coinsIn(text: string): Promise<string[]> {
+  const coins = await hyperliquidCoins().catch(() => new Set<string>());
+  return [...new Set(wordsOf(text).filter((w) => coins.has(w) && !CRYPTO.test(w)))];
 }
 
 /** "Tuesday 28 October 2026 at 14:05 (GMT+02:00)" in the chat's zone, so the model can resolve "by Friday". */
@@ -180,6 +194,7 @@ function nowInZone(now = new Date()): string {
 const CRYPTO_RULES = `- crypto: a coin's price going above/below a level, or up/down, by some time. Example: "SUI to $5 by Friday", "btc dumps under 90k this week", "sol up by tomorrow".
   A coin with a price and a time is a call even without a side: "BTC 102k tomorrow" / "БТС 102к завтра" means BTC gets to 102000 by tomorrow.
   A trading signal is a call too: "TRX long, entry 0.33, TP 0.36, SL 0.31" / "лонг TRX, тейк 0.36" means TRX above the first take-profit (short: below it).
+  Any coin counts, big or small, including those traded on Hyperliquid (HYPE, FARTCOIN, PURR, kPEPE means PEPE).
   This also covers stock tokens on Robinhood Chain (TSLA, NVDA, AAPL, SPY, MSFT, AMZN, GOOGL, META, COIN) and its memecoins (PONS, CASHCAT): "tesla to 450 by Friday" is subject TSLA.`;
 
 const SIGNAL_RULES = `  Signal posts from X and Telegram channels are calls in these shapes too:
@@ -206,9 +221,9 @@ const CS2_RULES = `- cs2: a team winning its match. Example: "NaVi take FaZe ton
 /** Words that mark a channel-style signal post, where the signal rules earn their tokens. */
 const SIGNAL_HINTS = /\b(tp\d?|sl|entry|targets?|leverage|long|short|usdt|perp|invalidation|expect\w*|explod\w*|incoming|\d+x|hit|profit|gains?|potential|halves|[1-9]\d?[mhdw])\b|✅|%|лонг|шорт|тейк|стоп|ціл/i;
 
-function callPrompt(text: string, teams: string[], posted?: Date): string {
+function callPrompt(text: string, teams: string[], posted?: Date, coins: string[] = []): string {
   const cs2 = teams.length > 0;
-  const crypto = !cs2 || CRYPTO.test(text) || TICKER.test(text);
+  const crypto = !cs2 || coins.length > 0 || CRYPTO.test(text) || TICKER.test(text);
   const signals = crypto && (Boolean(posted) || SIGNAL_HINTS.test(text));
   const when = posted
     ? `This was posted on ${nowInZone(posted)} in ${config.timezone}; read every time in it from that moment. Now is ${nowInZone()}.`
@@ -218,7 +233,9 @@ A call is either:
 ${[crypto && CRYPTO_RULES, signals && SIGNAL_RULES, cs2 && CS2_RULES].filter(Boolean).join("\n")}
 Not calls: questions, jokes, sarcasm, other people's predictions, vague moods ("sol looks good").
 
-${when}${cs2 ? `\nThese words in the message are CS2 team names: ${teams.map((t) => `"${t}"`).join(", ")}.` : ""}
+${when}${cs2 ? `\nThese words in the message are CS2 team names: ${teams.map((t) => `"${t}"`).join(", ")}.` : ""}${
+    coins.length ? `\nThese words in the message are coins, with their tickers: ${coins.map((c) => `"${c}" = ${c.toUpperCase()}`).join(", ")}.` : ""
+  }
 
 Reply with JSON only:
 {"is_call": boolean,
@@ -271,7 +288,7 @@ export async function extractCall(text: string, posted?: Date): Promise<Draft | 
   }
   const reply = await complete(
     [
-      { role: "system", content: callPrompt(text, teams, posted) },
+      { role: "system", content: callPrompt(text, teams, posted, await coinsIn(text)) },
       { role: "user", content: text },
     ],
     { temperature: 0, maxTokens: 600, json: true },

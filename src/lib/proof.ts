@@ -33,6 +33,7 @@ export const priceLabel = (source?: string) =>
       "robinhood-onchain": "Robinhood Chain · Tatum RPC",
       binance: "Binance public API",
       coingecko: "CoinGecko public API",
+      hyperliquid: "Hyperliquid public API",
       "sui-public": "on-chain · public Sui GraphQL",
       "robinhood-public": "Robinhood Chain · public RPC",
     }) as Record<string, string>
