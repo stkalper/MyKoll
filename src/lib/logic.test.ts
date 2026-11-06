@@ -2,7 +2,7 @@
 //   npm test
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { recallQuestion, shownMemory, sourcesText } from "./ask";
+import { recallQuestion, replyLanguage, shownMemory, sourcesText } from "./ask";
 import { bookChance, bookLine, consensus, type BookmakerOdds } from "./bookmakers";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 import { backedTeam, claim, coinNamed, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
@@ -505,3 +505,17 @@ describe("Hyperliquid prices", () => {
     assert.ok(!coinNamed("purring cat", coins));
   });
 });
+
+describe("the language /ask answers in", () => {
+  it("is the question's, decided without the model", () => {
+    assert.equal(replyLanguage("who called bb?"), "English");
+    assert.equal(replyLanguage("хто колив наві"), "Ukrainian");
+    assert.equal(replyLanguage("хто найкращий на кс"), "Ukrainian");
+    assert.equal(replyLanguage("кому вірити по btc?"), "Ukrainian");
+    assert.equal(replyLanguage("хто вгадав furia"), "Ukrainian");
+    assert.equal(replyLanguage("кто лучше всех угадывает?"), "Russian");
+    assert.equal(replyLanguage("что там по биткоину"), "Russian");
+    assert.equal(replyLanguage("а ты помнишь кол на фурию"), "Russian");
+  });
+});
+

@@ -27,6 +27,26 @@ export interface Answer {
 }
 
 /** Memories the bot recalls but never shows or answers from (see `answer`). */
+const UK_LETTERS = /[іїєґ]/iu;
+const RU_LETTERS = /[ыэъё]/iu;
+const UK_WORDS = /(?<![\p{L}])(хто|що|чи|як|коли|який|яка|яке|які|скільки|найкращ\p{L}*|ще|та|мені|був|була|було|правий|права|вгадав|колив|кол|коли)(?![\p{L}])/iu;
+const RU_WORDS = /(?<![\p{L}])(кто|что|как|когда|какой|какая|какие|сколько|лучш\p{L}*|еще|мне|был|была|было|прав|угадал|колил)(?![\p{L}])/iu;
+
+/**
+ * The language to answer a question in, decided here rather than by the model: the memories are
+ * full of quotes in Russian and surzhyk ("изи для фуріа"), and the model then drifts into Russian
+ * on a short Ukrainian question that has no і, ї or є. Mostly Latin letters is English; Cyrillic
+ * is Ukrainian unless only Russian letters or words show.
+ */
+export function replyLanguage(text: string): "English" | "Ukrainian" | "Russian" {
+  const cyrillic = (text.match(/\p{Script=Cyrillic}/gu) ?? []).length;
+  const latin = (text.match(/[a-z]/giu) ?? []).length;
+  if (cyrillic <= latin) return "English";
+  if (UK_LETTERS.test(text)) return "Ukrainian";
+  if (RU_LETTERS.test(text)) return "Russian";
+  return RU_WORDS.test(text) && !UK_WORDS.test(text) ? "Russian" : "Ukrainian";
+}
+
 export const shownMemory = (text: string, hidden: Set<number>) =>
   !text.startsWith("[TRACK RECORD") && !text.startsWith("[NOT A CALL") && !callIdsIn(text).some((id) => hidden.has(id));
 
@@ -78,6 +98,7 @@ export async function answer(chatId: number, asked: string): Promise<Answer> {
     rows.length ? `${name}: ${rows.map((r) => `${r.author_name} ${r.hits}/${r.calls}`).join(", ")}` : `${name}: no settled calls yet`;
   const learned = [...records.values()].map((r) => `- ${r.summary}`).join("\n") || "- nothing yet";
 
+  const language = replyLanguage(asked);
   const text = await complete(
     [
       {
@@ -88,7 +109,7 @@ CALL entries are predictions, RESULT entries say how they ended, REASON entries 
 A "record at the time" inside a CALL entry is how things stood back then; for how good someone is now, use the current track records below.
 When asked who to trust, or how good someone is, use the track records: they say where each person tends to be right or wrong.
 If nothing below answers it, say you don't remember that. Be short and a little playful, like a friend in the chat. No markdown.
-Reply in the language of the question.
+Reply in ${language}, whatever language the memories and quotes are in (quote people's words as they wrote them).
 
 Settled calls so far — ${board("crypto", crypto)}; ${board("CS2", cs2)}.
 What you have learned about each member (current):
@@ -99,7 +120,9 @@ Today is ${when(new Date())}.
 Memories:
 ${visible.map((m) => `- ${m.text}`).join("\n")}`,
       },
-      { role: "user", content: question },
+      { role: "user", content: `${question}
+
+(Answer in ${language}.)` },
     ],
     { temperature: 0.4, maxTokens: 400 },
   );
