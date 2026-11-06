@@ -22,7 +22,20 @@ export interface MarketRef {
   prob: number;
   /** Set when this was read straight from Polymarket, because Tatum was out of credits. */
   direct?: boolean;
+  /**
+   * Map-score picks: the score picked ("2-0" or "2-1", the picked team's maps first), the chance
+   * of the team winning at all, and the "Games Total: O/U 2.5" market that says how many maps were
+   * played. `prob` is then the chance of that exact score.
+   */
+  score?: string;
+  winProb?: number;
+  mapsMarketId?: string;
+  /** Set when the match was found after the call was made (the pick waited for Polymarket to list it), so its odds are from then. */
+  late?: boolean;
 }
+
+/** The pick as a receipt names it: "FURIA", or "FURIA 2:0" for a map-score pick. */
+export const pickName = (ref: Pick<MarketRef, "outcome" | "score">) => (ref.score ? `${ref.outcome} ${ref.score.replace("-", ":")}` : ref.outcome);
 
 interface Outcome {
   name: string;
@@ -134,7 +147,8 @@ export function fromGammaMarket(m: GammaMarket, eventId: string, slug?: string):
     question: m.question,
     status: resolved ? "resolved" : m.closed ? "closed" : "active",
     outcomes,
-    resolution: resolved ? { outcome: outcomes.find((o) => o.price >= 0.5)?.name ?? null } : null,
+    // A 50/50 resolution is a cancelled or unplayed match: no side won.
+    resolution: resolved ? { outcome: outcomes.find((o) => o.price > 0.5)?.name ?? null } : null,
     source: { url: eventUrl(slug ?? m.slug) },
   };
 }
@@ -396,16 +410,65 @@ export async function nextMatch(team: string, by?: Date, opponent?: string | nul
   return { team: ours, opponent: theirs, at: startOf(game) };
 }
 
-/** The match-winner market of an event (not a map, handicap or totals market). */
-async function matchWinner(eventId: string): Promise<Market | null> {
-  const markets = await tatumOr(
+/** Every market of an event: the match winner, each map, the handicap, the totals. */
+function eventMarkets(eventId: string): Promise<Market[]> {
+  return tatumOr(
     async () => (await get<{ data: Market[] }>(`/markets?platform=polymarket&eventId=${encodeURIComponent(eventId)}&limit=50`)).data,
     async () => {
       const e = await gamma<GammaEvent>(`/events/${encodeURIComponent(eventId)}`);
       return (e.markets ?? []).map((m) => fromGammaMarket(m, eventId, e.slug));
     },
   );
-  return markets.find((m) => teamsOf(m.question) && m.outcomes.length === 2) ?? null;
+}
+
+type Priced = Pick<Market, "id" | "question" | "outcomes">;
+
+/** The match-winner market among an event's markets (not a map, handicap or totals market). */
+const winnerMarket = <M extends Priced>(markets: M[]): M | null => markets.find((m) => teamsOf(m.question) && m.outcomes.length === 2) ?? null;
+
+/** The match-winner market of an event. */
+async function matchWinner(eventId: string): Promise<Market | null> {
+  return winnerMarket(await eventMarkets(eventId));
+}
+
+const clamp = (p: number) => Math.min(0.99, Math.max(0.01, p));
+
+/**
+ * The chance of a best-of-three ending in this score for this team, from the markets Polymarket
+ * runs beside the match winner: "Map Handicap: X (-1.5) vs Y (+1.5)" is X winning 2:0, and
+ * "Games Total: O/U 2.5" is whether a third map is played. Without the handicap, the third map is
+ * taken to be as likely whoever wins. Null when there's no totals market to settle the score by.
+ */
+export function scoreOdds(markets: Priced[], team: string, score: string): { prob: number; winProb: number; mapsMarketId: string } | null {
+  const winner = winnerMarket(markets);
+  const maps = markets.find((m) => /games total:?\s*o\/u\s*2\.5/i.test(m.question));
+  const win = winner?.outcomes.find((o) => teamKey(o.name) === teamKey(team));
+  const over = maps?.outcomes.find((o) => /^over$/i.test(o.name));
+  if (!winner || !maps || !win || !over) return null;
+  const pWin = Number(win.price);
+  const pOver = Number(over.price);
+  const handicap = markets.find((m) => /map handicap/i.test(m.question) && m.outcomes.length === 2);
+  // The handicap names the side giving -1.5 maps by a short tag ("INF"); its outcome is that team's 2:0.
+  const minus = handicap?.question.match(/handicap:\s*(.+?)\s*\(-1\.5\)/i)?.[1];
+  // Its outcomes come in the question's order, so a tag that matches neither name ("MGZ") is the first.
+  const sweeper = minus ? (handicap!.outcomes.find((o) => teamKey(o.name).startsWith(teamKey(minus))) ?? handicap!.outcomes[0]) : undefined;
+  let twoOne: number;
+  if (sweeper) {
+    const sweep = Number(sweeper.price);
+    // Ours gives the maps: our 2:1 is our win less our 2:0. Theirs: our 2:1 is the third map less theirs.
+    twoOne = teamKey(sweeper.name) === teamKey(team) ? pWin - sweep : pOver - (1 - pWin - sweep);
+  } else {
+    twoOne = pWin * pOver;
+  }
+  const prob = score === "2-0" ? pWin - twoOne : twoOne;
+  return { prob: clamp(prob), winProb: pWin, mapsMarketId: maps.id };
+}
+
+/** How a best-of-three went by its totals market, once decided: "2-0" if two maps were played, "2-1" if three. */
+export async function mapsPlayed(mapsMarketId: string): Promise<"2-0" | "2-1" | null> {
+  const result = await marketWinner(mapsMarketId);
+  if (!result) return null;
+  return /^over$/i.test(result.name) ? "2-1" : /^under$/i.test(result.name) ? "2-0" : null;
 }
 
 /**
@@ -413,7 +476,7 @@ async function matchWinner(eventId: string): Promise<Market | null> {
  * this week and not yet resolved, the one before the call's deadline first. The price is the
  * market's at that moment, live if the match is on. Null when Polymarket has no such match.
  */
-export async function findMatch(team: string, opponent: string, deadline: Date): Promise<MarketRef | null> {
+export async function findMatch(team: string, opponent: string, deadline: Date, score?: string | null): Promise<MarketRef | null> {
   const want = [teamKey(team), teamKey(opponent)].sort().join("|");
   const now = Date.now();
   const [listed, ours, theirs] = await Promise.all([teamEvents(team), searchTeam(team), searchTeam(opponent)]);
@@ -425,9 +488,12 @@ export async function findMatch(team: string, opponent: string, deadline: Date):
     .sort(byTime(deadline));
 
   for (const event of events) {
-    const market = await matchWinner(event.id);
+    const markets = await eventMarkets(event.id);
+    const market = winnerMarket(markets);
     const pick = market?.outcomes.find((o) => teamKey(o.name) === teamKey(team));
     if (!market || !pick || market.status === "resolved" || market.resolution?.outcome) continue;
+    // A map score only means something in a best-of-three with a totals market to settle it by.
+    const odds = score && /\(BO3\)/i.test(event.title) ? scoreOdds(markets, team, score) : null;
     return {
       platform: "polymarket",
       eventId: event.id,
@@ -435,7 +501,8 @@ export async function findMatch(team: string, opponent: string, deadline: Date):
       title: market.question,
       url: market.source?.url ?? event.source?.url ?? "https://polymarket.com",
       outcome: pick.name,
-      prob: pick.price,
+      prob: odds ? odds.prob : pick.price,
+      ...(odds ? { score: score!, winProb: pick.price, mapsMarketId: odds.mapsMarketId } : {}),
       ...(tatumOut() ? { direct: true } : {}),
     };
   }

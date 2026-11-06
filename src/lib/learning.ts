@@ -19,9 +19,11 @@ const DAY = 86_400_000;
 export function segmentsOf(c: Pick<CallRow, "market" | "subject" | "direction" | "made_at" | "deadline"> & { market_ref?: CallRow["market_ref"] }): string[] {
   if (c.market === "cs2") {
     const out = ["CS2 picks", `${c.subject} picks`];
-    // What the market thought of the pick when it was made.
-    if (c.market_ref && c.market_ref.prob < 0.45) out.push("underdog picks");
-    else if (c.market_ref && c.market_ref.prob > 0.55) out.push("favourite picks");
+    // What the market thought of the team winning when it was picked (a score pick's own odds are lower).
+    const win = c.market_ref ? (c.market_ref.winProb ?? c.market_ref.prob) : null;
+    if (win !== null && win < 0.45) out.push("underdog picks");
+    else if (win !== null && win > 0.55) out.push("favourite picks");
+    if (c.market_ref?.score) out.push("map-score picks");
     return out;
   }
   const out = ["crypto calls", `${c.subject} calls`];
@@ -129,7 +131,8 @@ export function trackRecordOf(settled: CallRow[]): TrackRecord | null {
   if (crypto >= 4 && bullish / crypto >= 0.75) parts.push("and mostly calls pumps");
 
   // Against the market: how much more often their CS2 picks came true than Polymarket gave them.
-  const priced = settled.filter((c) => c.market_ref);
+  // Odds read after the call was made (a pick that waited for its match) would flatter the edge.
+  const priced = settled.filter((c) => c.market_ref && !c.market_ref.late);
   const marketEdge = priced.length >= 2 ? priced.reduce((sum, c) => sum + (c.status === "win" ? 1 : 0) - c.market_ref!.prob, 0) / priced.length : undefined;
   if (marketEdge !== undefined) {
     const pts = Math.round(marketEdge * 100);
@@ -312,7 +315,7 @@ export async function roomNote(call: CallRow): Promise<string[]> {
   const [mostSaid, saidBy] = [...heads.entries()].sort((a, b) => b[1] - a[1])[0];
   const overruled = mostSaid !== lead && saidBy > votes.length / 2 ? `${saidBy} of ${votes.length} say ${sideLabel(mostSaid)}, but w` : "W";
 
-  const topic = call.market === "cs2" ? `${call.subject} vs ${call.opponent}` : call.subject;
+  const topic = call.market === "cs2" && call.opponent ? `${call.subject} vs ${call.opponent}` : call.subject;
   return [
     `🧭 Also on ${topic}: ${votes
       .slice(1)

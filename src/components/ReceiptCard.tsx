@@ -53,9 +53,9 @@ export function ReceiptCard({
         )}
         {call.polymarket && (
           <a href={call.polymarket.url} target="_blank" rel="noreferrer" className="block underline decoration-dotted underline-offset-2">
-            {call.outcome === "win" && call.polymarket.prob < 0.45
-              ? `called the upset: Polymarket had ${call.polymarket.team} at ${Math.round(call.polymarket.prob * 100)}%`
-              : `Polymarket gave ${call.polymarket.team} ${Math.round(call.polymarket.prob * 100)}% when called`}{" "}
+            {call.outcome === "win" && (call.polymarket.score || call.polymarket.prob < 0.45)
+              ? `called the ${call.polymarket.score ? "score" : "upset"}: Polymarket had ${call.polymarket.team} at ${Math.round(call.polymarket.prob * 100)}%`
+              : `Polymarket gave ${call.polymarket.team} ${Math.round(call.polymarket.prob * 100)}% ${call.polymarket.late ? "when the match was listed" : "when called"}`}{" "}
             ↗
           </a>
         )}

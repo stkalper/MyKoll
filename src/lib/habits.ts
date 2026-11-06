@@ -24,7 +24,7 @@ type Reading = Pick<CallRow, "market" | "subject" | "opponent" | "direction" | "
 /** What a call is about and which way it leans, e.g. "BTC, bearish" or "NaVi over FaZe". */
 const angle = (c: Reading) =>
   c.market === "cs2"
-    ? `${c.subject} over ${c.opponent}`
+    ? c.opponent ? `${c.subject} over ${c.opponent}` : `${c.subject} on their next match`
     : `${c.subject}, ${c.direction === "to" ? "a price level" : c.direction === "above" || c.direction === "up" ? "bullish" : "bearish"}`;
 
 async function lastAnswers(chatId: number | string, authorId: number | string): Promise<boolean[]> {

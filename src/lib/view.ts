@@ -23,7 +23,7 @@ export interface ReceiptView {
   /** Which chain that page is on: "Sui" or "Robinhood Chain". */
   proofChain?: string;
   /** CS2 calls matched on Polymarket: the pick as Polymarket names it, its price when called, and the market. */
-  polymarket?: { team: string; prob: number; url: string; direct?: boolean };
+  polymarket?: { team: string; prob: number; url: string; direct?: boolean; score?: boolean; late?: boolean };
   /** On-chain prices: the Price API's price for the same moment, and how far apart the two are (0.012 = 1.2%). */
   check?: { price: number; apart: number };
   /** Where this call's memory is sealed on Walrus Mainnet, once it is. */

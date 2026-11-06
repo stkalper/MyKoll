@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { claim, reasonsFor, when, withBlobs, type CallRow } from "./calls";
 import { config } from "./config";
+import { pickName } from "./polymarket";
 import { db } from "./db";
 import { blobUrl, proofLabel, proofUrl } from "./proof";
 import { gap } from "./tatum";
@@ -17,7 +18,9 @@ export function toView(c: CallRow, reasons: Map<number, string[]>): ReceiptView 
   return {
     proofUrl: proof ? proofUrl(proof) : undefined,
     proofChain: proof ? proofLabel(proof) : undefined,
-    polymarket: c.market_ref ? { team: c.market_ref.outcome, prob: c.market_ref.prob, url: c.market_ref.url, direct: c.market_ref.direct } : undefined,
+    polymarket: c.market_ref
+      ? { team: pickName(c.market_ref), prob: c.market_ref.prob, url: c.market_ref.url, direct: c.market_ref.direct, score: Boolean(c.market_ref.score), late: c.market_ref.late }
+      : undefined,
     check: price && check ? { price: check, apart: gap(price, check) } : undefined,
     id: c.id,
     author: c.author_name,

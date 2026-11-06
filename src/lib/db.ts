@@ -48,6 +48,10 @@ alter table calls add column if not exists source jsonb;
 alter table calls add column if not exists shared_by_id bigint;
 -- The Walrus blob a call's memory was sealed in, looked up from memory_job once it's ready.
 alter table calls add column if not exists memory_blob text;
+-- CS2 map-score picks ("NaVi 2:0"): the maps the picked team wins and loses, "2-0" or "2-1".
+alter table calls add column if not exists score text;
+-- CS2 picks on a team's next match before Polymarket lists it: logged now, matched once it does.
+alter table calls add column if not exists waiting boolean not null default false;
 create index if not exists calls_chat_idx on calls (chat_id, made_at desc);
 create index if not exists calls_due_idx on calls (status, deadline);
 create index if not exists calls_slate_idx on calls (slate_id) where slate_id is not null;

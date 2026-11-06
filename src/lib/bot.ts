@@ -38,6 +38,7 @@ import { config, llmEnabled } from "./config";
 import { db } from "./db";
 import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
 import { noteForNewCall, trackRecords } from "./learning";
+import { pickName } from "./polymarket";
 import { fileUrl, shareUrl } from "./receipts";
 import { memoryScorecard, scorecardLine } from "./scorecard";
 import { forwardedPost, justTheLink, postLinkIn, readPost, sourceName, type ForwardOrigin, type Post, type PostLink } from "./posts";
@@ -75,12 +76,19 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
   const cross = settled ? crossCheck(call.final_price, call.final_check) : crossCheck(call.entry_price, call.entry_check);
   if (cross) lines.push(cross);
   if (call.market_ref) {
-    const pct = Math.round(call.market_ref.prob * 100);
-    const team = esc(call.market_ref.outcome);
+    const ref = call.market_ref;
+    const pct = Math.round(ref.prob * 100);
+    const pick = esc(pickName(ref));
+    const via = ref.direct ? "" : " (via Tatum)";
+    const at = ref.late ? "when the match was listed, after the call" : "when called";
     lines.push(
-      call.status === "win" && pct < 45
-        ? `🎯 Called the upset: Polymarket had ${team} at ${pct}%`
-        : `📈 Polymarket gave ${team} ${pct}% when called${pct < 45 ? " — an underdog pick" : ""}${call.market_ref.direct ? "" : " (via Tatum)"}`,
+      ref.score
+        ? call.status === "win"
+          ? `🎯 Called the score: Polymarket had ${pick} at ${pct}%`
+          : `📈 Polymarket gave ${pick} ${pct}% ${at}${via}`
+        : call.status === "win" && pct < 45
+          ? `🎯 Called the upset: Polymarket had ${pick} at ${pct}%`
+          : `📈 Polymarket gave ${pick} ${pct}% ${at}${pct < 45 ? " — an underdog pick" : ""}${via}`,
     );
   }
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
@@ -152,7 +160,13 @@ function slateOffer(s: Slate): string {
     s.source ? `📎 ${esc(sourceName(s.source))} picked ${n} match${n === 1 ? "" : "es"} (posted ${esc(when(s.source.postedAt))}):` : `📋 Sounds like picks on ${n} match${n === 1 ? "" : "es"}:`,
     "",
   ];
-  s.picks.forEach((p, i) => lines.push(`${i + 1}. <b>${esc(p.subject)}</b> to beat ${esc(p.opponent!)} · ${esc(when(p.deadline))}`));
+  s.picks.forEach((p, i) =>
+    lines.push(
+      p.opponent
+        ? `${i + 1}. <b>${esc(p.subject)}</b> to beat ${esc(p.opponent)} · ${esc(when(p.deadline))}`
+        : `${i + 1}. <b>${esc(p.subject)}</b> on their next match · not listed yet, I'll wait for it`,
+    ),
+  );
   if (s.skipped.length) lines.push("", `<i>Left out: ${esc(s.skipped.join("; "))}</i>`);
   lines.push("", `Log ${n === 1 ? "it" : `all ${n}`} as calls? I'll post who won once the last match is over.`);
   return lines.join("\n");
@@ -162,7 +176,7 @@ function slateLogged(author: string, s: Slate, calls: CallRow[], errors: string[
   const lines = [`🧾 <b>${calls.length} pick${calls.length === 1 ? "" : "s"} logged</b> · ${esc(author)}: “${esc(s.quote)}”`, ""];
   for (const c of calls) {
     const odds = c.market_ref ? ` · Polymarket ${Math.round(c.market_ref.prob * 100)}%` : "";
-    lines.push(`#${c.id} ${esc(c.subject)} to beat ${esc(c.opponent!)}${odds}`);
+    lines.push(c.opponent ? `#${c.id} ${esc(c.subject)} to beat ${esc(c.opponent)}${odds}` : `#${c.id} ${esc(c.subject)} on their next match, once it's listed`);
   }
   if (errors.length) lines.push("", `<i>Not logged: ${esc(errors.join("; "))}</i>`);
   if (s.why) lines.push("", `💭 why: ${esc(s.why)}`);
@@ -176,13 +190,18 @@ function slateText(s: SlateResult): string {
   const lines = [`🏁 <b>All matches are over</b> · ${esc(s.author_name)} went <b>${hits}/${scored.length}</b>`, `“${esc(s.quote)}”`, ""];
   for (const c of s.calls) {
     if (c.status === "void") {
-      lines.push(`➖ #${c.id} ${esc(c.subject)} vs ${esc(c.opponent!)}: cancelled`);
+      lines.push(`➖ #${c.id} ${esc(c.opponent ? `${c.subject} vs ${c.opponent}` : c.subject)}: ${esc(c.waiting || !c.opponent ? "no match listed" : "cancelled")}`);
       continue;
     }
     const won = c.status === "win";
     const pct = c.market_ref ? Math.round(c.market_ref.prob * 100) : null;
-    const upset = won && pct !== null && pct < 45 ? ` 🎯 upset, Polymarket had ${pct}%` : "";
-    lines.push(`${won ? "✅" : "❌"} #${c.id} <b>${esc(won ? c.subject : c.opponent!)}</b> beat ${esc(won ? c.opponent! : c.subject)}${upset}`);
+    const upset = won && pct !== null && pct < 45 && !c.score ? ` 🎯 upset, Polymarket had ${pct}%` : "";
+    // A score pick can miss with its team winning; the note says how ("FURIA won, but 2:1, not 2:0").
+    lines.push(
+      c.score
+        ? `${won ? "✅" : "❌"} #${c.id} <b>${esc(c.subject)} ${esc(c.score.replace("-", ":"))}</b>: ${esc((c.result_note ?? "").replace(/ \(.*\)$/, ""))}`
+        : `${won ? "✅" : "❌"} #${c.id} <b>${esc(won ? c.subject : (c.opponent ?? "?"))}</b> beat ${esc(won ? (c.opponent ?? "?") : c.subject)}${upset}`,
+    );
   }
   if (scored.length && hits === scored.length) lines.push("", "Clean sweep 🧹");
   return lines.join("\n");
@@ -202,8 +221,29 @@ export async function announceResolutions(bot: Bot) {
   const settled = await resolveDue();
   const reasons = await reasonsFor(settled.map((r) => r.call.id));
   const sealed = new Map((await withBlobs(settled.map((r) => r.call))).map((c) => [c.id, c]));
-  for (const { call: resolved, askScore } of settled) {
+  for (const { call: resolved, askScore, placed, dropped } of settled) {
     const call = sealed.get(resolved.id) ?? resolved;
+    if (placed) {
+      const ref = call.market_ref;
+      const odds = ref ? `\n📈 Polymarket gives ${esc(pickName(ref))} ${Math.round(ref.prob * 100)}% now (the match wasn't listed when it was called)` : "";
+      await bot.api.sendMessage(
+        call.chat_id,
+        `📌 <b>Receipt #${call.id}</b> found its match · ${esc(call.author_name)}: “${esc(call.quote)}”\n\n<i>${esc(claim(call))}</i> · judged ${esc(when(call.deadline))}${odds}`,
+        { parse_mode: "HTML", reply_markup: receiptButtons(call) },
+      );
+      continue;
+    }
+    if (dropped) {
+      // A pick in a slate is reported with the rest of it.
+      if (call.slate_id) {
+        await announceSlate(bot, call);
+        continue;
+      }
+      await bot.api.sendMessage(call.chat_id, `➖ <b>Receipt #${call.id}</b> dropped · ${esc(call.author_name)}: “${esc(call.quote)}”\n${esc(call.result_note ?? "")}`, {
+        parse_mode: "HTML",
+      });
+      continue;
+    }
     // A pick in a slate is reported with the rest of it, once the last match is over.
     if (call.slate_id && !askScore) {
       await announceSlate(bot, call);

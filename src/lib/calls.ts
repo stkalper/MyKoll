@@ -6,7 +6,7 @@ import { complete, parseJson } from "./llm";
 import { learnFrom, trackRecords } from "./learning";
 import { remember, sealedBlobs } from "./memory";
 import { firstCheck, nextSweep, wakeAt } from "./schedule";
-import { findMatch, knownTeam, listedTeams, marketWinner, nextMatch, startedMatch, teamKey, type MarketRef } from "./polymarket";
+import { findMatch, knownTeam, listedTeams, mapsPlayed, marketWinner, nextMatch, pickName, startedMatch, teamKey, type MarketRef } from "./polymarket";
 import { sourceId, sourceName, type PostSource } from "./posts";
 import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
@@ -49,6 +49,10 @@ export interface CallRow {
   /** Set when the call came from a post on X or Telegram that someone shared; the author is the post's. */
   source: PostSource | null;
   shared_by_id: string | null;
+  /** CS2 map-score picks: the picked team's maps first, "2-0" or "2-1". */
+  score: string | null;
+  /** A CS2 pick on a team's next match that Polymarket hasn't listed yet. */
+  waiting: boolean;
 }
 
 /** Several CS2 picks in one message ("NaVi, Vitality, FURIA"), each on its team's next match. */
@@ -87,7 +91,14 @@ export interface Draft {
   source?: PostSource;
   /** A target given relative to the price ("+30%", "2x"), turned into a level when the call is logged. */
   targetPct?: number | null;
+  /** CS2: the map score picked, "2-0" or "2-1" for the picked team. */
+  score?: string | null;
+  /** CS2: no match listed yet for the team, so the pick waits for its next one. */
+  waiting?: boolean;
 }
+
+/** How long a pick waits for Polymarket to list the team's next match before it's dropped. */
+export const WAIT_DAYS = 14;
 
 const DAY = 86_400_000;
 /** Longest message the bot reads: a signal with its reasoning fits, an essay doesn't. */
@@ -186,7 +197,7 @@ const CS2_RULES = `- cs2: a team winning its match. Example: "NaVi take FaZe ton
   Any CS2 team counts, big or small (fnatic, Eternal Fire, Nemiga, BC.Game...).
   A bare "X beat Y" / "X beats Y" is a call on their coming match, not a past result: chats talk about matches ahead, so "Fnatic beat Eternal Fire" and "Spirit beat Vitality, easy" are calls. Only skip it when the message clearly talks about a match already played ("yesterday", "did you see", "gg wp").
   A team name with a word of confidence is a call on that team, even in two words, in any language: "фнатік ізі", "ez fnatic", "easy for X", "изи для X", "+ на X", "+1 X", "X фаворит", "X is the fav", "X lock", "my pick X", "backing X", "ставлю на X проти Y", "betting on X vs Y", "X vs Y, X" (all of these pick X), "X stomps Y".
-  A predicted score is a call on the team with more maps: "FaZe 2-0 G2" picks FaZe, "2:1 G2 vs FaZe" picks G2.
+  A predicted score is a call on the team with more maps, with that score: "FaZe 2-0 G2" picks FaZe with score "2-0", "2:1 G2 vs FaZe" picks G2 with score "2-1", "наві 2:0" picks NaVi with score "2-0".
   The opponent may go unnamed ("изи для НАВІ завтра", "NaVi easy tomorrow"): then opponent is null.
   Tipster formats pick the team named: "Pick: NaVi ML @1.85 (2u)", "Vitality -1.5 maps @2.10", "Bet: FURIA to win". Odds, units and stakes don't matter. Totals and props ("over 26.5 rounds", "first blood") can't be checked: not calls.
   Several teams picked at once are a set of picks, one per team: a bare list ("наві, віталіті, мауз, фуріа", "NaVi Vitality MOUZ FURIA tomorrow"), "my picks: X, Y, Z", or several "X over Y" in one message. Put every pick in "picks".`;
@@ -213,6 +224,7 @@ Reply with JSON only:
  "market": "crypto" | "cs2",
  "subject": ticker in caps for crypto (BTC, SUI, SOL, TSLA...) or the team picked to WIN for cs2 (team names in their usual English spelling: "наві" is NaVi, "фурію" is FURIA),
  "opponent": the other team for cs2 if the message names it, else null,${cs2 ? `
+ "score": for a single cs2 pick with a predicted best-of-three map score, the picked team's maps first: "2-0" or "2-1"; else null,`: ""}${cs2 ? `
  "picks": for a set of cs2 picks, every pick in order as {"team": the team picked to win, "opponent": the team it plays if named, else null}; else null,` : ""}
  "direction": "above" | "below" (crypto with a price level and a side: above, over, to, pump, вище, до, памп...), "to" (a price level with no side said, e.g. "BTC 102k tomorrow"), "up" | "down" (crypto without a level), "win" (cs2),
  "target": price level in USD as a number, else null (expand "90k" / "90к" to 90000; "1 бакс" / "a buck" / "a dollar" is 1, "50 cents" is 0.5),${signals ? `
@@ -224,6 +236,21 @@ Reply with JSON only:
  "why": the author's reasons for the call if the message gives any (charts, news, levels, "because ..."), copied or lightly trimmed in the author's own words and language, else null}`;
 }
 
+/** A best-of-three map score written in a message ("2:0", "2-1", "1:2"), as the winner's maps first; null for none or several. */
+const SCORE = /(?<![\d:.])([0-2])\s*[:\-–]\s*([0-2])(?![\d:.])/g;
+
+export function scoreIn(text: string): "2-0" | "2-1" | null {
+  const found = [...text.matchAll(SCORE)].map((m) => [Number(m[1]), Number(m[2])].sort().join(""));
+  if (found.length !== 1) return null;
+  return found[0] === "02" ? "2-0" : found[0] === "12" ? "2-1" : null;
+}
+
+/** The model's score, if it's one a best-of-three can end in. */
+const asScore = (s: unknown): "2-0" | "2-1" | null => {
+  const t = String(s ?? "").replace(/[:\s–]/g, "-");
+  return t === "2-0" ? "2-0" : t === "2-1" ? "2-1" : null;
+};
+
 /**
  * Asks the model whether a message is a checkable prediction and, if so, turns it
  * into a structured draft. Returns null for chatter, jokes and questions, and a reason
@@ -232,8 +259,15 @@ Reply with JSON only:
 export async function extractCall(text: string, posted?: Date): Promise<Draft | Slate | Unplaced | null> {
   const teams = [...(await teamWords(text)).values()];
   // A bare list of teams is always a set of picks; the model says so only some of the time.
-  const listed = teamList(text, teams) ?? (await listWithUnknownTeams(text, teams)) ?? backedTeam(text, teams);
+  const listed = teamList(text, teams) ?? (await listWithUnknownTeams(text, teams));
   if (listed) return slateOf(listed.map((team) => ({ team, opponent: null })), null, quoteOf(text), null);
+  // One team backed in a few words, maybe with a map score ("фут 2:0"), which the model reads as football.
+  const score = scoreIn(text);
+  const backed = backedTeam(score ? text.replace(SCORE, " ") : text, teams);
+  if (backed) {
+    const pick = await slateOf(backed.map((team) => ({ team, opponent: null })), null, quoteOf(text), null);
+    return score && "subject" in pick ? { ...pick, score } : pick;
+  }
   const reply = await complete(
     [
       { role: "system", content: callPrompt(text, teams, posted) },
@@ -256,6 +290,7 @@ export async function extractCall(text: string, posted?: Date): Promise<Draft | 
     call_text?: string | null;
     why?: string | null;
     picks?: Array<{ team?: string; opponent?: string | null }> | null;
+    score?: string | null;
   }>(reply);
   if (!r?.is_call) return null;
 
@@ -281,7 +316,8 @@ export async function extractCall(text: string, posted?: Date): Promise<Draft | 
   if (r.market === "cs2") {
     const placed = await placePick(r.subject, r.opponent, said);
     if ("reason" in placed) return placed;
-    return { market: "cs2", ...placed, direction: "win", target: null, quote: quoted, why };
+    const score = asScore(r.score) ?? scoreIn(text);
+    return { market: "cs2", ...placed, direction: "win", target: null, quote: quoted, why, ...(score ? { score } : {}) };
   }
 
   // No time said: the chart's timeframe sets the horizon, else a price call gets a week. Counted
@@ -402,7 +438,7 @@ async function placePick(
   team: string,
   rival: string | null | undefined,
   said: Date | null,
-): Promise<{ subject: string; opponent: string; deadline: string } | Unplaced> {
+): Promise<{ subject: string; opponent: string | null; deadline: string; waiting?: boolean } | Unplaced> {
   let subject = team.trim();
   let opponent = rival?.trim() || null;
   let deadline = said ?? new Date(Date.now() + DAY);
@@ -422,6 +458,9 @@ async function placePick(
     const over = Math.max(match.at.getTime() + 4 * 3_600_000, Date.now() + 3_600_000);
     if (!said || deadline.getTime() < over) deadline = new Date(over);
   } else if (!opponent) {
+    // A real team with nothing listed yet: the pick waits for its next match, unless a day was named.
+    const known = said ? null : await knownTeam(subject).catch(() => null);
+    if (known) return { subject: known, opponent: null, deadline: new Date(Date.now() + WAIT_DAYS * DAY).toISOString(), waiting: true };
     return { reason: `I can't find a match ${subject} plays this week. Name the opponent, e.g. "${subject} beat FaZe".`, short: `no match found for ${subject}`, speak: true };
   }
   return tooLate(deadline) ?? { subject, opponent, deadline: deadline.toISOString() };
@@ -446,7 +485,7 @@ async function slateOf(
   });
   if (raw.length > MAX_PICKS) skipped.push(`only the first ${MAX_PICKS} picks count`);
 
-  const matchOf = (d: Draft) => [teamKey(d.subject), teamKey(d.opponent!)].sort().join("|");
+  const matchOf = (d: Draft) => [teamKey(d.subject), d.opponent ? teamKey(d.opponent) : "next"].sort().join("|");
   const seen = new Map<string, Draft[]>();
   for (const d of picks) seen.set(matchOf(d), [...(seen.get(matchOf(d)) ?? []), d]);
   const kept: Draft[] = [];
@@ -496,9 +535,9 @@ export function when(d: Date | string): string {
 
 /** "SUI above $5.00", "NaVi to beat FaZe", "SOL up from $186.40". */
 export function claim(
-  c: Pick<CallRow, "market" | "subject" | "opponent" | "direction" | "target" | "entry_price"> & { targetPct?: number | null },
+  c: Pick<CallRow, "market" | "subject" | "opponent" | "direction" | "target" | "entry_price"> & { targetPct?: number | null; score?: string | null },
 ): string {
-  if (c.market === "cs2") return `${c.subject} to beat ${c.opponent}`;
+  if (c.market === "cs2") return c.opponent ? `${c.subject} to beat ${c.opponent}${c.score ? ` ${c.score.replace("-", ":")}` : ""}` : `${c.subject} to win their next match${c.score ? ` ${c.score.replace("-", ":")}` : ""}`;
   if (hasLevel(c.direction) && c.target === null && c.targetPct) return `${c.subject} ${c.targetPct > 0 ? "up" : "down"} ${Math.abs(c.targetPct)}%`;
   if (hasLevel(c.direction)) return `${c.subject} ${c.direction} ${usd(c.target!)}`;
   return `${c.subject} ${c.direction}${c.entry_price ? ` from ${usd(c.entry_price)}` : ""}`;
@@ -550,25 +589,34 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
 
   // CS2: the same match on Polymarket, when there is one, for its odds and its result.
   let market: MarketRef | null = null;
+  let note: string | null = null;
   if (draft.market === "cs2" && draft.opponent) {
-    market = await findMatch(draft.subject, draft.opponent, new Date(draft.deadline)).catch((err) => {
+    market = await findMatch(draft.subject, draft.opponent, new Date(draft.deadline), draft.score).catch((err) => {
       console.error("Polymarket lookup failed", err);
       return null;
     });
-    if (market && (market.prob >= 0.97 || market.prob <= 0.03))
-      return { error: `Polymarket already has ${market.outcome} at ${Math.round(market.prob * 100)}%: that match looks decided.` };
+    const win = market ? (market.winProb ?? market.prob) : null;
+    if (market && win !== null && (win >= 0.97 || win <= 0.03))
+      return { error: `Polymarket already has ${market.outcome} at ${Math.round(win * 100)}%: that match looks decided.` };
+    // A score is only kept when Polymarket can settle it: a best-of-three with a maps market.
+    if (draft.score && !market?.score) {
+      draft = { ...draft, score: null };
+      note = "No maps market for this match on Polymarket, so it's judged on the winner only.";
+    }
   }
+  if (draft.waiting) note = `Waiting for Polymarket to list ${draft.subject}'s next match (up to ${WAIT_DAYS} days).`;
 
   const repeat = await justLogged(chat.id, author.id, draft);
   if (repeat) return { error: `Already logged: that's receipt #${repeat}.` };
 
   const [call] = await db<CallRow>(
-    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id, source, shared_by_id)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) returning *`,
+    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id, source, shared_by_id, score, waiting, result_note)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) returning *`,
     [
       chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target,
       q?.price ?? null, q?.source ?? null, q?.proof ? JSON.stringify(q.proof) : null, q?.check ?? null, market ? JSON.stringify(market) : null,
       draft.quote, draft.deadline, slateId, draft.source ? JSON.stringify(draft.source) : null, draft.source ? sharer.id : null,
+      draft.score ?? null, Boolean(draft.waiting), note,
     ],
   );
 
@@ -583,8 +631,10 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
   const priceNote = q
     ? ` ${call.subject} was ${usd(q.price)} ${draft.source ? "when it was shared" : "at the time"} (${sourcing(q)}).`
     : market
-      ? ` Polymarket had ${market.outcome} at ${Math.round(market.prob * 100)}% to win (Tatum Prediction Market API, market ${market.marketId}).`
-      : "";
+      ? ` Polymarket had ${pickName(market)} at ${Math.round(market.prob * 100)}%${market.score ? "" : " to win"} (Tatum Prediction Market API, market ${market.marketId}).`
+      : draft.waiting
+        ? ` No match of theirs was listed yet, so it waits for their next one.`
+        : "";
   // The receipt doesn't need the memory write, so it goes out first and the write follows.
   inBackground(async () => {
     const record = (await trackRecords(chat.id).catch(() => new Map())).get(String(author.id));
@@ -655,6 +705,49 @@ export interface Resolution {
   call: CallRow;
   /** Set when a CS2 call needs the chat to confirm the score. */
   askScore?: boolean;
+  /** Set when a waiting pick was just matched to its team's next match. */
+  placed?: boolean;
+  /** Set when a call was dropped without a result (no match listed, or never settled). */
+  dropped?: boolean;
+}
+
+/** When each waiting pick was last looked up, so a sweep every few minutes doesn't search every time. */
+const lastLooked = new Map<number, number>();
+const LOOK_EVERY = 30 * 60_000;
+
+/** A waiting pick, matched to its team's next match on Polymarket once it's listed. */
+async function placeWaiting(call: CallRow): Promise<CallRow | null> {
+  if (Date.now() - (lastLooked.get(call.id) ?? 0) < LOOK_EVERY) return null;
+  lastLooked.set(call.id, Date.now());
+  const match = await nextMatch(call.subject).catch(() => null);
+  if (!match) return null;
+  const over = new Date(Math.max(match.at.getTime() + 4 * 3_600_000, Date.now() + 3_600_000));
+  const found = await findMatch(match.team, match.opponent, over, call.score).catch(() => null);
+  // Its odds are from now, not from when it was called, so they don't count towards the edge on the market.
+  const market = found ? { ...found, late: true } : null;
+  const score = market?.score ? call.score : null;
+  const [row] = await db<CallRow>(
+    `update calls set subject = $2, opponent = $3, deadline = $4, market_ref = $5, score = $6, waiting = false, result_note = null
+     where id = $1 and waiting and status = 'open' returning *`,
+    [call.id, match.team, match.opponent, over.toISOString(), market ? JSON.stringify(market) : null, score],
+  );
+  if (!row) return null;
+  await wakeAt(row.id, firstCheck(row));
+  await remember(
+    row.chat_id,
+    `[CALL #${row.id}] ${row.author_name}'s pick "${row.quote}" found its match: ${claim(row)}, ${when(match.at)}.` +
+      (market ? ` Polymarket had ${pickName(market)} at ${Math.round(market.prob * 100)}% when the match was listed, after the call was made.` : ""),
+  ).catch((err) => console.error("memory write failed", err));
+  return row;
+}
+
+/** Drops a call that can't be judged: no result, no record, and said why. */
+async function drop(call: CallRow, note: string): Promise<CallRow | null> {
+  const [row] = await db<CallRow>(
+    `update calls set status = 'void', waiting = false, result_note = $2, resolved_at = now() where id = $1 and status in ('open', 'awaiting_score') returning *`,
+    [call.id, note],
+  );
+  return row ?? null;
 }
 
 export const reached = (price: number, direction: Target["direction"], target: number) => (direction === "above" ? price >= target : price <= target);
@@ -691,15 +784,44 @@ export async function resolveDue(): Promise<Resolution[]> {
     const due = new Date(call.deadline).getTime() <= now;
 
     if (call.market === "cs2") {
-      const winner = call.market_ref ? await marketWinner(call.market_ref.marketId).catch(() => null) : null;
+      if (call.waiting) {
+        if (due) {
+          const dropped = await drop(call, `Polymarket didn't list a match for ${call.subject} within ${WAIT_DAYS} days, so this pick was dropped.`);
+          if (dropped) out.push({ call: dropped, dropped: true });
+          continue;
+        }
+        const placed = await placeWaiting(call);
+        if (placed) out.push({ call: placed, placed: true });
+        continue;
+      }
+      const ref = call.market_ref;
+      const winner = ref ? await marketWinner(ref.marketId).catch(() => null) : null;
       if (winner) {
-        const outcome = teamKey(winner.name) === teamKey(call.market_ref!.outcome) ? "win" : "loss";
+        const picked = teamKey(winner.name) === teamKey(ref!.outcome);
         const how = winner.price ? `Polymarket has them at ${(winner.price * 100).toFixed(2)}%` : "resolved by Polymarket from HLTV";
-        const settled = await settle(call, outcome, `${winner.name} won (${how})`, null);
+        // A map-score pick also needs how many maps were played; the totals market says so.
+        if (picked && call.score && ref!.mapsMarketId) {
+          const maps = await mapsPlayed(ref!.mapsMarketId).catch(() => null);
+          if (!maps) continue;
+          const shown = (s: string) => s.replace("-", ":");
+          const note = maps === call.score ? `${winner.name} won ${shown(maps)} (${how})` : `${winner.name} won, but ${shown(maps)}, not ${shown(call.score)} (${how})`;
+          const settled = await settle(call, maps === call.score ? "win" : "loss", note, null);
+          if (settled) out.push({ call: settled });
+          continue;
+        }
+        const settled = await settle(call, picked ? "win" : "loss", `${winner.name} won (${how})`, null);
         if (settled) out.push({ call: settled });
         continue;
       }
       if (!due || call.status !== "open") continue;
+      // The chat can say who won, not how many maps it took, so a score pick waits for Polymarket.
+      if (call.score) {
+        if (now > new Date(call.deadline).getTime() + 3 * DAY) {
+          const dropped = await drop(call, "Polymarket never settled this match, so the map score can't be checked.");
+          if (dropped) out.push({ call: dropped, dropped: true });
+        }
+        continue;
+      }
       const [moved] = await db<CallRow>(`update calls set status = 'awaiting_score' where id = $1 and status = 'open' returning *`, [call.id]);
       if (moved) out.push({ call: moved, askScore: true });
       continue;
@@ -736,7 +858,7 @@ async function settle(call: CallRow, outcome: "win" | "loss", note: string, q: Q
   await remember(
     row.chat_id,
     `[RESULT #${row.id}] ${row.author_name}'s call "${row.quote}" (${claim(row)}) was ${outcome === "win" ? "RIGHT" : "WRONG"}: ${note}${q ? ` (${sourcing(q)})` : ""}.` +
-      (row.market_ref ? ` Polymarket had ${row.market_ref.outcome} at ${Math.round(row.market_ref.prob * 100)}% when it was called.` : ""),
+      (row.market_ref ? ` Polymarket had ${pickName(row.market_ref)} at ${Math.round(row.market_ref.prob * 100)}% when ${row.market_ref.late ? "the match was listed" : "it was called"}.` : ""),
   ).catch((err) => console.error("memory write failed", err));
   await learnFrom(row).catch((err) => console.error("learning failed", err));
   return row;
@@ -751,6 +873,8 @@ export async function voteScore(callId: number, voter: Author, winner: string): 
     await db(`update calls set status = 'void', result_note = 'match cancelled', resolved_at = now() where id = $1`, [callId]);
     return { message: "Marked as cancelled." };
   }
+  // A vote says who won, not the map score, so a score pick on the winner waits for Polymarket.
+  if (call.score && winner === call.subject) return { message: `Thanks. ${call.subject} won; I'll take the map score from Polymarket.` };
   await db(`insert into score_votes (call_id, user_id, winner) values ($1, $2, $3) on conflict do nothing`, [callId, voter.id, winner]);
   const outcome = winner === call.subject ? "win" : "loss";
   const settled = await settle(call, outcome, `${winner} won (confirmed by ${voter.name})`, null);

@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { recallQuestion, shownMemory, sourcesText } from "./ask";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
-import { backedTeam, claim, mightBeCall, reached, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
+import { backedTeam, claim, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
-import { fromGammaMarket, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
+import { fromGammaMarket, pickName, scoreOdds, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
 import { scorecardLine, scoreMemory } from "./scorecard";
@@ -380,5 +380,56 @@ describe("one team backed in a few words", () => {
     assert.equal(backedTeam("фут сьогодні грає погано", ["фут"]), null);
     assert.equal(backedTeam("фут завтра виграє", ["фут"]), null);
     assert.equal(backedTeam("ставлю на наві проти мауз", ["наві", "мауз"]), null);
+  });
+});
+
+describe("map-score picks", () => {
+  it("reads a best-of-three score from a message", () => {
+    assert.equal(scoreIn("фут 2:0"), "2-0");
+    assert.equal(scoreIn("navi 1-2 mouz"), "2-1");
+    assert.equal(scoreIn("наві 2 : 1"), "2-1");
+    assert.equal(scoreIn("фут виграє о 20:00"), null);
+    assert.equal(scoreIn("navi 2:0, mouz 2:1"), null);
+    assert.equal(scoreIn("btc 102k"), null);
+  });
+
+  const market = (question: string, outcomes: [string, number][]) => ({ id: question, question, outcomes: outcomes.map(([name, price]) => ({ name, price })) });
+  const winner = market("Counter-Strike: FUT Esports vs Spirit (BO3) - BLAST", [["FUT Esports", 0.34], ["Spirit", 0.66]]);
+  const total = market("Games Total: O/U 2.5", [["Over", 0.435], ["Under", 0.565]]);
+
+  it("splits the team's chance into 2:0 and 2:1 from the handicap and totals markets", () => {
+    const markets = [winner, total, market("Map Handicap: SPI (-1.5) vs FUT Esports (+1.5)", [["Spirit", 0.395], ["FUT Esports", 0.605]])];
+    const spirit20 = scoreOdds(markets, "Spirit", "2-0")!;
+    const spirit21 = scoreOdds(markets, "Spirit", "2-1")!;
+    const fut20 = scoreOdds(markets, "FUT Esports", "2-0")!;
+    const fut21 = scoreOdds(markets, "FUT Esports", "2-1")!;
+    assert.ok(Math.abs(spirit20.prob - 0.395) < 1e-9);
+    assert.ok(Math.abs(spirit20.prob + spirit21.prob - 0.66) < 1e-9);
+    assert.ok(Math.abs(fut20.prob + fut21.prob - 0.34) < 1e-9);
+    // Three maps happen when either side wins 2:1.
+    assert.ok(Math.abs(spirit21.prob + fut21.prob - 0.435) < 1e-9);
+    assert.equal(spirit20.mapsMarketId, "Games Total: O/U 2.5");
+  });
+  it("needs a totals market, and does without the handicap", () => {
+    assert.equal(scoreOdds([winner], "Spirit", "2-0"), null);
+    const odds = scoreOdds([winner, total], "Spirit", "2-1")!;
+    assert.ok(Math.abs(odds.prob - 0.66 * 0.435) < 1e-9);
+  });
+  it("names the pick with its score", () => {
+    assert.equal(pickName({ outcome: "FURIA", score: "2-0" }), "FURIA 2:0");
+    assert.equal(pickName({ outcome: "FURIA" }), "FURIA");
+    const pick = { market: "cs2" as const, subject: "FURIA", direction: "win" as const, target: null, entry_price: null };
+    assert.equal(claim({ ...pick, opponent: "MOUZ", score: "2-1" }), "FURIA to beat MOUZ 2:1");
+    assert.equal(claim({ ...pick, opponent: null }), "FURIA to win their next match");
+  });
+  it("files a score pick by the odds of the team winning, not of the score", () => {
+    const at = new Date();
+    const ref = { platform: "polymarket" as const, eventId: "", marketId: "", title: "", url: "", outcome: "FURIA", prob: 0.3, score: "2-0", winProb: 0.7 };
+    const segments = segmentsOf({ market: "cs2", subject: "FURIA", direction: "win", made_at: at, deadline: at, market_ref: ref });
+    assert.ok(segments.includes("favourite picks") && segments.includes("map-score picks") && !segments.includes("underdog picks"));
+  });
+  it("reads a 50/50 resolution as no result", () => {
+    const m = fromGammaMarket({ conditionId: "x", question: "Games Total: O/U 2.5", outcomes: '["Over","Under"]', outcomePrices: '["0.5","0.5"]', closed: true, umaResolutionStatus: "resolved" } as never, "");
+    assert.equal(winnerOf(m), null);
   });
 });
