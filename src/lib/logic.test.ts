@@ -518,3 +518,19 @@ describe("the language /ask answers in", () => {
     assert.equal(replyLanguage("а ты помнишь кол на фурию"), "Russian");
   });
 });
+
+describe("map-score odds on a match just listed", () => {
+  const market = (id: string, question: string, a: string, pa: number, b: string, pb: number) => ({ id, question, outcomes: [{ name: a, price: pa }, { name: b, price: pb }] });
+  it("ignores a handicap nobody has traded yet (50/50)", () => {
+    const markets = [
+      market("w", "Counter-Strike: Natus Vincere vs BetBoom Team (BO3)", "Natus Vincere", 0.59, "BetBoom Team", 0.41),
+      market("h", "Map Handicap: NAVI (-1.5) vs BetBoom Team (+1.5)", "Natus Vincere", 0.5, "BetBoom Team", 0.5),
+      market("t", "Games Total: O/U 2.5", "Over", 0.5, "Under", 0.5),
+    ];
+    const two0 = scoreOdds(markets, "Natus Vincere", "2-0")!;
+    const two1 = scoreOdds(markets, "Natus Vincere", "2-1")!;
+    assert.ok(Math.abs(two0.prob - 0.295) < 1e-9 && Math.abs(two1.prob - 0.295) < 1e-9);
+    assert.ok(Math.abs(two0.prob + two1.prob - 0.59) < 1e-9);
+  });
+});
+

@@ -352,7 +352,9 @@ export async function startedMatch(team: string, opponent?: string | null): Prom
     .sort((a, b) => startOf(b).getTime() - startOf(a).getTime());
   for (const e of recent) {
     const market = await matchWinner(e.id).catch(() => null);
-    if (!market || winnerOf(market)) continue;
+    // A match all but over (97%+ on one side, the bar a call is refused at) isn't the one a new
+    // pick means: the pair may meet again later in the event ("NaVi vs BetBoom" in the playoffs).
+    if (!market || winnerOf(market) || market.outcomes.some((o) => o.price >= 0.97)) continue;
     const [ours, theirs] = sides(e, key);
     return { team: ours, opponent: theirs, at: startOf(e) };
   }
@@ -436,6 +438,9 @@ async function matchWinner(eventId: string): Promise<Market | null> {
 
 const clamp = (p: number) => Math.min(0.99, Math.max(0.01, p));
 
+/** A market just listed and not yet traded: Polymarket shows it at 50/50 until someone trades it. */
+const untraded = (m: Priced) => m.outcomes.every((o) => Number(o.price) === 0.5);
+
 /**
  * The chance of a best-of-three ending in this score for this team, from the markets Polymarket
  * runs beside the match winner: "Map Handicap: X (-1.5) vs Y (+1.5)" is X winning 2:0, and
@@ -449,19 +454,20 @@ export function scoreOdds(markets: Priced[], team: string, score: string): { pro
   const over = maps?.outcomes.find((o) => /^over$/i.test(o.name));
   if (!winner || !maps || !win || !over) return null;
   const pWin = Number(win.price);
+  // An untraded totals market says nothing yet; a third map is about as likely as not then.
   const pOver = Number(over.price);
-  const handicap = markets.find((m) => /map handicap/i.test(m.question) && m.outcomes.length === 2);
+  const handicap = markets.find((m) => /map handicap/i.test(m.question) && m.outcomes.length === 2 && !untraded(m));
   // The handicap names the side giving -1.5 maps by a short tag ("INF"); its outcome is that team's 2:0.
   const minus = handicap?.question.match(/handicap:\s*(.+?)\s*\(-1\.5\)/i)?.[1];
   // Its outcomes come in the question's order, so a tag that matches neither name ("MGZ") is the first.
   const sweeper = minus ? (handicap!.outcomes.find((o) => teamKey(o.name).startsWith(teamKey(minus))) ?? handicap!.outcomes[0]) : undefined;
-  let twoOne: number;
+  let twoOne = pWin * pOver;
   if (sweeper) {
     const sweep = Number(sweeper.price);
     // Ours gives the maps: our 2:1 is our win less our 2:0. Theirs: our 2:1 is the third map less theirs.
-    twoOne = teamKey(sweeper.name) === teamKey(team) ? pWin - sweep : pOver - (1 - pWin - sweep);
-  } else {
-    twoOne = pWin * pOver;
+    const fromHandicap = teamKey(sweeper.name) === teamKey(team) ? pWin - sweep : pOver - (1 - pWin - sweep);
+    // Markets out of step with each other (thin, or one just moved) can put it outside the win; keep the estimate then.
+    if (fromHandicap > 0 && fromHandicap < pWin) twoOne = fromHandicap;
   }
   const prob = score === "2-0" ? pWin - twoOne : twoOne;
   return { prob: clamp(prob), winProb: pWin, mapsMarketId: maps.id };

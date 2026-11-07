@@ -69,7 +69,7 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
   const lines = [`🧾 <b>Receipt #${call.id}</b> · ${headline}`, `${esc(call.author_name)}: “${esc(call.quote)}”`];
   if (call.source)
     lines.push(`<i>📎 posted ${esc(when(call.source.postedAt))} · shared by ${esc(call.source.sharedBy.name)}</i>`);
-  lines.push("", `<i>${esc(claim(call))}</i> · judged ${esc(when(call.deadline))}`);
+  lines.push("", `<i>${esc(claim(call))}</i> · ${call.waiting ? "judged after the match, once Polymarket lists it" : `judged ${esc(when(call.deadline))}`}`);
   const settled = call.status === "win" || call.status === "loss";
   if (call.entry_price !== null && !settled)
     lines.push(`${call.subject} was ${usd(call.entry_price)} when ${call.source ? "shared" : "called"} · ${sourceLabel[call.price_source ?? "price-api"]}`);
@@ -165,7 +165,7 @@ function slateOffer(s: Slate): string {
   s.picks.forEach((p, i) =>
     lines.push(
       p.opponent
-        ? `${i + 1}. <b>${esc(p.subject)}</b> to beat ${esc(p.opponent)} · ${esc(when(p.deadline))}`
+        ? `${i + 1}. <b>${esc(p.subject)}</b> to beat ${esc(p.opponent)} · ${p.waiting ? "not on Polymarket yet, I'll wait for it" : esc(when(p.deadline))}`
         : `${i + 1}. <b>${esc(p.subject)}</b> on their next match · not listed yet, I'll wait for it`,
     ),
   );
@@ -180,7 +180,11 @@ function slateLogged(author: string, s: Slate, calls: CallRow[], errors: string[
     const odds = c.market_ref
       ? ` · Polymarket ${Math.round(c.market_ref.prob * 100)}%${c.market_ref.book ? `, ${esc(bookLine(c.market_ref.book))}` : ""}`
       : "";
-    lines.push(c.opponent ? `#${c.id} ${esc(c.subject)} to beat ${esc(c.opponent)}${odds}` : `#${c.id} ${esc(c.subject)} on their next match, once it's listed`);
+    lines.push(
+      c.opponent
+        ? `#${c.id} ${esc(c.subject)} to beat ${esc(c.opponent)}${c.waiting ? ", once Polymarket lists it" : odds}`
+        : `#${c.id} ${esc(c.subject)} on their next match, once it's listed`,
+    );
   }
   if (errors.length) lines.push("", `<i>Not logged: ${esc(errors.join("; "))}</i>`);
   if (s.why) lines.push("", `💭 why: ${esc(s.why)}`);

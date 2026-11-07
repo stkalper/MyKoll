@@ -101,6 +101,12 @@ export interface Draft {
 
 /** How long a pick waits for Polymarket to list the team's next match before it's dropped. */
 export const WAIT_DAYS = 14;
+/**
+ * How long a pick on a named match ("NaVi vs BetBoom") waits for Polymarket to list it: it lists
+ * even big tournaments' matches late, often only the day before. Past this, the chat confirms the
+ * winner as it does for a match Polymarket never lists.
+ */
+export const PAIR_WAIT_DAYS = 3;
 
 const DAY = 86_400_000;
 /** Longest message the bot reads: a signal with its reasoning fits, an essay doesn't. */
@@ -483,6 +489,14 @@ async function placePick(
     const known = said ? null : await knownTeam(subject).catch(() => null);
     if (known) return { subject: known, opponent: null, deadline: new Date(Date.now() + WAIT_DAYS * DAY).toISOString(), waiting: true };
     return { reason: `I can't find a match ${subject} plays this week. Name the opponent, e.g. "${subject} beat FaZe".`, short: `no match found for ${subject}`, speak: true };
+  } else {
+    // A named match Polymarket hasn't listed yet, between teams it has listed before: wait for it,
+    // so the pick gets the market's odds and its result. Smaller teams go straight to the chat.
+    const [us, them] = await Promise.all([knownTeam(subject).catch(() => null), knownTeam(opponent).catch(() => null)]);
+    if (us && them) {
+      const until = Math.max(said ? said.getTime() + DAY : 0, Date.now() + PAIR_WAIT_DAYS * DAY);
+      return { subject: us, opponent: them, deadline: new Date(until).toISOString(), waiting: true };
+    }
   }
   return tooLate(deadline) ?? { subject, opponent, deadline: deadline.toISOString() };
 }
@@ -620,13 +634,17 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
     if (market && win !== null && (win >= 0.97 || win <= 0.03))
       return { error: `Polymarket already has ${market.outcome} at ${Math.round(win * 100)}%: that match looks decided.` };
     // A score is only kept when Polymarket can settle it: a best-of-three with a maps market.
-    if (draft.score && !market?.score) {
+    // A pick waiting for its match keeps it until the match is listed.
+    if (draft.score && !market?.score && !draft.waiting) {
       draft = { ...draft, score: null };
       note = "No maps market for this match on Polymarket, so it's judged on the winner only.";
     }
     if (market) market = await withBook(market, draft.opponent!, new Date(draft.deadline));
   }
-  if (draft.waiting) note = `Waiting for Polymarket to list ${draft.subject}'s next match (up to ${WAIT_DAYS} days).`;
+  if (draft.waiting)
+    note = draft.opponent
+      ? `Waiting for Polymarket to list ${draft.subject} vs ${draft.opponent}; if it isn't listed by ${when(draft.deadline)}, the chat confirms the winner.`
+      : `Waiting for Polymarket to list ${draft.subject}'s next match (up to ${WAIT_DAYS} days).`;
 
   const repeat = await justLogged(chat.id, author.id, draft);
   if (repeat) return { error: `Already logged: that's receipt #${repeat}.` };
@@ -742,7 +760,8 @@ const LOOK_EVERY = 30 * 60_000;
 async function placeWaiting(call: CallRow): Promise<CallRow | null> {
   if (Date.now() - (lastLooked.get(call.id) ?? 0) < LOOK_EVERY) return null;
   lastLooked.set(call.id, Date.now());
-  const match = await nextMatch(call.subject).catch(() => null);
+  // A named match waits for that pair; a team on its own, for its next match.
+  const match = await nextMatch(call.subject, undefined, call.opponent).catch(() => null);
   if (!match) return null;
   const over = new Date(Math.max(match.at.getTime() + 4 * 3_600_000, Date.now() + 3_600_000));
   const found = await findMatch(match.team, match.opponent, over, call.score).catch(() => null);
@@ -820,14 +839,21 @@ export async function resolveDue(): Promise<Resolution[]> {
 
     if (call.market === "cs2") {
       if (call.waiting) {
-        if (due) {
+        const placed = due ? null : await placeWaiting(call);
+        if (placed) out.push({ call: placed, placed: true });
+        if (!due) continue;
+        if (!call.opponent) {
           const dropped = await drop(call, `Polymarket didn't list a match for ${call.subject} within ${WAIT_DAYS} days, so this pick was dropped.`);
           if (dropped) out.push({ call: dropped, dropped: true });
           continue;
         }
-        const placed = await placeWaiting(call);
-        if (placed) out.push({ call: placed, placed: true });
-        continue;
+        // A named match Polymarket never listed: the chat confirms the winner (not a map score, which it can't).
+        const [unlisted] = await db<CallRow>(
+          `update calls set waiting = false, score = null, result_note = null where id = $1 and waiting and status = 'open' returning *`,
+          [call.id],
+        );
+        if (!unlisted) continue;
+        Object.assign(call, unlisted);
       }
       const ref = call.market_ref;
       const winner = ref ? await marketWinner(ref.marketId).catch(() => null) : null;
