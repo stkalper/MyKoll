@@ -67,6 +67,8 @@ Where the memory does show something is the flags. Calls the bot marked as a mem
 
 It's a tie, not a failure. Trust starts at 50/50 and moves only as far as the evidence takes it (a record counts as if 16 coin-flip calls came before it), so one lucky call can't make anyone an oracle, and it takes many calls per member before their record moves the trust far from the chat's average. In simulated chats like these (four members, right 60% of the time, who really differ), memory is ahead of the hit-rate bot in a bit over half the chats at 50 calls, three in four at 100 and four in five at 200 ([the simulation](https://github.com/stkalper/MyKoll/blob/main/scripts/try-trust.mts)). At [49] calls, a tie is what to expect. The score is shown in the chat and on the site from 30 calls, and the raw number is always at [/api/stats](https://mykoll.vercel.app/api/stats).
 
+None of this was tuned after the fact, and the commits show it: the Memory Check against a bot that forgets went in on [29 October](https://github.com/stkalper/MyKoll/commit/b5e08be), the 16-call prior, chosen on simulated chats, on [2 November](https://github.com/stkalper/MyKoll/commit/1ccbcb2), and the hit-rate bot on [4 November](https://github.com/stkalper/MyKoll/commit/ded0088).
+
 The score is the slow part. The behaviour is what the chat feels every day: what gets brought back, flagged, skipped or asked.
 
 ## You decide what it keeps
@@ -81,7 +83,7 @@ Long-term memory in a group chat is only OK if people stay in control:
 
 ## Prices you can check
 
-Every receipt says where its price came from. Majors come from the **Tatum Price API**. Sui tokens like WAL, DEEP and NS are priced straight from their **Cetus pools on Sui mainnet through Tatum's Sui gRPC**, because the price feed doesn't cover them; for those tokens, the pool is the only price there is. Stock tokens on Robinhood Chain are read from their Uniswap v3 pools over Tatum's Robinhood Chain RPC. An on-chain price links the Sui transaction that set it, and CS2 calls link the Polymarket market and settle from its result.
+Every receipt says where its price came from. Majors come from the **Tatum Price API**. Sui tokens like WAL, DEEP and NS are priced straight from their **Cetus pools on Sui mainnet through Tatum's Sui gRPC**, because the price feed doesn't cover them; for those tokens, the pool is the only price there is. Stock tokens on Robinhood Chain are read from their Uniswap v3 pools over Tatum's Robinhood Chain RPC. Coins none of those list (FARTCOIN, PURR, ZEREBRO and the rest of Hyperliquid's 230+) are priced from Hyperliquid's public mid prices, so a chat can call almost anything that trades. An on-chain price links the Sui transaction that set it, and CS2 calls link the Polymarket market and settle from its result.
 
 Halfway through the hackathon the project used up its Tatum credits. With the Tatum team's go-ahead, the bot now falls back to public endpoints (Binance, Sui GraphQL, Polymarket's API) whenever Tatum answers 402, checks Tatum again every 10 minutes, and labels every receipt with the source it really used.
 
@@ -89,6 +91,8 @@ Halfway through the hackathon the project used up its Tatum credits. With the Ta
 
 - **People don't write calls in a format.** “Bnb 705 in 3 hours”, “easy for FURIA” in Ukrainian slang, “TRX long from 0.34, TP 0.37”, a list of four teams, a forwarded post from a signal channel. An LLM reads them, with rules taken from real public channels (brags like “TP3 HIT ✅” and both-ways scenarios are not calls). When the model was unreliable, a rule replaced it. A bare list of team names is now a set of picks by rule, because the model got it right only one time in three.
 - **Polymarket's `closeTime` is not the match time.** CS2 markets keep trading while the match is played, so the real start comes from the event description, in New York time.
+- **Polymarket lists matches late.** Even a big event's playoff match can appear only the day before, while the chat is already calling it. So a pick waits for its match: a team's next one, the pair named, or the day named. Once the match is listed, the pick gets its odds (marked as read after the call) and settles from the market.
+- **People call the score, not just the winner.** “NaVi 2:1” is now a pick on that score, priced from the maps handicap and totals markets beside the match winner and settled from the totals: “won, but 2:1, not 2:0”.
 - **Webhooks get delivered twice.** A slow reply made Telegram resend an update, and a few calls were logged twice. Updates are now de-duplicated by id, and hiding a duplicate takes it out of the record.
 - **A memory metric has to be allowed to lose.** Otherwise it's marketing.
 

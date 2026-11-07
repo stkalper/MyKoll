@@ -82,7 +82,9 @@ People don’t write calls in a format, so the bot reads them the way they are s
 | `TRX long from 0.34, TP 0.37. Broke daily resistance on volume` | A trading signal: TRX above the first take-profit. The reasoning is filed as the call’s *why* |
 | `NaVi take FaZe tonight` · `Spirit beat Vitality` | A pick on the coming match |
 | `easy for Vitality` · `easy for NaVi tomorrow` (in Ukrainian slang too) | No opponent named: the bot looks up the team’s next match on Polymarket (on the day named, if any) |
-| `FaZe 2-0 G2` · `backing Vitality vs MOUZ` (any language) · `+1 FURIA` | A predicted score or betting slang is a pick on the winner |
+| `backing Vitality vs MOUZ` (any language) · `+1 FURIA` · `NaVi win` | Betting slang is a pick on the winner |
+| `FaZe 2-0 G2` · `NaVi 2:1` | **A map-score pick** (see below): FaZe to win 2:0 |
+| `NaVi vs BetBoom tomorrow`, before Polymarket lists it | **A pick that waits** for Polymarket to list the match (see below) |
 | `bcgame ez` while the match is on | The match being played counts, at Polymarket’s live odds |
 | `NaVi, Vitality, FURIA, fnatic` | **Several picks at once** (see below) |
 | `https://x.com/cryptoguru/status/…` · `https://t.me/channel/123` · a post forwarded from a channel | **A call from a post** (see below) |
@@ -174,6 +176,8 @@ The Memory Check scores that trust against how each call ended (Brier, lower is 
 
 The score has limits worth saying out loud. In simulated chats, memory wins clearly only when members really differ and have a real history. When everyone is about equally good, no memory can beat a coin flip, and this score stays a little above 0.25. In the real chats it was 0.251 on 30 settled calls, and 0.235 on 49 (4 November), against 0.237 for the bot that knows only the chats' 61% hit rate: **a tie with that bot**. In simulated chats like these (four members, right 60% of the time, who really differ), memory is ahead of it in about 6 chats in 10 at 50 calls, 3 in 4 at 100 and 4 in 5 at 200 ([`scripts/try-trust.mts`](scripts/try-trust.mts)), so a tie at 49 is what to expect. The signal so far is in the flags: strong spots came true 8 times in 9, unflagged calls 22 in 39.
 
+The rules were fixed before the numbers quoted here, and the commits are dated: the Memory Check against a bot that forgets ([`b5e08be`](https://github.com/stkalper/MyKoll/commit/b5e08be), 29 October), the trust prior of 16 coin-flip calls, chosen on simulated chats ([`1ccbcb2`](https://github.com/stkalper/MyKoll/commit/1ccbcb2), 2 November), and the bot that knows only the chat’s hit rate ([`ded0088`](https://github.com/stkalper/MyKoll/commit/ded0088), 4 November). Later changes are in the history of [`scorecard.ts`](https://github.com/stkalper/MyKoll/commits/main/src/lib/scorecard.ts) and [`learning.ts`](https://github.com/stkalper/MyKoll/commits/main/src/lib/learning.ts).
+
 ### What memory changed
 
 Every time memory changes what the bot does, it writes that down: a weak or strong spot flagged, a past call brought back, a room weighed by record, a member no longer asked, a misread not repeated, or a change of mind about someone.
@@ -232,9 +236,10 @@ A CS2 call is matched to the **Polymarket match-winner market** for the same two
 - **Match times come from the description.** An event’s `closeTime` is a few hours after the market went up, not the match, and CS2 markets keep trading during play, so neither says when a match starts. The start is read from the event text instead (“initially scheduled for October 30, 2026 at 5:15 PM ET”, converted from New York time).
 - **The call settles from Polymarket’s resolution** (Polymarket resolves CS2 from HLTV) the moment it resolves, so nobody has to confirm the score. Until then, the chat’s one-tap confirmation still works.
 - **The bot learns who beats the market.** Picks are filed as *underdog picks* (under 45%) or *favourite picks* (over 55%), and each member’s record gets an edge against the market: their hit rate minus the average price Polymarket gave their picks (`beats Polymarket by 12 pts on CS2`). A win the market had under 45% comes back as `🎯 Called the upset`.
-- **The bookmakers’ view, next to the market’s.** The same pick is priced by the bookmakers through [OddsPapi](https://oddspapi.io) at the moment it’s called: Pinnacle when it has a line, otherwise the median of every book that does (often 100+ on a tier-1 match). The margin is taken out of each price, so it reads as a chance like Polymarket’s: `🏦 Bookmakers then: Pinnacle 68%`. A map score is priced from the maps handicap (−1.5 is the 2:0). It’s shown on the receipt and written to memory with the call; results still come from Polymarket. OddsPapi’s free tier is 250 requests a month, so the odds are read once per call and cached, and without a key or quota the line is simply left out.
+- **Map-score picks.** “FaZe 2-0 G2” or “NaVi 2:1” is a pick on that exact score of a best-of-three. Its odds come from the markets Polymarket runs beside the match winner: the maps handicap (−1.5 is the 2:0) and the 2.5 maps total (over means a third map). A market nobody has traded yet (still at 50/50) is left out. The pick settles from the totals market once the winner is known: `❌ FUT Esports won, but 2:1, not 2:0`. It counts in the record and the Memory Check like any call, and records get a *map-score picks* kind of their own. With no maps market (a BO1 or BO5), the pick is judged on the winner and the receipt says so.
+- **Picks before the match is listed.** Polymarket lists even big events’ matches late, often the day before. A pick on a team Polymarket has listed before waits for its match: the team’s next match (up to 14 days), the match named (“NaVi vs BetBoom”, up to 3 days), or a match on the day named (“tomorrow”, and only that day). The sweep every 15 minutes looks again, at most every 30 minutes per pick; once it’s listed, `📌 Receipt #N found its match` posts the match and its odds. Those odds were read after the call, so the receipt says so and they’re left out of the edge against the market. A team’s pick that is never listed is dropped; a named match that never is goes to the chat to confirm.
 
-Code: [`src/lib/polymarket.ts`](src/lib/polymarket.ts), [`src/lib/bookmakers.ts`](src/lib/bookmakers.ts). Checks: [`scripts/try-polymarket.mts`](scripts/try-polymarket.mts) maps calls to upcoming matches; [`scripts/try-cs2.mts`](scripts/try-cs2.mts) logs a call with its odds and settles one from a played match.
+Code: [`src/lib/polymarket.ts`](src/lib/polymarket.ts). Checks: [`scripts/try-polymarket.mts`](scripts/try-polymarket.mts) maps calls to upcoming matches; [`scripts/try-cs2.mts`](scripts/try-cs2.mts) logs a call with its odds and settles one from a played match.
 
 ## Mainnet evidence
 
@@ -274,7 +279,6 @@ flowchart LR
   BOT -- Sui token price --> GRPC[Tatum Sui gRPC] --> CETUS[(Cetus pools<br/>Sui mainnet)]
   BOT -- stock token price --> RH[Tatum Robinhood Chain RPC] --> UNI[(Uniswap v3 pools<br/>Robinhood Chain)]
   BOT -- CS2 match, odds, result --> PRED[Tatum Prediction Market API] --> PM[(Polymarket)]
-  BOT -- bookmaker odds at the call --> ODDS[OddsPapi] --> BOOKS[(Pinnacle + 100s of books)]
   BOT -- remember / recall --> WALRUS[(Walrus Memory<br/>namespace per chat)]
   BOT -- calls, reasons --> DB[(Neon Postgres)]
   BOT -- delayed message<br/>at deadline --> Q[Vercel Queue] --> SETTLE["/api/queues/deadline"] --> TG
