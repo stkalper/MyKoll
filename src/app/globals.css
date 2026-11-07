@@ -167,9 +167,9 @@ body {
 }
 
 /*
- * The landing's opening (components/landing/Intro.tsx), 3.45 s: "MyKoll" builds itself out of
- * squares that pop in at random (0.1-2.1 s) while the view pulls back from close up (0-2.3 s),
- * holds, then the squares pop out at random (2.7-3.35 s) as the overlay fades (3.1-3.45 s).
+ * The landing's opening (components/landing/Intro.tsx), 4 s: a few squares pop in one by one close
+ * up (0.15-1.5 s), the rest of "MyKoll" unfolds out of them while the view pulls back (1.2-3 s),
+ * then the squares pop out at random (3.25-3.9 s) as the overlay fades (3.65-4 s).
  */
 .intro {
   position: fixed;
@@ -180,7 +180,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   cursor: pointer;
-  animation: intro-fade 0.35s 3.1s ease-in forwards;
+  animation: intro-fade 0.35s 3.65s ease-in forwards;
 }
 .intro[data-skipping] {
   animation: intro-fade 0.2s ease-out forwards;
@@ -202,16 +202,15 @@ body {
 
 .intro-stage {
   width: min(90vw, 900px);
-  /* Close up on the middle of the word, pulling back until it all shows, then a slow drift. */
-  transform-origin: 46% 45%;
+  /* Close up on the middle of the word (the origin is set inline), pulling back as it unfolds, then a slow drift. */
   will-change: transform;
   animation:
-    intro-pull 2.3s cubic-bezier(0.22, 0.8, 0.3, 1) both,
-    intro-drift 1.2s 2.3s ease-out forwards;
+    intro-pull 1.7s 1.2s cubic-bezier(0.5, 0, 0.2, 1) both,
+    intro-drift 1s 2.9s ease-out forwards;
 }
 @keyframes intro-pull {
   from {
-    transform: scale(4.2);
+    transform: scale(4.6);
   }
   to {
     transform: scale(1);
@@ -231,7 +230,7 @@ body {
   width: 100%;
 }
 
-/* A square pops in with a little bounce, like a spring, and later pops out. Delays come from its classes. */
+/* A square pops in with a spring's bounce (motion.dev's bounce 0.4, by eye) and later pops out. Delays come from its classes. */
 .sq {
   display: block;
   margin: 8%;
@@ -241,18 +240,32 @@ body {
   opacity: 0;
   will-change: transform, opacity;
   animation:
-    sq-in 0.55s var(--a, 0s) cubic-bezier(0.34, 1.7, 0.5, 1) forwards,
+    sq-in 0.65s var(--a, 0s) linear forwards,
     sq-out 0.3s var(--b, 3s) ease-in forwards;
 }
 .sq.hl {
   background: var(--hl);
 }
 @keyframes sq-in {
-  from {
+  0% {
     opacity: 0;
     transform: scale(0);
+    animation-timing-function: cubic-bezier(0.3, 0.6, 0.5, 1);
   }
-  to {
+  38% {
+    opacity: 1;
+    transform: scale(1.16);
+    animation-timing-function: ease-in-out;
+  }
+  62% {
+    transform: scale(0.95);
+    animation-timing-function: ease-in-out;
+  }
+  82% {
+    transform: scale(1.02);
+    animation-timing-function: ease-out;
+  }
+  100% {
     opacity: 1;
     transform: scale(1);
   }

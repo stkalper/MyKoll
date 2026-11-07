@@ -29,9 +29,14 @@ const WORD = [
 const COLS = WORD[0].length;
 const ROWS = WORD.length;
 
-/** Seconds: squares pop in at random over this span, then pop out at random over the next. */
-const IN = { from: 0.1, span: 1.5, steps: 30 };
-const OUT = { from: 2.7, span: 0.35, steps: 8 };
+/**
+ * Timing, in seconds. A first handful of squares pops in one by one in random order, close up
+ * (like motion.dev's random stagger); then the rest of the word unfolds outward from them while
+ * the view pulls back; then they all pop out.
+ */
+const SEED = { count: 26, from: 0.15, step: 0.045 };
+const UNFOLD = { from: 1.3, span: 1.1, jitter: 0.14 };
+const OUT = { from: 3.25, span: 0.35 };
 
 /** A fixed random sequence, so the page is the same on every build and render. */
 function random(seed: number) {
@@ -44,21 +49,35 @@ function random(seed: number) {
 }
 
 const next = random(7);
-const SQUARES = WORD.flatMap((row, y) =>
-  [...row].flatMap((c, x) =>
-    c === "#" ? [{ x, y, a: Math.floor(next() * IN.steps), b: Math.floor(next() * OUT.steps), accent: next() < 0.07 }] : [],
-  ),
-);
+const cells = WORD.flatMap((row, y) => [...row].flatMap((c, x) => (c === "#" ? [{ x, y }] : [])));
+/** The middle of the word, where the first squares appear and the view starts. */
+const MID = { x: COLS / 2, y: ROWS * 0.42 };
+const away = (c: { x: number; y: number }) => Math.hypot(c.x - MID.x, (c.y - MID.y) * 1.2);
+const byDistance = [...cells].sort((a, b) => away(a) - away(b));
+const farthest = away(byDistance[byDistance.length - 1]);
+const seedOrder = Array.from({ length: SEED.count }, (_, i) => i).sort(() => next() - 0.5);
+/** A delay rounded to a 50th of a second, so they share a few dozen classes. */
+const tick = (sec: number) => Math.round(sec * 50);
+
+const SQUARES = byDistance.map((c, i) => ({
+  ...c,
+  a: tick(i < SEED.count ? SEED.from + seedOrder[i] * SEED.step : UNFOLD.from + (away(c) / farthest) * UNFOLD.span + next() * UNFOLD.jitter),
+  b: tick(OUT.from + next() * OUT.span),
+  accent: next() < 0.07,
+}));
 
 /** One class per delay, so 600 squares don't each carry a style. */
 const DELAYS_CSS =
-  Array.from({ length: IN.steps }, (_, i) => `.sq.a${i}{--a:${(IN.from + (i * IN.span) / IN.steps).toFixed(2)}s}`).join("") +
-  Array.from({ length: OUT.steps }, (_, i) => `.sq.b${i}{--b:${(OUT.from + (i * OUT.span) / OUT.steps).toFixed(2)}s}`).join("");
+  [...new Set(SQUARES.map((s) => s.a))].map((t) => `.sq.a${t}{--a:${t / 50}s}`).join("") +
+  [...new Set(SQUARES.map((s) => s.b))].map((t) => `.sq.b${t}{--b:${t / 50}s}`).join("");
+
+/** Where the view zooms from: the middle of the word, as a share of the stage. */
+const ORIGIN = `${((MID.x / COLS) * 100).toFixed(1)}% ${((MID.y / ROWS) * 100).toFixed(1)}%`;
 
 /**
- * The landing's opening, once a session: "MyKoll" builds itself out of small squares that pop in
- * at random, seen from close up, while the view pulls back until the whole word shows; then the
- * squares pop out and the page is there.
+ * The landing's opening, once a session: a few big squares pop in one by one, close up, in the
+ * middle of "MyKoll"; then the rest of the word unfolds out of them in small squares while the view
+ * pulls back until the whole word shows; then the squares pop out and the page is there.
  *
  * All of it is CSS on HTML elements, so it starts with the first paint and runs on the compositor,
  * unaffected by the page's own JavaScript. The script after it
@@ -69,7 +88,7 @@ export function Intro() {
   return (
     <>
       <div id="mk-intro" className="intro" suppressHydrationWarning>
-        <div className="intro-stage" aria-hidden="true">
+        <div className="intro-stage" aria-hidden="true" style={{ transformOrigin: ORIGIN }}>
           {/* HTML, not SVG: transform and opacity on HTML elements run on the compositor, so the squares keep
               moving while the page's scripts load and hydrate. */}
           <div className="intro-word" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, aspectRatio: `${COLS} / ${ROWS}` }}>
