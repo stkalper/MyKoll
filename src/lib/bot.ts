@@ -42,7 +42,7 @@ import { bookLine } from "./bookmakers";
 import { pickName } from "./polymarket";
 import { fileUrl, shareUrl } from "./receipts";
 import { memoryScorecard, scorecardLine } from "./scorecard";
-import { forwardedPost, justTheLink, postLinkIn, readPost, sourceName, type ForwardOrigin, type Post, type PostLink } from "./posts";
+import { forwardedPost, postLinkIn, readPost, sourceName, type ForwardOrigin, type Post, type PostLink } from "./posts";
 import { blobUrl, proofLabel, proofUrl } from "./proof";
 import { nextSweep } from "./schedule";
 import { noteEffect } from "./effects";
@@ -573,21 +573,16 @@ export function createBot(): Bot {
     if (ctx.chat.type === "private" || !llmEnabled) return;
 
     // A link to a post on X or Telegram: the call in it is filed under the post's author, once the
-    // member who shared it says so. A bare link is a request to look, so the bot answers even when
-    // there's nothing to file; a link inside a longer message is only offered when it holds a call.
-    // A message forwarded from a channel or another person works the same way: the call is the
-    // original author's, timed from when they first sent it. Forwards that hold no call pass quietly.
+    // member who shared it says so. A message forwarded from a channel or another person works the
+    // same way: the call is the original author's, timed from when they first sent it. The bot only
+    // speaks up when there's a call to offer: posts are mostly shared to talk about, so one with no
+    // call, one it can't read, or a call it can't keep passes quietly (`/call <link>` still says why).
     const forwarded = ctx.message.forward_origin ? forwardedPost(ctx.message.forward_origin as ForwardOrigin, text) : null;
     const link = forwarded ? null : postLinkIn(text);
     if (forwarded || link) {
-      const asked = link ? justTheLink(text, link) : false;
-      if (asked) void ctx.replyWithChatAction("typing").catch(() => {});
       const found = await callFromPost((forwarded ?? link)!, authorOf(ctx));
-      const reply = (message: string) => ctx.reply(message, { reply_parameters: { message_id: ctx.message.message_id } });
       console.log("shared post", { chat: ctx.chat.id, kind: forwarded ? "forward" : link!.kind, result: found ? ("reason" in found ? found.reason : "call") : "not a call" });
-      if (!found) return asked ? reply(`I read @${link!.handle}'s post but found no call in it I can check.`) : undefined;
-      // A forward or a bare link holds a call the sender wants kept, so say why it can't be.
-      if ("reason" in found) return asked || forwarded ? reply(found.reason) : undefined;
+      if (!found || "reason" in found) return;
       const id = randomBytes(6).toString("hex");
       await db(`insert into pending_calls (id, chat_id, author_id, draft) values ($1, $2, $3, $4)`, [id, ctx.chat.id, ctx.from.id, JSON.stringify(found)]);
       const n = "picks" in found ? found.picks.length : 1;
