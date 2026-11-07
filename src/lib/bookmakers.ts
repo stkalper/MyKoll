@@ -49,13 +49,18 @@ const oddsCache = new Map<string, { at: number; odds: BookmakerOdds }>();
 
 async function get<T>(path: string, params: Record<string, string>): Promise<T> {
   const url = `${API}${path}?${new URLSearchParams({ ...params, apiKey: config.oddspapi.apiKey })}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (res.status === 401 || res.status === 403 || res.status === 429) {
-    // Out of the month's requests, or the key is wrong: stop asking for a while.
-    pausedUntil = Date.now() + (res.status === 429 ? 10 * 60_000 : 6 * 3_600_000);
-    throw new Error(`OddsPapi ${res.status}`);
+  // Says who is asking: OddsPapi sits behind Cloudflare, which is warier of anonymous server traffic.
+  const res = await fetch(url, {
+    headers: { accept: "application/json", "user-agent": "MyKoll/1.0 (+https://mykoll.vercel.app)" },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) {
+    // The start of the body says whose refusal it is (OddsPapi's JSON, or a Cloudflare page); it never holds the key.
+    const body = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 200);
+    // Out of the month's requests, a wrong key or a refused server: stop asking for a while.
+    if (res.status === 401 || res.status === 403 || res.status === 429) pausedUntil = Date.now() + (res.status === 401 ? 6 * 3_600_000 : 10 * 60_000);
+    throw new Error(`OddsPapi ${res.status} (${res.headers.get("server") ?? "?"}): ${body}`);
   }
-  if (!res.ok) throw new Error(`OddsPapi ${res.status}`);
   return (await res.json()) as T;
 }
 
