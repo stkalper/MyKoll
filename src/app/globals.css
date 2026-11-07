@@ -238,7 +238,6 @@ body {
   border-radius: 16%;
   background: var(--paper);
   opacity: 0;
-  will-change: transform, opacity;
   animation:
     sq-in 0.65s var(--a, 0s) linear forwards,
     sq-out 0.3s var(--b, 3s) ease-in forwards;

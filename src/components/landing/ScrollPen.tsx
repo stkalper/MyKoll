@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { INTRO_DONE } from "./IntroControl";
 
 /**
  * A pen that signs its way down the page as you scroll.
@@ -189,10 +190,26 @@ export function ScrollPen() {
       });
       for (const s of stops) for (const l of s.letters) l.style.opacity = "0";
     };
-    layout();
-    // Fonts, images and the Mini App iframe shift the layout after load, so re-measure when it changes.
-    const resize = new ResizeObserver(layout);
-    resize.observe(document.body);
+    // Measuring the route takes the main thread for most of a second, so it waits until the
+    // landing's opening is over: the opening is CSS and would freeze while it runs.
+    let size = "";
+    const relayout = () => {
+      const now = `${document.body.clientWidth}x${document.body.scrollHeight}`;
+      if (now === size) return;
+      size = now;
+      layout();
+    };
+    // Fonts, images and the Mini App iframe shift the layout after load, so re-measure when the
+    // page's size changes (and only then: the observer also fires once when it starts).
+    const resize = new ResizeObserver(relayout);
+    const start = () => {
+      relayout();
+      resize.observe(document.body);
+    };
+    const intro = document.getElementById("mk-intro");
+    const waiting = Boolean(intro && !intro.dataset.done);
+    if (waiting) window.addEventListener(INTRO_DONE, start, { once: true });
+    else start();
 
     /** How much line to show for the current scroll position, with a pause at each stop. */
     const target = () => {
@@ -284,6 +301,7 @@ export function ScrollPen() {
     frame = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(frame);
+      window.removeEventListener(INTRO_DONE, start);
       resize.disconnect();
       for (const s of stops) for (const l of s.letters) l.style.opacity = "";
     };
