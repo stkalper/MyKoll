@@ -7,7 +7,6 @@ import { bookChance, bookLine, consensus, type BookmakerOdds } from "./bookmaker
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 import { backedTeam, claim, coinNamed, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
-import { cubicsOf, easing, writingKeyframes } from "./signature";
 import { coinWords, midsFrom, priceIn } from "./hyperliquid";
 import { recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { fromGammaMarket, pickName, scoreOdds, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
@@ -517,29 +516,5 @@ describe("the language /ask answers in", () => {
     assert.equal(replyLanguage("кто лучше всех угадывает?"), "Russian");
     assert.equal(replyLanguage("что там по биткоину"), "Russian");
     assert.equal(replyLanguage("а ты помнишь кол на фурию"), "Russian");
-  });
-});
-
-
-describe("the pen writing the signature", () => {
-  const d = "M10 20 C20 20 30 20 40 20 C50 20 60 40 70 40";
-  it("reads the curves of a path", () => {
-    const curves = cubicsOf(d);
-    assert.equal(curves.length, 2);
-    assert.deepEqual(curves[1][0], { x: 40, y: 20 });
-    assert.deepEqual(curves[1][3], { x: 70, y: 40 });
-  });
-  it("puts the nib at the start and the end, with the ink drawn alongside", () => {
-    const css = writingKeyframes(d, "t", (x) => x, 4);
-    assert.match(css, /@keyframes t-nib\{0%\{transform:translate\(10\.0px,20\.0px\)\}/);
-    assert.match(css, /100%\{transform:translate\(70\.0px,40\.0px\)\}\}/);
-    assert.match(css, /@keyframes t-ink\{0%\{stroke-dashoffset:1\.0000\}/);
-    assert.match(css, /100%\{stroke-dashoffset:0\.0000\}\}$/);
-  });
-  it("eases like CSS's cubic-bezier", () => {
-    const ease = easing(0.35, 0, 0.65, 1);
-    assert.ok(ease(0) < 1e-6 && ease(1) > 1 - 1e-6);
-    assert.ok(Math.abs(ease(0.5) - 0.5) < 1e-6);
-    assert.ok(ease(0.1) < 0.1 && ease(0.9) > 0.9);
   });
 });

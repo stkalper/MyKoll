@@ -167,9 +167,9 @@ body {
 }
 
 /*
- * The landing's opening (components/landing/Intro.tsx), 3.95 s: ink spreads into a blot (0.05-0.9 s),
- * the pen appears on it and writes "MyKoll" (0.8-2.7 s, SVG animations in the component) and fades,
- * then the view pushes through the word into the page (2.95-3.95 s).
+ * The landing's opening (components/landing/Intro.tsx), 3.45 s: "MyKoll" builds itself out of
+ * squares that pop in at random (0.1-2.1 s) while the view pulls back from close up (0-2.3 s),
+ * holds, then the squares pop out at random (2.7-3.35 s) as the overlay fades (3.1-3.45 s).
  */
 .intro {
   position: fixed;
@@ -180,7 +180,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   cursor: pointer;
-  animation: intro-fade 0.35s 3.6s ease-in forwards;
+  animation: intro-fade 0.35s 3.1s ease-in forwards;
 }
 .intro[data-skipping] {
   animation: intro-fade 0.2s ease-out forwards;
@@ -201,79 +201,68 @@ body {
 }
 
 .intro-stage {
-  position: relative;
-  width: min(94vw, 760px);
-  aspect-ratio: 600 / 360;
-  container-type: inline-size;
-  /* The middle of the word, between the K and the o. */
-  transform-origin: 52% 50%;
-  animation: intro-push 1s 2.95s forwards;
+  width: min(90vw, 900px);
+  /* Close up on the middle of the word, pulling back until it all shows, then a slow drift. */
+  transform-origin: 46% 45%;
+  animation:
+    intro-pull 2.3s cubic-bezier(0.22, 0.8, 0.3, 1) both,
+    intro-drift 1.2s 2.3s ease-out forwards;
 }
-/* A slow lean in, then a rush through the word: by the time the page shows, the ink fills the screen. */
-@keyframes intro-push {
-  0% {
+@keyframes intro-pull {
+  from {
+    transform: scale(4.2);
+  }
+  to {
     transform: scale(1);
-    animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
-  }
-  55% {
-    transform: scale(1.6);
-    animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6);
-  }
-  100% {
-    transform: scale(45);
   }
 }
-
-.intro-blot {
-  position: absolute;
-  inset: 0;
+@keyframes intro-drift {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(0.96);
+  }
+}
+.intro-word {
+  display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
   overflow: visible;
 }
-.intro-drop {
+
+/* A square pops in with a little bounce, like a spring, and later pops out. Delays come from its classes. */
+.sq {
+  fill: var(--paper);
   transform-box: fill-box;
   transform-origin: center;
-  transform: scale(0);
-  animation: intro-spill 0.75s cubic-bezier(0.12, 0.75, 0.3, 1.04) forwards;
-}
-.intro-drop.d0 { animation-delay: 0.05s; }
-.intro-drop.d1 { animation-delay: 0.15s; }
-.intro-drop.d2 { animation-delay: 0.19s; }
-.intro-drop.d3 { animation-delay: 0.31s; }
-.intro-drop.d4 { animation-delay: 0.35s; }
-.intro-drop.d5 { animation-delay: 0.25s; }
-.intro-drop.d6 { animation-delay: 0.27s; }
-.intro-drop.d7 { animation-delay: 0.45s; }
-.intro-drop.d8 { animation-delay: 0.49s; }
-.intro-drop.d9 { animation-delay: 0.51s; }
-.intro-drop.d10 { animation-delay: 0.53s; }
-.intro-drop.s0 { animation-delay: 0.21s; }
-.intro-drop.s1 { animation-delay: 0.25s; }
-.intro-drop.s2 { animation-delay: 0.29s; }
-.intro-drop.s3 { animation-delay: 0.31s; }
-.intro-drop.s4 { animation-delay: 0.34s; }
-.intro-drop.s5 { animation-delay: 0.37s; }
-.intro-drop.s6 { animation-delay: 0.27s; }
-.intro-drop.s7 { animation-delay: 0.33s; }
-.intro-shine {
   opacity: 0;
-  animation: intro-shine 0.6s 0.7s ease-out forwards;
+  animation:
+    sq-in 0.55s var(--a, 0s) cubic-bezier(0.34, 1.7, 0.5, 1) forwards,
+    sq-out 0.3s var(--b, 3s) ease-in forwards;
 }
-@keyframes intro-shine {
-  to {
-    opacity: 0.13;
+.sq.hl {
+  fill: var(--hl);
+}
+@keyframes sq-in {
+  from {
+    opacity: 0;
+    transform: scale(0);
   }
-}
-@keyframes intro-spill {
   to {
+    opacity: 1;
     transform: scale(1);
   }
 }
-
-
-.intro-pen {
-  filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.45));
+@keyframes sq-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0);
+  }
 }
 
 .intro-skip {

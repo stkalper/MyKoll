@@ -1,214 +1,81 @@
-import { easing, writingKeyframes } from "@/lib/signature";
 import { IntroControl } from "./IntroControl";
 
 /**
- * "MyKoll" as one signature stroke, the way a pen writes it without lifting: M, y with its loop,
- * K, o and the two looped l's. The pen's nib follows this same line while the ink is drawn.
+ * "MyKoll" in the logo's face (Montserrat ExtraBold), rasterised to a grid: each # is one square.
+ * Made once from the font on a canvas, so the page doesn't have to.
  */
-const SIGNATURE =
-  "M148 222 C156 190 162 140 170 112 C178 135 190 170 197 190 C205 165 218 132 230 112 C228 150 226 190 228 214 " +
-  "C232 220 246 198 252 172 C250 190 254 212 268 214 C282 216 288 190 291 172 C290 205 285 250 272 282 " +
-  "C264 300 242 300 248 280 C254 262 290 250 318 238 C330 200 336 150 340 110 C336 150 330 190 326 222 " +
-  "C334 190 360 140 378 118 C362 138 344 158 334 172 C346 186 358 206 372 220 C384 222 396 196 410 174 " +
-  "C392 172 384 204 396 216 C408 226 428 210 424 188 C422 176 412 172 406 176 C422 186 438 184 448 170 " +
-  "C462 145 474 112 462 106 C452 102 444 140 444 178 C444 205 450 220 462 218 C474 216 486 190 494 165 " +
-  "C504 138 512 112 500 106 C490 102 482 140 482 180 C482 205 488 220 500 218 C510 216 520 208 528 200";
+const WORD = [
+  "..............................................................####...####",
+  "####..........###................####......####...............####...####",
+  "####.........####................####.....####................####...####",
+  "#####.......#####................####....####.................####...####",
+  "######......#####..###......####.####...####........####......####...####",
+  "######.....######..####.....###..####..####.......########....####...####",
+  "#######....######..####....####..##########......##########...####...####",
+  "########..#######...####...####..#########......#####..#####..####...####",
+  "########.########...####...###...#########......####....####..####...####",
+  "####.#######.####....####.####...##########.....####....####..####...####",
+  "####.#######.####....####.###....###########....####....####..####...####",
+  "####..#####..####.....#######....#####..#####...####....####..####...####",
+  "####...####..####.....#######....####....####...#####..#####..####...####",
+  "####...###...####.....######.....####....#####...##########...####...####",
+  "####.........####......#####.....####.....#####...########....####...####",
+  "####..........###......####......####......####.....#####......###...####",
+  "....................#..####..............................................",
+  "...................#######...............................................",
+  "...................#######...............................................",
+  "....................####.................................................",
+];
+const COLS = WORD[0].length;
+const ROWS = WORD.length;
+
+/** Seconds: squares pop in at random over this span, then pop out at random over the next. */
+const IN = { from: 0.1, span: 1.5, steps: 30 };
+const OUT = { from: 2.7, span: 0.35, steps: 8 };
+
+/** A fixed random sequence, so the page is the same on every build and render. */
+function random(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const next = random(7);
+const SQUARES = WORD.flatMap((row, y) =>
+  [...row].flatMap((c, x) =>
+    c === "#" ? [{ x, y, a: Math.floor(next() * IN.steps), b: Math.floor(next() * OUT.steps), accent: next() < 0.07 }] : [],
+  ),
+);
+
+/** One class per delay, so 600 squares don't each carry a style. */
+const DELAYS_CSS =
+  Array.from({ length: IN.steps }, (_, i) => `.sq.a${i}{--a:${(IN.from + (i * IN.span) / IN.steps).toFixed(2)}s}`).join("") +
+  Array.from({ length: OUT.steps }, (_, i) => `.sq.b${i}{--b:${(OUT.from + (i * OUT.span) / OUT.steps).toFixed(2)}s}`).join("");
 
 /**
- * When the pen shows, writes and goes (seconds from the first paint): it appears on the blot as
- * soon as the ink has spread, writes straight away, and fades where it finished. The blot and the
- * push through the word are timed in globals.css.
- */
-const T = { show: 0.8, write: 0.98, writing: 1.7, gone: 2.72 };
-
-/**
- * The nib's path and the ink, as CSS keyframes sampled from the same points (a slow start,
- * steady letters, a slow finish), plus when each part of the pen plays.
- */
-const WRITING_CSS =
-  writingKeyframes(SIGNATURE, "intro-sig", easing(0.35, 0, 0.65, 1)) +
-  `.intro-ink{stroke-dasharray:1 1;stroke-dashoffset:1;animation:intro-sig-ink ${T.writing}s ${T.write}s linear forwards}` +
-  `.intro-nib{animation:intro-sig-nib ${T.writing}s ${T.write}s linear both}` +
-  `.intro-pen{opacity:0;animation:intro-pen-show ${T.write - T.show}s ${T.show}s ease-out forwards,intro-pen-hide 0.28s ${T.gone}s ease-in forwards}` +
-  `.intro-pen-lift{animation:intro-pen-settle ${T.write - T.show}s ${T.show}s ease-out both,intro-pen-lift 0.28s ${T.gone}s ease-in forwards}` +
-  `@keyframes intro-pen-show{to{opacity:1}}@keyframes intro-pen-hide{from{opacity:1}to{opacity:0}}` +
-  `@keyframes intro-pen-settle{from{transform:translate(2px,-26px)}to{transform:translate(0,0)}}` +
-  `@keyframes intro-pen-lift{to{transform:translate(12px,-18px)}}`;
-
-/**
- * The landing's opening, once a session: a blot of ink spreads in the middle of the screen, the
- * pen from the page appears on it and writes "MyKoll", fades where it finished, and the view
- * pushes through the word into the site.
+ * The landing's opening, once a session: "MyKoll" builds itself out of small squares that pop in
+ * at random, seen from close up, while the view pulls back until the whole word shows; then the
+ * squares pop out and the page is there.
  *
- * All of it is CSS, so it starts with the first paint, before any JavaScript; the nib and the ink
- * come from the same samples of the signature, so the nib stays on the end of the ink.
- * The script after it hides it before that paint for anyone who has seen it this session or asks
- * for reduced motion; IntroControl handles skipping and takes it away at the end.
+ * All of it is CSS, so it starts with the first paint, before any JavaScript. The script after it
+ * hides it before that paint for anyone who has seen it this session or asks for reduced motion;
+ * IntroControl handles skipping and takes it away when its fade ends.
  */
 export function Intro() {
   return (
     <>
       <div id="mk-intro" className="intro" suppressHydrationWarning>
         <div className="intro-stage" aria-hidden="true">
-          <svg className="intro-blot" viewBox="0 0 600 360">
-            <defs>
-              {/* Blurs the drops together and sharpens the edge again: wet, merging ink. */}
-              <filter id="intro-goo">
-                <feGaussianBlur
-                  in="SourceGraphic"
-                  stdDeviation="9"
-                  result="blur"
-                />
-                <feColorMatrix
-                  in="blur"
-                  values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9"
-                />
-              </filter>
-            </defs>
-            <g filter="url(#intro-goo)" fill="#2c4fb5">
-              <circle className="intro-drop d0" cx="300" cy="180" r="118" />
-              <circle className="intro-drop d1" cx="205" cy="192" r="96" />
-              <circle className="intro-drop d2" cx="398" cy="174" r="100" />
-              <circle className="intro-drop d3" cx="132" cy="168" r="60" />
-              <circle className="intro-drop d4" cx="470" cy="198" r="64" />
-              <circle className="intro-drop d5" cx="250" cy="106" r="54" />
-              <circle className="intro-drop d6" cx="352" cy="256" r="58" />
-              <circle className="intro-drop d7" cx="80" cy="214" r="16" />
-              <circle className="intro-drop d8" cx="532" cy="136" r="14" />
-              <circle className="intro-drop d9" cx="420" cy="74" r="11" />
-              <circle className="intro-drop d10" cx="172" cy="296" r="12" />
-            </g>
-            {/* Splatter thrown clear of the blot, and the wet shine on it. */}
-            <g fill="#2c4fb5">
-              <circle className="intro-drop s0" cx="36" cy="120" r="7" />
-              <circle className="intro-drop s1" cx="570" cy="252" r="9" />
-              <circle className="intro-drop s2" cx="498" cy="40" r="5" />
-              <circle className="intro-drop s3" cx="106" cy="322" r="6" />
-              <circle className="intro-drop s4" cx="300" cy="18" r="4" />
-              <circle className="intro-drop s5" cx="588" cy="94" r="4" />
-              <g transform="rotate(25 66 262)">
-                <ellipse
-                  className="intro-drop s6"
-                  cx="66"
-                  cy="262"
-                  rx="12"
-                  ry="4"
-                />
-              </g>
-              <g transform="rotate(-30 544 302)">
-                <ellipse
-                  className="intro-drop s7"
-                  cx="544"
-                  cy="302"
-                  rx="14"
-                  ry="4"
-                />
-              </g>
-            </g>
-            <ellipse
-              className="intro-shine"
-              cx="245"
-              cy="116"
-              rx="70"
-              ry="16"
-              fill="#ffffff"
-              transform="rotate(-8 245 116)"
-            />
-
-            {/* The signature is centred on the blot; the pen moves in the same space. */}
-            <g transform="translate(-38 -18)">
-              <path
-                className="intro-ink"
-                d={SIGNATURE}
-                pathLength={1}
-                fill="none"
-                stroke="#f1ede3"
-                strokeWidth="11"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-
-              {/* Fades in and out; settles onto the paper and lifts off it; follows the signature. */}
-              <g className="intro-pen">
-                <g className="intro-pen-lift">
-                  <g className="intro-nib">
-                    {/* The pen, nib at the origin, leaning the way a right hand holds it. */}
-                    <g transform="rotate(26) scale(1.25) translate(-17 -118)">
-                      <rect
-                        x="10"
-                        y="2"
-                        width="14"
-                        height="12"
-                        rx="4"
-                        fill="#1d2433"
-                        stroke="#151515"
-                        strokeWidth="2"
-                      />
-                      <rect
-                        x="8"
-                        y="10"
-                        width="18"
-                        height="72"
-                        rx="5"
-                        fill="#1d2433"
-                        stroke="#151515"
-                        strokeWidth="2"
-                      />
-                      <rect
-                        x="11"
-                        y="16"
-                        width="4"
-                        height="56"
-                        rx="2"
-                        fill="#ffffff"
-                        opacity="0.18"
-                      />
-                      <rect
-                        x="8"
-                        y="30"
-                        width="18"
-                        height="5"
-                        fill="#d9b25c"
-                        stroke="#151515"
-                        strokeWidth="1.5"
-                      />
-                      <path
-                        d="M25 14 Q29 14 29 18 L29 50 L25 50"
-                        fill="none"
-                        stroke="#d9b25c"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                      />
-                      <rect
-                        x="9"
-                        y="80"
-                        width="16"
-                        height="16"
-                        rx="2"
-                        fill="#2b3550"
-                        stroke="#151515"
-                        strokeWidth="2"
-                      />
-                      <path
-                        d="M10 96 L24 96 L17 118 Z"
-                        fill="#d9b25c"
-                        stroke="#151515"
-                        strokeWidth="2"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M17 100 L17 112"
-                        stroke="#151515"
-                        strokeWidth="1.5"
-                      />
-                    </g>
-                  </g>
-                </g>
-              </g>
-            </g>
+          <svg className="intro-word" viewBox={`-1 -1 ${COLS + 2} ${ROWS + 2}`}>
+            {SQUARES.map((s) => (
+              <rect key={`${s.x}-${s.y}`} className={`sq a${s.a} b${s.b}${s.accent ? " hl" : ""}`} x={s.x + 0.08} y={s.y + 0.08} width="0.84" height="0.84" rx="0.14" />
+            ))}
           </svg>
-          <style dangerouslySetInnerHTML={{ __html: WRITING_CSS }} />
         </div>
+        <style dangerouslySetInnerHTML={{ __html: DELAYS_CSS }} />
         <button id="mk-intro-skip" type="button" className="intro-skip">
           Skip ›
         </button>
