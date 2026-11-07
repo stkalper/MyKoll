@@ -15,6 +15,20 @@ Built for the **Tatum × Walrus “Total Recall”** hackathon, track *Markets &
 
 ![Landing page](docs/landing.png)
 
+## What memory changes
+
+| Without memory | With Walrus Memory |
+|---|---|
+| A call is a price alert: it settles and is gone | Every call, verdict and reason stays in the chat's own Walrus Memory, each sealed before its result was known |
+| Every member's call looks equally credible | Each member has a track record by kind of call, and a new call is flagged as their strong or weak spot |
+| A new call stands alone | The bot brings back the member's last similar call and how it ended |
+| “I never said that” | “Who called furia?” is answered with their own words, and *What I recalled* lists the memories behind the answer, each linked to its blob on Walruscan |
+| A split room is a headcount | A split room is weighed by who has earned trust |
+| The bot asks everyone, every time | It stops asking members who always confirm, and doesn't repeat a call it misread |
+| Its view of people never moves | It says when a result changes its mind about someone, and writes that change to memory |
+
+Whether this makes the bot better at judging people is measured, not assumed: see [Is the memory earning its keep?](#is-the-memory-earning-its-keep)
+
 ## Try it in two minutes
 
 1. Add [@mykoll_bot](https://t.me/mykoll_bot) to a Telegram group. No Telegram? Open [a real chat's public file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc), or the [demo chat](https://mykoll.vercel.app/app).
