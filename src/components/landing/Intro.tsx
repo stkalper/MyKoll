@@ -13,15 +13,19 @@ const SIGNATURE =
   "C462 145 474 112 462 106 C452 102 444 140 444 178 C444 205 450 220 462 218 C474 216 486 190 494 165 " +
   "C504 138 512 112 500 106 C490 102 482 140 482 180 C482 205 488 220 500 218 C510 216 520 208 528 200";
 
-/** When the pen moves (seconds from the first paint); the blot and the push are timed in globals.css. */
-const T = { land: 0.5, toStart: 1.15, write: 1.45, writing: 1.7, away: 3.2 };
+/**
+ * When the pen shows, writes and goes (seconds from the first paint): it appears on the blot as
+ * soon as the ink has spread, writes straight away, and fades where it finished. The blot and the
+ * push through the word are timed in globals.css.
+ */
+const T = { show: 0.8, write: 0.98, writing: 1.7, gone: 2.72 };
 /** Handwriting pace: a slow start, steady letters, a slow finish. Ink and nib share it, so they stay together. */
 const PACE = "0.35 0 0.65 1";
 
 /**
- * The landing's opening, once a session: the pen from the page comes down in the middle of the
- * screen, ink spills from its nib into a blot, the pen writes "MyKoll" into the blot, and the
- * view pushes through the word into the site.
+ * The landing's opening, once a session: a blot of ink spreads in the middle of the screen, the
+ * pen from the page appears on it and writes "MyKoll", fades where it finished, and the view
+ * pushes through the word into the site.
  *
  * The blot and the push are CSS; the pen and the writing are SVG animations on one clock, so the
  * nib stays on the end of the ink. All of it starts with the first paint, before any JavaScript.
@@ -99,15 +103,15 @@ export function Intro() {
               </path>
 
               <g className="intro-pen" opacity="0">
-                <animate attributeName="opacity" values="0;1" begin="0s" dur="0.3s" fill="freeze" />
-                <animate attributeName="opacity" values="1;0" begin={`${T.away + 0.1}s`} dur="0.3s" fill="freeze" />
-                {/* Down to the middle of the page, where the ink spills; then to where the word starts. */}
-                <animateMotion path="M338 -60 L338 198" begin="0s" dur={`${T.land}s`} calcMode="spline" keyTimes="0;1" keyPoints="0;1" keySplines="0.2 0.7 0.3 1" fill="freeze" />
-                <animateMotion path="M338 198 C300 170 200 200 148 222" begin={`${T.toStart}s`} dur={`${T.write - T.toStart}s`} calcMode="spline" keyTimes="0;1" keyPoints="0;1" keySplines="0.4 0 0.6 1" fill="freeze" />
+                <animate attributeName="opacity" values="0;1" begin={`${T.show}s`} dur={`${T.write - T.show}s`} fill="freeze" />
+                <animate attributeName="opacity" values="1;0" begin={`${T.gone}s`} dur="0.28s" fill="freeze" />
+                {/* Settles onto the paper where the word starts. */}
+                <animateMotion path="M150 196 L148 222" begin={`${T.show}s`} dur={`${T.write - T.show}s`} calcMode="spline" keyTimes="0;1" keyPoints="0;1" keySplines="0.2 0.6 0.4 1" fill="freeze" />
                 <animateMotion begin={`${T.write}s`} dur={`${T.writing}s`} calcMode="spline" keyTimes="0;1" keyPoints="0;1" keySplines={PACE} fill="freeze">
                   <mpath href="#intro-ink" />
                 </animateMotion>
-                <animateMotion path="M528 200 C560 160 600 80 660 0" begin={`${T.away}s`} dur="0.4s" calcMode="spline" keyTimes="0;1" keyPoints="0;1" keySplines="0.5 0 0.8 0.4" fill="freeze" />
+                {/* Lifts off the paper a little as it fades. */}
+                <animateMotion path="M528 200 L540 182" begin={`${T.gone}s`} dur="0.28s" fill="freeze" />
                 {/* The pen, nib at the origin, leaning the way a right hand holds it. */}
                 <g transform="rotate(26) scale(1.25) translate(-17 -118)">
                   <rect x="10" y="2" width="14" height="12" rx="4" fill="#1d2433" stroke="#151515" strokeWidth="2" />

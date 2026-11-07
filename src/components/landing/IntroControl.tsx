@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 /** How long the opening runs, in ms; it matches the last keyframes in globals.css. */
-const LENGTH = 4400;
+const LENGTH = 3950;
 
 /** Ends the opening when it's over, or at once on a click, a tap, Escape or "Skip". */
 export function IntroControl() {
