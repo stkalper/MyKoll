@@ -376,6 +376,13 @@ describe("one team backed in a few words", () => {
     assert.deepEqual(backedTeam("ставлю на фут", ["фут"]), ["фут"]);
     assert.deepEqual(backedTeam("фут виграє", ["фут"]), ["фут"]);
     assert.deepEqual(backedTeam("ez fut", ["fut"]), ["fut"]);
+    // Slang for "win" and "easy", written in Cyrillic.
+    assert.deepEqual(backedTeam("наві він", ["наві"]), ["наві"]);
+    assert.deepEqual(backedTeam("ез наві", ["наві"]), ["наві"]);
+  });
+  it("lets slang for win and easy through the filter, as words only", () => {
+    for (const t of ["наві він", "нави вин", "ез наві", "ізі наві"]) assert.ok(mightBeCall(t), t);
+    assert.equal(mightBeCall("наві вінок"), false);
   });
   it("needs no other words once a map score was taken out", () => {
     assert.deepEqual(backedTeam("fut  ", ["fut"], true), ["fut"]);

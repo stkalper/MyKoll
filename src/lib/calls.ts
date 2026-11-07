@@ -55,6 +55,8 @@ export interface CallRow {
   score: string | null;
   /** A CS2 pick on a team's next match that Polymarket hasn't listed yet. */
   waiting: boolean;
+  /** The end of the day a waiting pick named, when it named one: its match must start that day. */
+  wait_by: string | null;
 }
 
 /** Several CS2 picks in one message ("NaVi, Vitality, FURIA"), each on its team's next match. */
@@ -97,6 +99,8 @@ export interface Draft {
   score?: string | null;
   /** CS2: no match listed yet for the team, so the pick waits for its next one. */
   waiting?: boolean;
+  /** CS2, waiting: the end of the day named, if one was ("завтра"). */
+  waitBy?: string | null;
 }
 
 /** How long a pick waits for Polymarket to list the team's next match before it's dropped. */
@@ -128,7 +132,7 @@ const CS2_TEAMS_ALL = new RegExp(CS2_TEAMS.source, "giu");
 /** Any ticker written in caps, e.g. "APT" or "WAL". */
 const TICKER = /(?<![\p{L}\d])[A-Z]{2,6}(?![\p{L}])/u;
 const PREDICTION =
-  /\d|\b(will|gonna|by|to|until|pump|dump|moon|long|short|win|wins|beat|beats|take|takes|crash|ath|tp|sl|entry|target|signal|over|under|above|below|tomorrow|tmrw|tonight|next week|hours?|hrs?|mins?|dollars?|bucks?|cents?|vs|easy|ez|fav|favou?rite|underdog|bet|betting|backing|picks?|locks?|stomps?|smash(es)?|clears?|expect\w*|explod\w*|drop|rally|bounce|breakout|bullish|bearish|targets?|tp\d|buy zone|accumulat\w*|invalidation|eow|eom|eoy|pt|ml|moneyline|incoming|send(ing)?)\b|\+\s?(на|1)|плюс на|изи|ізі|ставл|ставк|проти|против|перемож|перемог|победи|фаворит|андердог|буд|вищ|вище|нижч|завтра|годин|хвилин|бакс|долар|цент|пі[дй]д|впад|вирос|вигра|візьм|рознес|злет|пойд|упад|вырас|выигр|возьм|разнес|порв|лонг|шорт|тейк|стоп|вхід|вход|ціль|цель|сигнал|памп|дамп|зрост|рост|пада/iu;
+  /\d|\b(will|gonna|by|to|until|pump|dump|moon|long|short|win|wins|beat|beats|take|takes|crash|ath|tp|sl|entry|target|signal|over|under|above|below|tomorrow|tmrw|tonight|next week|hours?|hrs?|mins?|dollars?|bucks?|cents?|vs|easy|ez|fav|favou?rite|underdog|bet|betting|backing|picks?|locks?|stomps?|smash(es)?|clears?|expect\w*|explod\w*|drop|rally|bounce|breakout|bullish|bearish|targets?|tp\d|buy zone|accumulat\w*|invalidation|eow|eom|eoy|pt|ml|moneyline|incoming|send(ing)?)\b|\+\s?(на|1)|плюс на|изи|ізі|ставл|ставк|проти|против|перемож|перемог|победи|фаворит|андердог|буд|вищ|вище|нижч|завтра|годин|хвилин|бакс|долар|цент|пі[дй]д|впад|вирос|вигра|візьм|рознес|злет|пойд|упад|вырас|выигр|возьм|разнес|порв|лонг|шорт|тейк|стоп|вхід|вход|ціль|цель|сигнал|памп|дамп|зрост|рост|пада|(?<![\p{L}])(?:він|вин|ез|єз|ізі|ізи|іззі)(?![\p{L}])/iu;
 
 /** Cheap filter so the model only sees messages that could plausibly be a call. */
 export function mightBeCall(text: string): boolean {
@@ -387,7 +391,7 @@ export function teamList(text: string, teams: string[]): string[] | null {
  * ("завтра") aren't here: a call that names a day goes to the model, which reads the deadline.
  */
 const BACKING =
-  /^(?:ставлю|ставка|ставку|ставки|на|за|виграє|виграють|переможе|переможуть|выиграет|победит|забере|заберуть|тащить|тащит|затащить|затащит|изи|ізі|ez|easy|win|wins|fav|lock|pick|my|go|гоу|плюс|\+|\+1)$/iu;
+  /^(?:ставлю|ставка|ставку|ставки|на|за|виграє|виграють|переможе|переможуть|выиграет|победит|забере|заберуть|тащить|тащит|затащить|затащит|изи|ізі|ізи|іззі|ез|єз|він|вин|ez|easy|win|wins|fav|lock|pick|my|go|гоу|плюс|\+|\+1)$/iu;
 
 /**
  * One team and only words that back it: a call on that team, which the model misses in short Ukrainian.
@@ -461,11 +465,14 @@ function tooLate(deadline: Date): Unplaced | null {
  * it, judged a few hours after it starts. With an opponent and no time said, a match is usually
  * within a day.
  */
+/** Whether a match starts on the day that ends at `said` (a named day is read as its last minute). */
+const onDay = (at: Date, said: Date | null) => !said || (at.getTime() <= said.getTime() && at.getTime() > said.getTime() - DAY);
+
 async function placePick(
   team: string,
   rival: string | null | undefined,
   said: Date | null,
-): Promise<{ subject: string; opponent: string | null; deadline: string; waiting?: boolean } | Unplaced> {
+): Promise<{ subject: string; opponent: string | null; deadline: string; waiting?: boolean; waitBy?: string | null } | Unplaced> {
   let subject = team.trim();
   let opponent = rival?.trim() || null;
   let deadline = said ?? new Date(Date.now() + DAY);
@@ -478,16 +485,21 @@ async function placePick(
   // A match being played right now is the one the author means, unless they named a later day.
   // Polymarket trades CS2 live, so the receipt shows the odds at the moment of the call.
   const [live, next] = await Promise.all([lookup(startedMatch(subject, opponent)), lookup(nextMatch(subject, said ?? undefined, opponent))]);
-  const match = live && (!said || live.at.getTime() > said.getTime() - DAY) ? live : next;
+  // A day named ("завтра") means a match that day, not the nearest one on another.
+  const match = live && (!said || live.at.getTime() > said.getTime() - DAY) ? live : next && onDay(next.at, said) ? next : null;
+  const waitBy = said?.toISOString() ?? null;
   if (match) {
     ({ team: subject, opponent } = match);
     // Judged once the match is over: a few hours after it starts, and at least an hour from now.
     const over = Math.max(match.at.getTime() + 4 * 3_600_000, Date.now() + 3_600_000);
     if (!said || deadline.getTime() < over) deadline = new Date(over);
   } else if (!opponent) {
-    // A real team with nothing listed yet: the pick waits for its next match, unless a day was named.
-    const known = said ? null : await knownTeam(subject).catch(() => null);
-    if (known) return { subject: known, opponent: null, deadline: new Date(Date.now() + WAIT_DAYS * DAY).toISOString(), waiting: true };
+    // A real team with nothing listed yet: the pick waits for its next match, or its match on the day named.
+    const known = await knownTeam(subject).catch(() => null);
+    if (known) {
+      const until = said ? said.getTime() + DAY / 2 : Date.now() + WAIT_DAYS * DAY;
+      return tooLate(new Date(until)) ?? { subject: known, opponent: null, deadline: new Date(until).toISOString(), waiting: true, waitBy };
+    }
     return { reason: `I can't find a match ${subject} plays this week. Name the opponent, e.g. "${subject} beat FaZe".`, short: `no match found for ${subject}`, speak: true };
   } else {
     // A named match Polymarket hasn't listed yet, between teams it has listed before: wait for it,
@@ -495,7 +507,7 @@ async function placePick(
     const [us, them] = await Promise.all([knownTeam(subject).catch(() => null), knownTeam(opponent).catch(() => null)]);
     if (us && them) {
       const until = Math.max(said ? said.getTime() + DAY : 0, Date.now() + PAIR_WAIT_DAYS * DAY);
-      return { subject: us, opponent: them, deadline: new Date(until).toISOString(), waiting: true };
+      return { subject: us, opponent: them, deadline: new Date(until).toISOString(), waiting: true, waitBy };
     }
   }
   return tooLate(deadline) ?? { subject, opponent, deadline: deadline.toISOString() };
@@ -644,19 +656,21 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
   if (draft.waiting)
     note = draft.opponent
       ? `Waiting for Polymarket to list ${draft.subject} vs ${draft.opponent}; if it isn't listed by ${when(draft.deadline)}, the chat confirms the winner.`
-      : `Waiting for Polymarket to list ${draft.subject}'s next match (up to ${WAIT_DAYS} days).`;
+      : draft.waitBy
+        ? `Waiting for Polymarket to list ${draft.subject}'s match on ${new Date(draft.waitBy).toLocaleDateString("en-GB", { timeZone: config.timezone, weekday: "long", day: "numeric", month: "short" })}.`
+        : `Waiting for Polymarket to list ${draft.subject}'s next match (up to ${WAIT_DAYS} days).`;
 
   const repeat = await justLogged(chat.id, author.id, draft);
   if (repeat) return { error: `Already logged: that's receipt #${repeat}.` };
 
   const [call] = await db<CallRow>(
-    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id, source, shared_by_id, score, waiting, result_note)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) returning *`,
+    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id, source, shared_by_id, score, waiting, result_note, wait_by)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) returning *`,
     [
       chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target,
       q?.price ?? null, q?.source ?? null, q?.proof ? JSON.stringify(q.proof) : null, q?.check ?? null, market ? JSON.stringify(market) : null,
       draft.quote, draft.deadline, slateId, draft.source ? JSON.stringify(draft.source) : null, draft.source ? sharer.id : null,
-      draft.score ?? null, Boolean(draft.waiting), note,
+      draft.score ?? null, Boolean(draft.waiting), note, draft.waiting ? (draft.waitBy ?? null) : null,
     ],
   );
 
@@ -760,9 +774,10 @@ const LOOK_EVERY = 30 * 60_000;
 async function placeWaiting(call: CallRow): Promise<CallRow | null> {
   if (Date.now() - (lastLooked.get(call.id) ?? 0) < LOOK_EVERY) return null;
   lastLooked.set(call.id, Date.now());
-  // A named match waits for that pair; a team on its own, for its next match.
-  const match = await nextMatch(call.subject, undefined, call.opponent).catch(() => null);
-  if (!match) return null;
+  // A named match waits for that pair; a team on its own, for its next match; a named day, for a match that day.
+  const by = call.wait_by ? new Date(call.wait_by) : null;
+  const match = await nextMatch(call.subject, by ?? undefined, call.opponent).catch(() => null);
+  if (!match || !onDay(match.at, by)) return null;
   const over = new Date(Math.max(match.at.getTime() + 4 * 3_600_000, Date.now() + 3_600_000));
   const found = await findMatch(match.team, match.opponent, over, call.score).catch(() => null);
   // Its odds are from now, not from when it was called, so they don't count towards the edge on the market.
@@ -843,7 +858,12 @@ export async function resolveDue(): Promise<Resolution[]> {
         if (placed) out.push({ call: placed, placed: true });
         if (!due) continue;
         if (!call.opponent) {
-          const dropped = await drop(call, `Polymarket didn't list a match for ${call.subject} within ${WAIT_DAYS} days, so this pick was dropped.`);
+          const dropped = await drop(
+            call,
+            call.wait_by
+              ? `Polymarket didn't list a match for ${call.subject} on the day named, so this pick was dropped.`
+              : `Polymarket didn't list a match for ${call.subject} within ${WAIT_DAYS} days, so this pick was dropped.`,
+          );
           if (dropped) out.push({ call: dropped, dropped: true });
           continue;
         }
