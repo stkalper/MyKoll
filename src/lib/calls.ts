@@ -99,7 +99,7 @@ export interface Draft {
   score?: string | null;
   /** CS2: no match listed yet for the team, so the pick waits for its next one. */
   waiting?: boolean;
-  /** CS2, waiting: the end of the day named, if one was ("завтра"). */
+  /** CS2, waiting: the end of the day named, if one was ("tomorrow"). */
   waitBy?: string | null;
 }
 
@@ -137,7 +137,7 @@ const PREDICTION =
 /** Cheap filter so the model only sees messages that could plausibly be a call. */
 export function mightBeCall(text: string): boolean {
   if (text.length < 4 || text.length > MAX_MESSAGE || text.startsWith("/")) return false;
-  // A bare list of teams is a set of picks: "наві, віталіті, мауз, фуріа".
+  // A bare list of teams is a set of picks: "NaVi, Vitality, MOUZ, FURIA", in any spelling.
   if ((text.match(CS2_TEAMS_ALL) ?? []).length >= 2) return true;
   return (CRYPTO.test(text) || TICKER.test(text) || CS2_TEAMS.test(text)) && PREDICTION.test(text);
 }
@@ -289,7 +289,7 @@ export async function extractCall(text: string, posted?: Date): Promise<Draft | 
   // A bare list of teams is always a set of picks; the model says so only some of the time.
   const listed = teamList(text, teams) ?? (await listWithUnknownTeams(text, teams));
   if (listed) return slateOf(listed.map((team) => ({ team, opponent: null })), null, quoteOf(text), null);
-  // One team backed in a few words, maybe with a map score ("фут 2:0"), which the model reads as football.
+  // One team backed in a few words, maybe with a map score (FUT 2:0 in Cyrillic, which the model reads as football).
   const score = scoreIn(text);
   const backed = score ? backedTeam(text.replace(SCORE, " "), teams, true) : backedTeam(text, teams);
   if (backed) {
@@ -371,7 +371,7 @@ export async function extractCall(text: string, posted?: Date): Promise<Draft | 
 const ONLY_JOINERS = /^(?:[\s,;:.!?()+&/|\-–—]|(?<![\p{L}])(?:and|і|й|та|и)(?![\p{L}]))*$/iu;
 
 /**
- * The teams of a message that is only a list of them ("Legacy, mongolz, mouz", "наві віталіті"),
+ * The teams of a message that is only a list of them ("Legacy, mongolz, mouz", or the same in Cyrillic),
  * in the order written; null when it says anything else, which the model has to read.
  */
 export function teamList(text: string, teams: string[]): string[] | null {
@@ -387,15 +387,15 @@ export function teamList(text: string, teams: string[]): string[] | null {
 }
 
 /**
- * Words that back a team and say nothing else: "ставлю на фут", "фут виграє", "ez fut". Times
- * ("завтра") aren't here: a call that names a day goes to the model, which reads the deadline.
+ * Words that back a team and say nothing else ("I'm backing FUT", "FUT wins", "ez fut", in Ukrainian,
+ * Russian or English). Times ("tomorrow") aren't here: a call that names a day goes to the model, which reads the deadline.
  */
 const BACKING =
   /^(?:ставлю|ставка|ставку|ставки|на|за|виграє|виграють|переможе|переможуть|выиграет|победит|забере|заберуть|тащить|тащит|затащить|затащит|изи|ізі|ізи|іззі|ез|єз|він|вин|ez|easy|win|wins|fav|lock|pick|my|go|гоу|плюс|\+|\+1)$/iu;
 
 /**
  * One team and only words that back it: a call on that team, which the model misses in short Ukrainian.
- * With `scored` (a map score was in the message and is taken out) the team alone is enough: "фут 2:0".
+ * With `scored` (a map score was in the message and is taken out) the team alone is enough: "FUT 2:0".
  */
 export function backedTeam(text: string, teams: string[], scored = false): string[] | null {
   if (teams.length !== 1) return null;
@@ -485,7 +485,7 @@ async function placePick(
   // A match being played right now is the one the author means, unless they named a later day.
   // Polymarket trades CS2 live, so the receipt shows the odds at the moment of the call.
   const [live, next] = await Promise.all([lookup(startedMatch(subject, opponent)), lookup(nextMatch(subject, said ?? undefined, opponent))]);
-  // A day named ("завтра") means a match that day, not the nearest one on another.
+  // A day named ("tomorrow") means a match that day, not the nearest one on another.
   const match = live && (!said || live.at.getTime() > said.getTime() - DAY) ? live : next && onDay(next.at, said) ? next : null;
   const waitBy = said?.toISOString() ?? null;
   if (match) {

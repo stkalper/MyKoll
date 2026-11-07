@@ -48,9 +48,9 @@ Every claim in this README can be checked against the live bot, Walrus Mainnet, 
 | It runs in real group chats | [A real chat's public file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc) · [`/api/stats`](https://mykoll.vercel.app/api/stats) | The chat's board, every receipt, what memory changed there; live counts of groups, calls and memories. The group's admin opened the file with `/public` and can close it again |
 | Each call is sealed on Walrus Mainnet before its result | [Receipt #41](https://mykoll.vercel.app/r/41-576b64f0f6d0) → [its blob on Walruscan](https://walruscan.com/mainnet/blob/BDAWHGg0B-Hl0TUTsb3QueATgvlngq80-OJmJo8cK54) | The blob was sealed when the call was logged, before the deadline it was judged at |
 | Prices come from the Tatum Price API | [Receipt #41](https://mykoll.vercel.app/r/41-576b64f0f6d0): “Bnb 705 in 3 hours” | BNB $702.92 when called, $705.06 at the deadline, source *Tatum Price API*: called it |
-| Sui tokens are priced on-chain through Tatum Sui RPC | [Receipt #4](https://mykoll.vercel.app/r/4-154c157cf7cf): “DEEP впаде нижче 0.015 за тиждень” | DEEP $0.0170 from its Cetus pool, source *on-chain · Tatum Sui RPC*; it settles on 4 November |
+| Sui tokens are priced on-chain through Tatum Sui RPC | [Receipt #4](https://mykoll.vercel.app/r/4-154c157cf7cf): “DEEP falls below 0.015 within a week” (written in Ukrainian) | DEEP $0.0170 from its Cetus pool, source *on-chain · Tatum Sui RPC*; it settles on 4 November |
 | An on-chain price links the transaction behind it | [Receipt #44](https://mykoll.vercel.app/r/44-7aa9b7005a62) → [the Sui transaction](https://suiscan.xyz/mainnet/tx/FZJuTtoHKksTummub6rXz1cJKNg2zhSv41AyX6wqfshU) | SUI $0.898 → $0.899 from the Cetus pool, the transaction that last set the pool's price, and the Price API 0.2% apart. Read after Tatum's credits ran out, so through public Sui GraphQL, and the receipt says so |
-| CS2 picks are matched to Polymarket and settled from it | [Receipt #26](https://mykoll.vercel.app/r/26-405237a656c9) → [the market](https://polymarket.com/event/cs2-nemi1-furia-2026-10-31) | “Изи для фуріа”: FURIA to beat Nemiga, Polymarket at 72% when called, settled from the market: called it |
+| CS2 picks are matched to Polymarket and settled from it | [Receipt #26](https://mykoll.vercel.app/r/26-405237a656c9) → [the market](https://polymarket.com/event/cs2-nemi1-furia-2026-10-31) | “Easy for FURIA” (in Ukrainian slang): FURIA to beat Nemiga, Polymarket at 72% when called, settled from the market: called it |
 | Memory changes what the bot does | [The public file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc), *What memory changed here* · `memoryEffects` in [`/api/stats`](https://mykoll.vercel.app/api/stats) | Each time a recalled record or habit changed a reply: a past call brought back, a call logged without asking |
 | The memory is scored honestly | `memoryCheck` in [`/api/stats`](https://mykoll.vercel.app/api/stats) | The bot's trust scored against outcomes next to a bot that forgets and a bot that knows only the chat's hit rate, published while it's a tie with the second ([why](#is-the-memory-earning-its-keep)) |
 | Answers come from memory, not from the model | Ask `@mykoll_bot who called furia?` in a group, then tap **🧠 What I recalled** | The memories the answer was built from, each linked to its blob on Walruscan |
@@ -63,7 +63,7 @@ Every crypto or esports chat has the same fight: *“you said it would pump!”*
 
 ## How it works
 
-1. **Someone makes a call** in a normal message or with `/call`. An LLM decides whether it is a checkable prediction and pulls out the asset, direction, target and deadline. It understands relative times (“in 2 hours”, “через 5 годин”) and day names (“by Friday” means the end of Friday). It works in English, Ukrainian, Russian and other languages. See [what counts as a call](#what-counts-as-a-call).
+1. **Someone makes a call** in a normal message or with `/call`. An LLM decides whether it is a checkable prediction and pulls out the asset, direction, target and deadline. It understands relative times (“in 2 hours”, and the same in Ukrainian) and day names (“by Friday” means the end of Friday). It works in English, Ukrainian, Russian and other languages. See [what counts as a call](#what-counts-as-a-call).
 2. **The bot keeps the receipt.** It stores who said it, the exact words, when, and the price at that moment, from Tatum (for now, from [public fallbacks](#tatum-prices-you-can-check)). In *ask* mode the author taps “Log it” first. In *auto* mode it is logged straight away, and the author can undo it.
 3. **The author can add the why** by replying to the receipt or with `/why`.
 4. **At the deadline the bot posts first.** It shows ✅ or ❌, the final price and the author’s reasoning, plus a link to a public card that can be shared.
@@ -78,11 +78,11 @@ People don’t write calls in a format, so the bot reads them the way they are s
 |---|---|
 | `SUI to $5 by Friday` | SUI above $5.00, judged at the end of Friday |
 | `BTC 102k tomorrow` | No side said, so it compares with the price now: BTC at $76,900 makes it a call for **up** (above $102,000) |
-| `СУІ вище 1 бакса через 5 годин` | SUI above $1.00, judged in exactly five hours |
+| `SUI above a buck in 5 hours`, written in Ukrainian | SUI above $1.00, judged in exactly five hours |
 | `TRX long from 0.34, TP 0.37. Broke daily resistance on volume` | A trading signal: TRX above the first take-profit. The reasoning is filed as the call’s *why* |
 | `NaVi take FaZe tonight` · `Spirit beat Vitality` | A pick on the coming match |
-| `easy for Vitality` · `изи для НАВІ завтра` | No opponent named: the bot looks up the team’s next match on Polymarket (on the day named, if any) |
-| `FaZe 2-0 G2` · `ставлю на віталіті проти мауз` · `+1 FURIA` | A predicted score or betting slang is a pick on the winner |
+| `easy for Vitality` · `easy for NaVi tomorrow` (in Ukrainian slang too) | No opponent named: the bot looks up the team’s next match on Polymarket (on the day named, if any) |
+| `FaZe 2-0 G2` · `backing Vitality vs MOUZ` (any language) · `+1 FURIA` | A predicted score or betting slang is a pick on the winner |
 | `bcgame ez` while the match is on | The match being played counts, at Polymarket’s live odds |
 | `NaVi, Vitality, FURIA, fnatic` | **Several picks at once** (see below) |
 | `https://x.com/cryptoguru/status/…` · `https://t.me/channel/123` · a post forwarded from a channel | **A call from a post** (see below) |
@@ -198,7 +198,7 @@ Every crypto call is judged by a price from Tatum (or, for now, the public fallb
 | Asset | Source | How |
 |---|---|---|
 | BTC, ETH, SOL and other majors | **Tatum Price API** | `GET /v4/data/rate/symbol` |
-| Coins the Price API doesn't list: HYPE, FARTCOIN, PURR, ZEREBRO, MOODENG and the rest of Hyperliquid’s 230+ | **Hyperliquid public API** | `POST /info {"type":"allMids"}`: the perp’s mid price, else the spot pair against USDC (`kPEPE` is 1,000 PEPE). Its coin list also lets the filter spot a call written in lower case (“fartcoin 0.2 завтра”), and the names found are passed to the LLM so “zerebro” reads as ZEREBRO |
+| Coins the Price API doesn't list: HYPE, FARTCOIN, PURR, ZEREBRO, MOODENG and the rest of Hyperliquid’s 230+ | **Hyperliquid public API** | `POST /info {"type":"allMids"}`: the perp’s mid price, else the spot pair against USDC (`kPEPE` is 1,000 PEPE). Its coin list also lets the filter spot a call written in lower case (“fartcoin 0.2 tomorrow”), and the names found are passed to the LLM so “zerebro” reads as ZEREBRO |
 | SUI, WAL, DEEP, CETUS, HAEDAL, NAVX, NS, IKA, HIPPO, SCA, LOFI | **Tatum Sui RPC (gRPC)** | Reads the token’s deepest **Cetus CLMM pool on Sui mainnet** and converts `current_sqrt_price` (Q64.64) to USD |
 | Stock tokens TSLA, NVDA, AAPL, SPY, MSFT, AMZN, GOOGL, META, COIN; memecoins PONS, CASHCAT | **Tatum Robinhood Chain RPC** | Reads the token’s deepest **Uniswap v3 pool on Robinhood Chain**, quoted in USDG or via WETH/USDG, and converts `sqrtPriceX96` (Q64.96) to USD |
 

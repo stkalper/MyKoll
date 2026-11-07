@@ -57,3 +57,6 @@ skills-lock.json
 
 # demo video: its Remotion project, renders and footage stay local
 /video
+
+# Local extraction samples (in Ukrainian and Russian), kept out of the repository
+scripts/samples.local.txt

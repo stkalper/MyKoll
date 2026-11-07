@@ -398,8 +398,8 @@ export const upcomingCs2Matches = async () => (await upcomingEvents()).filter(ah
 
 /**
  * A team's next match on Polymarket that hasn't started (against this opponent, if named), so a
- * call lands on when the match is played ("изи для НАВІ завтра"): on the day the author named
- * ("завтра" is 23:59 tomorrow), else the soonest this week. Names are spelled the way Polymarket
+ * call lands on when the match is played ("easy for NaVi tomorrow"): on the day the author named
+ * ("tomorrow" is 23:59 tomorrow), else the soonest this week. Names are spelled the way Polymarket
  * spells them.
  */
 export async function nextMatch(team: string, by?: Date, opponent?: string | null): Promise<{ team: string; opponent: string; at: Date } | null> {

@@ -5,7 +5,7 @@ import { extractCall, mightBeCallNow } from "../src/lib/calls";
 
 const samples = process.argv.length > 2
   ? process.argv.slice(2)
-  : ["Legacy, mongolz, mouz", "наві віталіті", "mouz і legacy", "navi vs faze", "mongolz хто грає завтра?", "mouz or legacy?"];
+  : ["Legacy, mongolz, mouz", "navi vitality", "mouz and legacy", "navi vs faze", "mongolz who plays tomorrow?", "mouz or legacy?"];
 for (const text of samples) {
   const pre = await mightBeCallNow(text);
   const r = pre ? await extractCall(text) : null;

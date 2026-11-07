@@ -9,7 +9,7 @@ for (const coin of ["BTC", "HYPE", "FARTCOIN", "PURR", "PEPE", "KAITO", "VIRTUAL
   const q = await quote(coin).catch((e) => String(e));
   console.log(coin.padEnd(9), typeof q === "object" && q ? `${q.price} · ${q.source}` : q);
 }
-for (const text of ["fartcoin 0.2 завтра", "purr до 0.15 до пятниці", "kaito pump to 2$ this week", "zerebro x2 incoming"]) {
+for (const text of ["fartcoin 0.2 tomorrow", "purr to 0.15 by friday", "kaito pump to 2$ this week", "zerebro x2 incoming"]) {
   const maybe = await mightBeCallNow(text);
   const draft = maybe ? await extractCall(text) : null;
   console.log(JSON.stringify(text), "→ filter", maybe, "→", draft && "subject" in draft ? `${draft.subject} ${draft.direction} ${draft.target ?? draft.targetPct ?? ""}` : JSON.stringify(draft));

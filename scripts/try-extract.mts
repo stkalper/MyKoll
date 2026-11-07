@@ -1,28 +1,24 @@
 // Quick check of call extraction: npx tsx --env-file=.env.local scripts/try-extract.mts
+import { existsSync, readFileSync } from "node:fs";
 import { extractCall, mightBeCall } from "../src/lib/calls";
+
+function local(): string[] {
+  const file = new URL("./samples.local.txt", import.meta.url);
+  return existsSync(file) ? readFileSync(file, "utf8").split(/\r?\n/).map((l) => l.trim()).filter(Boolean) : [];
+}
 
 const samples = [
   "SUI to $5 by Friday",
-  "біток впаде нижче 90к до неділі",
-  "NaVi сьогодні рознесуть FaZe",
   "sol looks good ngl",
   "who's watching the major tonight?",
   "eth up by tomorrow evening",
   "Spirit beat Vitality, easy",
-  "изи для віталіті завтра",
-  "фнатік ізі",
-  "ставлю на віталіті проти мауз",
-  "2:1 фурія проти немиги",
-  "тесла до 450 до пʼятниці",
   "NVDA under 200 by end of month",
   "PONS to 50 cents this week",
   "TRX long, entry 0.33, TP 0.36, SL 0.31",
-  "лонг трх від 0.34, тейк 0.37",
-  "trx шорт, ціль 0.30 до неділі",
-  "БТС 102к завтра",
   "btc 70k tomorrow",
-  "СУІ вище 1 бакса через 5 годин",
-  "Сигнал: TRX лонг від 0.34, тейк 0.37, стоп 0.32. Чому: пробили денний опір на об'ємі, фандинг негативний, а Justin Sun знову скуповує. Тримаю до кінця тижня.",
+  // More, in Ukrainian and Russian, from a local file kept out of the repository (one per line).
+  ...local(),
 ];
 for (const s of samples) {
   const pre = mightBeCall(s);

@@ -8,8 +8,8 @@ import { blobUrl } from "./proof";
 import { memoryScorecard, scorecardLine } from "./scorecard";
 
 /**
- * A question about past calls put to the room rather than to the bot ("who called nemiga?",
- * "хто казав про SUI"). It's the bot's job to answer those, so it does without being tagged. Kept
+ * A question about past calls put to the room rather than to the bot ("who called nemiga?", or
+ * "who said SUI" in Ukrainian). It's the bot's job to answer those, so it does without being tagged. Kept
  * to how such questions start, so ordinary chat ("who's watching tonight?") is left alone.
  */
 const RECALL =
@@ -34,8 +34,8 @@ const RU_WORDS = /(?<![\p{L}])(кто|что|как|когда|какой|как
 
 /**
  * The language to answer a question in, decided here rather than by the model: the memories are
- * full of quotes in Russian and surzhyk ("изи для фуріа"), and the model then drifts into Russian
- * on a short Ukrainian question that has no і, ї or є. Mostly Latin letters is English; Cyrillic
+ * full of quotes in Russian and surzhyk, and the model then drifts into Russian on a short
+ * Ukrainian question that has none of the letters only Ukrainian uses. Mostly Latin letters is English; Cyrillic
  * is Ukrainian unless only Russian letters or words show.
  */
 export function replyLanguage(text: string): "English" | "Ukrainian" | "Russian" {

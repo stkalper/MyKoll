@@ -87,7 +87,7 @@ Halfway through the hackathon the project used up its Tatum credits. With the Ta
 
 ## Things I learned building it
 
-- **People don't write calls in a format.** “Bnb 705 in 3 hours”, “изи для фуріа”, “TRX long from 0.34, TP 0.37”, a list of four teams, a forwarded post from a signal channel. An LLM reads them, with rules taken from real public channels (brags like “TP3 HIT ✅” and both-ways scenarios are not calls). When the model was unreliable, a rule replaced it. A bare list of team names is now a set of picks by rule, because the model got it right only one time in three.
+- **People don't write calls in a format.** “Bnb 705 in 3 hours”, “easy for FURIA” in Ukrainian slang, “TRX long from 0.34, TP 0.37”, a list of four teams, a forwarded post from a signal channel. An LLM reads them, with rules taken from real public channels (brags like “TP3 HIT ✅” and both-ways scenarios are not calls). When the model was unreliable, a rule replaced it. A bare list of team names is now a set of picks by rule, because the model got it right only one time in three.
 - **Polymarket's `closeTime` is not the match time.** CS2 markets keep trading while the match is played, so the real start comes from the event description, in New York time.
 - **Webhooks get delivered twice.** A slow reply made Telegram resend an update, and a few calls were logged twice. Updates are now de-duplicated by id, and hiding a duplicate takes it out of the record.
 - **A memory metric has to be allowed to lose.** Otherwise it's marketing.

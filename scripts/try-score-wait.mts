@@ -9,7 +9,7 @@ const { db } = await import("../src/lib/db");
 const chat = { id: -424242, title: "score/wait test" };
 const me = { id: 4242, name: "@tester" };
 
-for (const text of ["фут 2:0", "spirit 2-1", "mouz g2 изи", "ставлю на fokus"]) {
+for (const text of ["fut 2:0", "spirit 2-1", "mouz g2 ez", "backing fokus"]) {
   const draft = await extractCall(text);
   if (!draft || "reason" in draft || "picks" in draft) {
     console.log(text, "→", draft);

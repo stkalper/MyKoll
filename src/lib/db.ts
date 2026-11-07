@@ -52,7 +52,7 @@ alter table calls add column if not exists memory_blob text;
 alter table calls add column if not exists score text;
 -- CS2 picks on a team's next match before Polymarket lists it: logged now, matched once it does.
 alter table calls add column if not exists waiting boolean not null default false;
--- The day a waiting pick named ("завтра"): only a match on that day will do.
+-- The day a waiting pick named ("tomorrow"): only a match on that day will do.
 alter table calls add column if not exists wait_by timestamptz;
 create index if not exists calls_chat_idx on calls (chat_id, made_at desc);
 create index if not exists calls_due_idx on calls (status, deadline);
