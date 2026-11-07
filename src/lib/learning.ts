@@ -238,11 +238,17 @@ export function likeCallsIn(texts: string[], call: Pick<CallRow, "id" | "market"
 /** A receipt line on how calls like this one have gone in the chat, from memory, once there are at least 3. */
 async function likeCallsLine(call: CallRow): Promise<string | null> {
   const lean = leanOf(call);
-  // Two searches side by side: the plain one finds this coin or team's results reliably, the worded one
-  // ranks its side higher; on its own the worded one sometimes comes back empty. Either may fail.
-  const queries = [`RESULT ${call.subject}`, lean === "pick" ? `RESULT ${call.subject} to beat` : `RESULT ${call.subject} ${lean === "bullish" ? "above" : "below"}`];
+  // Three searches worded differently, side by side, and their results merged: now and then the
+  // relayer answers one with a handful of entries, or with entries on something else, and in
+  // trials on the real chat one of three always came back whole. Any of them may fail.
+  const worded = lean === "pick" ? `RESULT ${call.subject} to beat` : `RESULT ${call.subject} ${lean === "bullish" ? "above" : "below"}`;
+  const queries: [string, number][] = [
+    [`RESULT ${call.subject}`, 60],
+    [`${call.subject} call result`, 60],
+    [worded, 30],
+  ];
   const [found, hiddenRows] = await Promise.all([
-    Promise.all(queries.map((q) => recall(call.chat_id, q, 30).catch(() => []))),
+    Promise.all(queries.map(([q, limit]) => recall(call.chat_id, q, limit).catch(() => []))),
     db<{ id: number }>(`select id from calls where chat_id = $1 and hidden`, [call.chat_id]),
   ]);
   const like = likeCallsIn(
