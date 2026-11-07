@@ -284,6 +284,21 @@ By 2 November 2026, the 23 logged calls had been priced by: Tatum Price API 7, T
 
 CS2 calls settle from Polymarket when the match is listed there (see below); otherwise, or until Polymarket resolves it, someone other than the author confirms the winner with one tap.
 
+## Where to look, by judging criterion
+
+| Criterion | What to look at | Where in the code |
+|---|---|---|
+| **Walrus Memory**: meaningful use | One namespace per chat; every call, result, reason, habit and change of mind is written to it; questions are answered from it by meaning | [`memory.ts`](src/lib/memory.ts) (`remember`, `recall`), [`ask.ts`](src/lib/ask.ts) (`answer`) |
+| **Walrus Memory**: it changes what the bot does | Strong and weak spots, the last similar call, rooms weighed by trust, members no longer asked, misreads not repeated, changes of mind | [`learning.ts`](src/lib/learning.ts) (`trackRecords`, `trustOn`), [`effects.ts`](src/lib/effects.ts), [`habits.ts`](src/lib/habits.ts) |
+| **Walrus Memory**: on Mainnet, checkable | Every receipt links its blob on Walruscan, sealed before the result | [`proof.ts`](src/lib/proof.ts) (`blobUrl`), [`scripts/mainnet-evidence.mts`](scripts/mainnet-evidence.mts), [Mainnet evidence](#mainnet-evidence) |
+| **Tatum** | Price API for majors, Sui gRPC for Cetus pools, Robinhood Chain RPC for Uniswap pools, Prediction Market API for Polymarket; public fallbacks on 402, every receipt naming its source | [`tatum.ts`](src/lib/tatum.ts), [`suiPrices.ts`](src/lib/suiPrices.ts), [`robinhoodPrices.ts`](src/lib/robinhoodPrices.ts), [`polymarket.ts`](src/lib/polymarket.ts), [`fallback.ts`](src/lib/fallback.ts), [`/api/health`](https://mykoll.vercel.app/api/health) |
+| **Technical**: is the memory any good? | Trust with a prior chosen on simulated chats, scored against outcomes next to two bots that know less | [`scorecard.ts`](src/lib/scorecard.ts) (`memoryScorecard`), [`scripts/try-trust.mts`](scripts/try-trust.mts), [`/api/stats`](https://mykoll.vercel.app/api/stats) |
+| **Technical**: calls as people write them | A cheap filter, rules where the model was unreliable, the model for the rest; sets of picks, map scores, posts from X and Telegram | [`calls.ts`](src/lib/calls.ts) (`mightBeCall`, `extractCall`), [`posts.ts`](src/lib/posts.ts) |
+| **Technical**: settling on time, on its own | A delayed queue message per deadline, a sweep every 15 minutes, Polymarket's resolution, picks that wait for their match | [`calls.ts`](src/lib/calls.ts) (`resolveDue`), [`schedule.ts`](src/lib/schedule.ts), [`api/queues`](src/app/api/queues) |
+| **Technical**: tests | Call spotting, team matching, map-score odds, the learning loop, trust and pool pricing; CI on every push | [`logic.test.ts`](src/lib/logic.test.ts), [`ci.yml`](.github/workflows/ci.yml) |
+| **Creativity** | Calls stay in the group chat where people already make them; the bot changes its mind out loud; hidden is never rewritten | [`bot.ts`](src/lib/bot.ts), [`effects.ts`](src/lib/effects.ts) |
+| **Presentation** | The landing page, the Mini App, shareable receipts, the blog | [`page.tsx`](src/app/page.tsx), [`app/page.tsx`](src/app/app/page.tsx), [`ReceiptCard.tsx`](src/components/ReceiptCard.tsx), [`docs/blog.md`](docs/blog.md) |
+
 ## Architecture
 
 ```mermaid
