@@ -78,6 +78,7 @@ Long-term memory in a group chat is only OK if people stay in control:
 - Only calls are stored, never the conversation.
 - In ask mode nothing is saved until the author taps “Log it”, and auto-logged calls can be undone.
 - Anyone can hide their call with `/hide` or from the Mini App. It drops off the board and out of the bot's answers, and their record is worked out again without it.
+- Hidden is not rewritten, and that's on purpose. A Walrus blob can't be deleted or edited, so nobody can quietly drop a bad call or change what they said after the fact. That's what makes it a receipt. A hidden call stays sealed and encrypted; it just never shows or counts again.
 - Each chat has its own namespace, so one chat's calls never come up in another chat's answers.
 - A chat's file is private unless an admin opens it with `/public`.
 

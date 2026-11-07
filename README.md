@@ -134,6 +134,7 @@ Without memory, MyKoll is just a price alert. The product is the memory: *who sa
   - Only calls are stored, never the rest of the chat. When someone says a message wasn’t a call, only the bot’s own misreading is kept.
   - The author can **undo** an auto-logged message within 15 minutes.
   - The author can **hide** any call with `/hide`, or from the Mini App’s “What I remember about you” screen. Hidden calls drop off the board, the share links and the bot’s answers. Recall results are filtered by call id.
+  - **Hidden, never rewritten.** Hiding takes a call out of everything the bot shows and counts (the board, its answers, every record and the Memory Check), but it doesn’t erase it: a Walrus blob can’t be deleted or edited. That is the point of a receipt. Nobody can quietly drop a bad call or reword it after the fact, and the history a member’s record was built from stays the history that happened. The blob stays encrypted, readable only with the bot’s key, so outsiders see only that it exists and when it was sealed.
   - Reasons can be added later, so old memories gain context instead of going stale.
 
 Code: [`src/lib/memory.ts`](src/lib/memory.ts), [`src/lib/ask.ts`](src/lib/ask.ts), [`src/lib/calls.ts`](src/lib/calls.ts).
