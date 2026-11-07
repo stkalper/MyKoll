@@ -1,3 +1,4 @@
+import { easing, writingKeyframes } from "@/lib/signature";
 import { IntroControl } from "./IntroControl";
 
 /**
@@ -19,16 +20,28 @@ const SIGNATURE =
  * push through the word are timed in globals.css.
  */
 const T = { show: 0.8, write: 0.98, writing: 1.7, gone: 2.72 };
-/** Handwriting pace: a slow start, steady letters, a slow finish. Ink and nib share it, so they stay together. */
-const PACE = "0.35 0 0.65 1";
+
+/**
+ * The nib's path and the ink, as CSS keyframes sampled from the same points (a slow start,
+ * steady letters, a slow finish), plus when each part of the pen plays.
+ */
+const WRITING_CSS =
+  writingKeyframes(SIGNATURE, "intro-sig", easing(0.35, 0, 0.65, 1)) +
+  `.intro-ink{stroke-dasharray:1 1;stroke-dashoffset:1;animation:intro-sig-ink ${T.writing}s ${T.write}s linear forwards}` +
+  `.intro-nib{animation:intro-sig-nib ${T.writing}s ${T.write}s linear both}` +
+  `.intro-pen{opacity:0;animation:intro-pen-show ${T.write - T.show}s ${T.show}s ease-out forwards,intro-pen-hide 0.28s ${T.gone}s ease-in forwards}` +
+  `.intro-pen-lift{animation:intro-pen-settle ${T.write - T.show}s ${T.show}s ease-out both,intro-pen-lift 0.28s ${T.gone}s ease-in forwards}` +
+  `@keyframes intro-pen-show{to{opacity:1}}@keyframes intro-pen-hide{from{opacity:1}to{opacity:0}}` +
+  `@keyframes intro-pen-settle{from{transform:translate(2px,-26px)}to{transform:translate(0,0)}}` +
+  `@keyframes intro-pen-lift{to{transform:translate(12px,-18px)}}`;
 
 /**
  * The landing's opening, once a session: a blot of ink spreads in the middle of the screen, the
  * pen from the page appears on it and writes "MyKoll", fades where it finished, and the view
  * pushes through the word into the site.
  *
- * The blot and the push are CSS; the pen and the writing are SVG animations on one clock, so the
- * nib stays on the end of the ink. All of it starts with the first paint, before any JavaScript.
+ * All of it is CSS, so it starts with the first paint, before any JavaScript; the nib and the ink
+ * come from the same samples of the signature, so the nib stays on the end of the ink.
  * The script after it hides it before that paint for anyone who has seen it this session or asks
  * for reduced motion; IntroControl handles skipping and takes it away at the end.
  */
@@ -41,8 +54,15 @@ export function Intro() {
             <defs>
               {/* Blurs the drops together and sharpens the edge again: wet, merging ink. */}
               <filter id="intro-goo">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="blur" />
-                <feColorMatrix in="blur" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9" />
+                <feGaussianBlur
+                  in="SourceGraphic"
+                  stdDeviation="9"
+                  result="blur"
+                />
+                <feColorMatrix
+                  in="blur"
+                  values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9"
+                />
               </filter>
             </defs>
             <g filter="url(#intro-goo)" fill="#2c4fb5">
@@ -67,18 +87,38 @@ export function Intro() {
               <circle className="intro-drop s4" cx="300" cy="18" r="4" />
               <circle className="intro-drop s5" cx="588" cy="94" r="4" />
               <g transform="rotate(25 66 262)">
-                <ellipse className="intro-drop s6" cx="66" cy="262" rx="12" ry="4" />
+                <ellipse
+                  className="intro-drop s6"
+                  cx="66"
+                  cy="262"
+                  rx="12"
+                  ry="4"
+                />
               </g>
               <g transform="rotate(-30 544 302)">
-                <ellipse className="intro-drop s7" cx="544" cy="302" rx="14" ry="4" />
+                <ellipse
+                  className="intro-drop s7"
+                  cx="544"
+                  cy="302"
+                  rx="14"
+                  ry="4"
+                />
               </g>
             </g>
-            <ellipse className="intro-shine" cx="245" cy="116" rx="70" ry="16" fill="#ffffff" transform="rotate(-8 245 116)" />
+            <ellipse
+              className="intro-shine"
+              cx="245"
+              cy="116"
+              rx="70"
+              ry="16"
+              fill="#ffffff"
+              transform="rotate(-8 245 116)"
+            />
 
             {/* The signature is centred on the blot; the pen moves in the same space. */}
             <g transform="translate(-38 -18)">
               <path
-                id="intro-ink"
+                className="intro-ink"
                 d={SIGNATURE}
                 pathLength={1}
                 fill="none"
@@ -86,46 +126,88 @@ export function Intro() {
                 strokeWidth="11"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeDasharray="1 1"
-                strokeDashoffset="1"
-              >
-                <animate
-                  attributeName="stroke-dashoffset"
-                  from="1"
-                  to="0"
-                  begin={`${T.write}s`}
-                  dur={`${T.writing}s`}
-                  calcMode="spline"
-                  keyTimes="0;1"
-                  keySplines={PACE}
-                  fill="freeze"
-                />
-              </path>
+              />
 
-              <g className="intro-pen" opacity="0">
-                <animate attributeName="opacity" values="0;1" begin={`${T.show}s`} dur={`${T.write - T.show}s`} fill="freeze" />
-                <animate attributeName="opacity" values="1;0" begin={`${T.gone}s`} dur="0.28s" fill="freeze" />
-                {/* Settles onto the paper where the word starts. */}
-                <animateMotion path="M150 196 L148 222" begin={`${T.show}s`} dur={`${T.write - T.show}s`} calcMode="spline" keyTimes="0;1" keyPoints="0;1" keySplines="0.2 0.6 0.4 1" fill="freeze" />
-                <animateMotion begin={`${T.write}s`} dur={`${T.writing}s`} calcMode="spline" keyTimes="0;1" keyPoints="0;1" keySplines={PACE} fill="freeze">
-                  <mpath href="#intro-ink" />
-                </animateMotion>
-                {/* Lifts off the paper a little as it fades. */}
-                <animateMotion path="M528 200 L540 182" begin={`${T.gone}s`} dur="0.28s" fill="freeze" />
-                {/* The pen, nib at the origin, leaning the way a right hand holds it. */}
-                <g transform="rotate(26) scale(1.25) translate(-17 -118)">
-                  <rect x="10" y="2" width="14" height="12" rx="4" fill="#1d2433" stroke="#151515" strokeWidth="2" />
-                  <rect x="8" y="10" width="18" height="72" rx="5" fill="#1d2433" stroke="#151515" strokeWidth="2" />
-                  <rect x="11" y="16" width="4" height="56" rx="2" fill="#ffffff" opacity="0.18" />
-                  <rect x="8" y="30" width="18" height="5" fill="#d9b25c" stroke="#151515" strokeWidth="1.5" />
-                  <path d="M25 14 Q29 14 29 18 L29 50 L25 50" fill="none" stroke="#d9b25c" strokeWidth="3" strokeLinecap="round" />
-                  <rect x="9" y="80" width="16" height="16" rx="2" fill="#2b3550" stroke="#151515" strokeWidth="2" />
-                  <path d="M10 96 L24 96 L17 118 Z" fill="#d9b25c" stroke="#151515" strokeWidth="2" strokeLinejoin="round" />
-                  <path d="M17 100 L17 112" stroke="#151515" strokeWidth="1.5" />
+              {/* Fades in and out; settles onto the paper and lifts off it; follows the signature. */}
+              <g className="intro-pen">
+                <g className="intro-pen-lift">
+                  <g className="intro-nib">
+                    {/* The pen, nib at the origin, leaning the way a right hand holds it. */}
+                    <g transform="rotate(26) scale(1.25) translate(-17 -118)">
+                      <rect
+                        x="10"
+                        y="2"
+                        width="14"
+                        height="12"
+                        rx="4"
+                        fill="#1d2433"
+                        stroke="#151515"
+                        strokeWidth="2"
+                      />
+                      <rect
+                        x="8"
+                        y="10"
+                        width="18"
+                        height="72"
+                        rx="5"
+                        fill="#1d2433"
+                        stroke="#151515"
+                        strokeWidth="2"
+                      />
+                      <rect
+                        x="11"
+                        y="16"
+                        width="4"
+                        height="56"
+                        rx="2"
+                        fill="#ffffff"
+                        opacity="0.18"
+                      />
+                      <rect
+                        x="8"
+                        y="30"
+                        width="18"
+                        height="5"
+                        fill="#d9b25c"
+                        stroke="#151515"
+                        strokeWidth="1.5"
+                      />
+                      <path
+                        d="M25 14 Q29 14 29 18 L29 50 L25 50"
+                        fill="none"
+                        stroke="#d9b25c"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      />
+                      <rect
+                        x="9"
+                        y="80"
+                        width="16"
+                        height="16"
+                        rx="2"
+                        fill="#2b3550"
+                        stroke="#151515"
+                        strokeWidth="2"
+                      />
+                      <path
+                        d="M10 96 L24 96 L17 118 Z"
+                        fill="#d9b25c"
+                        stroke="#151515"
+                        strokeWidth="2"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M17 100 L17 112"
+                        stroke="#151515"
+                        strokeWidth="1.5"
+                      />
+                    </g>
+                  </g>
                 </g>
               </g>
             </g>
           </svg>
+          <style dangerouslySetInnerHTML={{ __html: WRITING_CSS }} />
         </div>
         <button id="mk-intro-skip" type="button" className="intro-skip">
           Skip ›
