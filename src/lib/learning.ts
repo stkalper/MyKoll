@@ -209,15 +209,61 @@ export const insightLine = (r: TrackRecord) =>
  * What the bot says when an author makes a new call: their record on this kind of call,
  * and their most similar past call, recalled from the chat's Walrus Memory by meaning.
  */
+/** Which way a call leans, for finding its like in memory: bullish or bearish on a coin, or a pick on a team. */
+const leanOf = (c: Pick<CallRow, "market" | "direction">) => (c.market === "cs2" ? "pick" : c.direction === "below" || c.direction === "down" ? "bearish" : "bullish");
+
+/**
+ * How past calls like this one ended, read from the chat's Walrus Memory: the [RESULT] entries of
+ * calls on the same coin leaning the same way, or picks on the same team, by anyone in the chat.
+ * Hidden calls and this call itself are left out, and each call counts once.
+ */
+export function likeCallsIn(texts: string[], call: Pick<CallRow, "id" | "market" | "direction" | "subject">, hidden: Set<number>) {
+  const lean = leanOf(call);
+  const seen = new Map<number, boolean>();
+  for (const text of texts) {
+    const m = text.match(/^\[RESULT #(\d+)\] .*?call ".*?" \((.+?)\) was (RIGHT|WRONG)/);
+    if (!m) continue;
+    const id = Number(m[1]);
+    if (id === call.id || hidden.has(id) || seen.has(id)) continue;
+    const claimed = m[2];
+    if (!claimed.startsWith(`${call.subject} `)) continue;
+    const rest = claimed.slice(call.subject.length + 1);
+    const same =
+      lean === "pick" ? /^to (beat|win)( |$)/.test(rest) : lean === "bullish" ? /^(above|up)( |$)/.test(rest) : /^(below|down)( |$)/.test(rest);
+    if (same) seen.set(id, m[3] === "RIGHT");
+  }
+  return { n: seen.size, hits: [...seen.values()].filter(Boolean).length, lean };
+}
+
+/** A receipt line on how calls like this one have gone in the chat, from memory, once there are at least 3. */
+async function likeCallsLine(call: CallRow): Promise<string | null> {
+  const lean = leanOf(call);
+  const query = lean === "pick" ? `RESULT ${call.subject} to beat` : `RESULT ${call.subject} ${lean === "bullish" ? "above up" : "below down"}`;
+  const [memories, hiddenRows] = await Promise.all([
+    recall(call.chat_id, query, 30),
+    db<{ id: number }>(`select id from calls where chat_id = $1 and hidden`, [call.chat_id]),
+  ]);
+  const like = likeCallsIn(
+    memories.map((m) => m.text),
+    call,
+    new Set(hiddenRows.map((r) => r.id)),
+  );
+  if (like.n < 3) return null;
+  const what = lean === "pick" ? `picks on ${call.subject}` : `${lean} ${call.subject} calls`;
+  await noteEffect(call.chat_id, "last_time", `Recalled ${like.n} past ${what} from memory, ${like.hits} of them right, for ${call.author_name}'s call "${call.quote}".`, call.id);
+  return `🧠 From this chat's memory: ${like.hits} of ${like.n} ${what} came true`;
+}
+
 export async function noteForNewCall(call: CallRow): Promise<string[]> {
   // Recall takes a second or more, so it only runs when the author has a settled call on this coin or team to recall.
-  const [records, [past], room] = await Promise.all([
+  const [records, [past], room, like] = await Promise.all([
     trackRecords(call.chat_id),
     db<{ n: number }>(
       `select count(*)::int as n from calls where chat_id = $1 and author_id = $2 and subject = $3 and status in ('win', 'loss') and not hidden and id <> $4`,
       [call.chat_id, call.author_id, call.subject, call.id],
     ),
     roomNote(call).catch(() => [] as string[]),
+    likeCallsLine(call).catch(() => null),
   ]);
   const record = records.get(String(call.author_id));
   const lines: string[] = [];
@@ -250,6 +296,7 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
       await noteEffect(call.chat_id, "last_time", `Answered ${said} with what they said last time: "${quote}", ${verdict.slice(2)}.`, call.id);
     }
   }
+  if (like) lines.push(like);
   if (room.length) await noteEffect(call.chat_id, "room", `Weighed everyone's record on ${call.subject} to show which way the people worth listening to lean.`, call.id);
   return [...lines, ...room];
 }

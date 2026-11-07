@@ -8,7 +8,7 @@ import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 import { backedTeam, claim, coinNamed, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { coinWords, midsFrom, priceIn } from "./hyperliquid";
-import { recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
+import { likeCallsIn, recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { fromGammaMarket, pickName, scoreOdds, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
@@ -541,3 +541,27 @@ describe("map-score odds on a match just listed", () => {
   });
 });
 
+describe("calls like this one, from memory", () => {
+  const results = [
+    `[RESULT #1] @jake's call "btc 100k" (BTC above $100,000) was RIGHT: BTC was $101,000.`,
+    `[RESULT #2] @max's call "btc to the moon" (BTC up from $90,000) was WRONG: BTC was $88,000.`,
+    `[RESULT #3] @jake's call "btc dumps" (BTC below $80,000) was RIGHT: BTC was $79,000.`,
+    `[RESULT #4] @kate's call "btc 105k" (BTC above $105,000) was WRONG: BTC was $101,000.`,
+    `[RESULT #4] @kate's call "btc 105k" (BTC above $105,000) was WRONG: BTC was $101,000.`,
+    `[RESULT #5] @jake's call "eth 5k" (ETH above $5,000) was RIGHT: ETH was $5,100.`,
+    `[RESULT #6] @max's call "btc 110k" (BTC above $110,000) was RIGHT: BTC was $111,000.`,
+    `[CALL #9] @jake called "btc 120k". Logged as BTC above $120,000.`,
+    `[RESULT #7] @max's call "easy for furia" (FURIA to beat FaZe) was RIGHT: FURIA won.`,
+    `[RESULT #8] @kate's call "faze ez" (FaZe to beat FURIA) was WRONG: FURIA won.`,
+  ];
+  it("counts calls on the same coin leaning the same way, each once, hidden ones left out", () => {
+    const bullish = likeCallsIn(results, { id: 9, market: "crypto", direction: "above", subject: "BTC" }, new Set([6]));
+    assert.deepEqual(bullish, { n: 3, hits: 1, lean: "bullish" });
+    const bearish = likeCallsIn(results, { id: 9, market: "crypto", direction: "down", subject: "BTC" }, new Set());
+    assert.deepEqual(bearish, { n: 1, hits: 1, lean: "bearish" });
+  });
+  it("counts picks on the same team, not against it, and never the call itself", () => {
+    assert.deepEqual(likeCallsIn(results, { id: 7, market: "cs2", direction: "win", subject: "FURIA" }, new Set()), { n: 0, hits: 0, lean: "pick" });
+    assert.deepEqual(likeCallsIn(results, { id: 99, market: "cs2", direction: "win", subject: "FURIA" }, new Set()), { n: 1, hits: 1, lean: "pick" });
+  });
+});

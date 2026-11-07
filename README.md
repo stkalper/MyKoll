@@ -21,7 +21,7 @@ Built for the **Tatum × Walrus “Total Recall”** hackathon, track *Markets &
 |---|---|
 | A call is a price alert: it settles and is gone | Every call, verdict and reason stays in the chat's own Walrus Memory, each sealed before its result was known |
 | Every member's call looks equally credible | Each member has a track record by kind of call, and a new call is flagged as their strong or weak spot |
-| A new call stands alone | The bot brings back the member's last similar call and how it ended |
+| A new call stands alone | The bot brings back the member's last similar call and how it ended, and how calls like it have gone in the chat, read from its memory (*🧠 From this chat's memory: 4 of 7 bullish BTC calls came true*) |
 | “I never said that” | “Who called furia?” is answered with their own words, and *What I recalled* lists the memories behind the answer, each linked to its blob on Walruscan |
 | A split room is a headcount | A split room is weighed by who has earned trust |
 | The bot asks everyone, every time | It stops asking members who always confirm, and doesn't repeat a call it misread |
