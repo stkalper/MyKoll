@@ -204,6 +204,7 @@ body {
   width: min(90vw, 900px);
   /* Close up on the middle of the word, pulling back until it all shows, then a slow drift. */
   transform-origin: 46% 45%;
+  will-change: transform;
   animation:
     intro-pull 2.3s cubic-bezier(0.22, 0.8, 0.3, 1) both,
     intro-drift 1.2s 2.3s ease-out forwards;
@@ -225,24 +226,26 @@ body {
   }
 }
 .intro-word {
-  display: block;
+  display: grid;
+  grid-auto-rows: 1fr;
   width: 100%;
-  height: auto;
-  overflow: visible;
 }
 
 /* A square pops in with a little bounce, like a spring, and later pops out. Delays come from its classes. */
 .sq {
-  fill: var(--paper);
-  transform-box: fill-box;
-  transform-origin: center;
+  display: block;
+  margin: 8%;
+  aspect-ratio: 1;
+  border-radius: 16%;
+  background: var(--paper);
   opacity: 0;
+  will-change: transform, opacity;
   animation:
     sq-in 0.55s var(--a, 0s) cubic-bezier(0.34, 1.7, 0.5, 1) forwards,
     sq-out 0.3s var(--b, 3s) ease-in forwards;
 }
 .sq.hl {
-  fill: var(--hl);
+  background: var(--hl);
 }
 @keyframes sq-in {
   from {

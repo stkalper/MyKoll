@@ -60,7 +60,8 @@ const DELAYS_CSS =
  * at random, seen from close up, while the view pulls back until the whole word shows; then the
  * squares pop out and the page is there.
  *
- * All of it is CSS, so it starts with the first paint, before any JavaScript. The script after it
+ * All of it is CSS on HTML elements, so it starts with the first paint and runs on the compositor,
+ * unaffected by the page's own JavaScript. The script after it
  * hides it before that paint for anyone who has seen it this session or asks for reduced motion;
  * IntroControl handles skipping and takes it away when its fade ends.
  */
@@ -69,11 +70,13 @@ export function Intro() {
     <>
       <div id="mk-intro" className="intro" suppressHydrationWarning>
         <div className="intro-stage" aria-hidden="true">
-          <svg className="intro-word" viewBox={`-1 -1 ${COLS + 2} ${ROWS + 2}`}>
+          {/* HTML, not SVG: transform and opacity on HTML elements run on the compositor, so the squares keep
+              moving while the page's scripts load and hydrate. */}
+          <div className="intro-word" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, aspectRatio: `${COLS} / ${ROWS}` }}>
             {SQUARES.map((s) => (
-              <rect key={`${s.x}-${s.y}`} className={`sq a${s.a} b${s.b}${s.accent ? " hl" : ""}`} x={s.x + 0.08} y={s.y + 0.08} width="0.84" height="0.84" rx="0.14" />
+              <i key={`${s.x}-${s.y}`} className={`sq a${s.a} b${s.b}${s.accent ? " hl" : ""}`} style={{ gridArea: `${s.y + 1} / ${s.x + 1}` }} />
             ))}
-          </svg>
+          </div>
         </div>
         <style dangerouslySetInnerHTML={{ __html: DELAYS_CSS }} />
         <button id="mk-intro-skip" type="button" className="intro-skip">
