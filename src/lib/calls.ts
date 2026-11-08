@@ -136,7 +136,7 @@ const CS2_TEAMS = word(
   "navi|na'vi|natus vincere|нави|наві|faze|фейз|vitality|віталіті|виталити|spirit|спіріт|спирит|g2|mouz|мауз|falcons|liquid|astralis|астраліс|астралис|heroic|furia|фурі\\p{L}*|фури\\p{L}*|(?:the\\s?)?mongolz|монголз|eternal fire|virtus\\.?pro|vp|complexity|3dmax|pain|aurora|b8|monte|nip|big|gamerlegion|betboom|бетбум|bb|бб|parivision|legacy|mibr|imperial|og|fnatic|фнатік\\p{L}*|фнатик\\p{L}*|cloud9|c9|ence|passion ua|tyloo|lynn vision|wildcard|fluxo|nemiga|немиг\\p{L}*|saw|m80|gentle mates|nrg|sashi|bestia|fut|фут|fokus|9ine|acend|bc\.?game|sinners|rare atom|metizport",
 );
 const CRYPTO = word(
-  "\\$[a-z]{2,10}|#[a-z]{2,10}|[a-z]{2,10}/?usdt|navx|haedal|ika|hippo|lofi|scallop|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|trx|tron|трон\\p{L}*|трх|ltc|bch|atom|algo|xlm|matic|vet|cro|chz|tsla|tesla|тесл\\p{L}*|nvda|nvidia|нвід\\p{L}*|aapl|msft|amzn|googl|pons|понс|cashcat|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|бтс|бтц|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи",
+  "\\$[a-z]{2,10}|#[a-z]{2,10}|[a-z]{2,10}/?usdt|navx|haedal|ika|hippo|lofi|scallop|btc|bitcoin|eth|ether\\p{L}*|sol|solana|sui|wal|walrus|xrp|doge|bnb|ton|ada|avax|link|pepe|hype|deep|cetus|trx|tron|трон\\p{L}*|трх|ltc|bch|atom|algo|xlm|matic|vet|cro|chz|tsla|tesla|тесл\\p{L}*|nvda|nvidia|нвід\\p{L}*|aapl|msft|amzn|googl|pons|понс|cashcat|бітк\\p{L}*|битк\\p{L}*|біток|биток|бтк|бтс|бтц|ефір\\p{L}*|етер\\p{L}*|эфир\\p{L}*|сол\\p{L}*|суі|суи|бнб|хрп|ксрп|рипл\\p{L}*|доге|дож\\p{L}*|тон|ада|кардано|авакс|лінк|линк|пепе|хайп|валрус\\p{L}*|лайткоін\\p{L}*|лайткоин\\p{L}*",
 );
 const CS2_TEAMS_ALL = new RegExp(CS2_TEAMS.source, "giu");
 /** Any ticker written in caps, e.g. "APT" or "WAL". */
@@ -215,6 +215,7 @@ const CRYPTO_RULES = `- crypto: a coin's price going above/below a level, or up/
   A coin with a price and a time is a call even without a side: "BTC 102k tomorrow" / "БТС 102к завтра" means BTC gets to 102000 by tomorrow.
   A coin with just a price and no time is a call too (direction "to", deadline null): "Sui 5$" / "суі 5 баксів" / "eth 5000 soon" means the coin gets to that price. But a price said as where the coin is now ("btc at 80k lol", "sui is 1.2 already") is not a call.
   A trading signal is a call too: "TRX long, entry 0.33, TP 0.36, SL 0.31" / "лонг TRX, тейк 0.36" means TRX above the first take-profit (short: below it).
+  Coins may be named in Cyrillic: "БНБ 682" is subject BNB at 682, "біток"/"бтс" BTC, "ефір"/"эфир" ETH, "суі" SUI, "хрп" XRP, "тон" TON, "доге" DOGE.
   Any coin counts, big or small, including those traded on Hyperliquid (HYPE, FARTCOIN, PURR, kPEPE means PEPE).
   This also covers stock tokens on Robinhood Chain (TSLA, NVDA, AAPL, SPY, MSFT, AMZN, GOOGL, META, COIN) and its memecoins (PONS, CASHCAT): "tesla to 450 by Friday" is subject TSLA.`;
 
