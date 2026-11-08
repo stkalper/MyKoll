@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Bot, InlineKeyboard, type Context } from "grammy";
 import { answer, recallQuestion, shownMemory, sourcesText, type Source } from "./ask";
 import {
+  cents,
   chatMode,
   claim,
   extractCall,
@@ -12,6 +13,7 @@ import {
   isPublicChat,
   leaderboard,
   addReason,
+  logBet,
   logCall,
   logSlate,
   missCall,
@@ -49,6 +51,23 @@ import { blobUrl, proofLabel, proofUrl } from "./proof";
 import { nextSweep } from "./schedule";
 import { noteEffect } from "./effects";
 import { DISAGREE, gap, sourceLabel } from "./tatum";
+import { remember } from "./memory";
+import {
+  findTrader,
+  follow,
+  follows,
+  MAX_FOLLOWS,
+  MAX_POSTS,
+  MIN_STAKE,
+  newBets,
+  profileLinkIn,
+  traderId,
+  traderName,
+  traderStats,
+  unfollow,
+  type Trader,
+  type TraderStats,
+} from "./traders";
 import { PERSONAL_TITLE, vsMarketText } from "./view";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -72,9 +91,18 @@ const chatOf = (chat: Context["chat"]) => ({ id: chat!.id, title: chat!.type ===
 
 function receiptText(call: CallRow, headline: string, reasons: string[] = [], learned: ReceiptLine[] = []): string {
   const lines = [`🧾 <b>Receipt #${call.id}</b> · ${headline}`, `${esc(call.author_name)}: “${esc(call.quote)}”`];
-  if (call.source)
-    lines.push(`<i>📎 posted ${esc(when(call.source.postedAt))} · shared by ${esc(call.source.sharedBy.name)}</i>`);
-  lines.push("", `<i>${esc(claim(call))}</i> · ${call.waiting ? "judged after the match, once Polymarket lists it" : `judged ${esc(when(call.deadline))}`}`);
+  const bet = call.source?.kind === "polymarket" ? call.market_ref : null;
+  if (bet)
+    lines.push(
+      `<i>💸 ${bet.stake ? `${usd(bet.stake)} on ` : ""}${esc(bet.outcome)} at ${cents(bet.prob)} · bought ${esc(when(call.source!.postedAt))} · followed by ${esc(call.source!.sharedBy.name)}</i>`,
+    );
+  else if (call.source) lines.push(`<i>📎 posted ${esc(when(call.source.postedAt))} · shared by ${esc(call.source.sharedBy.name)}</i>`);
+  const judged = call.waiting
+    ? "judged after the match, once Polymarket lists it"
+    : call.market === "polymarket"
+      ? `judged when Polymarket resolves it (it closes ${esc(when(call.deadline))})`
+      : `judged ${esc(when(call.deadline))}`;
+  lines.push("", `<i>${esc(claim(call))}</i> · ${judged}`);
   const settled = call.status === "win" || call.status === "loss";
   if (call.undated && call.status === "open")
     lines.push(
@@ -94,7 +122,7 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
     const pct = Math.round(ref.prob * 100);
     const pick = esc(pickName(ref));
     const via = ref.direct ? "" : " (via Tatum)";
-    const at = ref.late ? "when the match was listed, after the call" : "when called";
+    const at = ref.late ? "when the match was listed, after the call" : bet ? "when bought" : "when called";
     lines.push(
       ref.score
         ? call.status === "win"
@@ -120,9 +148,10 @@ function receiptButtons(call: CallRow, kb = new InlineKeyboard()): InlineKeyboar
   const proof = (call.status === "win" || call.status === "loss" ? call.final_proof : call.entry_proof)?.[0];
   const next = () => (kb.inline_keyboard.flat().length ? kb.row() : kb);
   if (proof) next().url(`🔎 Check the price on ${proofLabel(proof)}`, proofUrl(proof));
-  if (call.market_ref) next().url("📈 The match on Polymarket", call.market_ref.url);
+  if (call.market_ref) next().url(call.market === "cs2" ? "📈 The match on Polymarket" : "📈 The market on Polymarket", call.market_ref.url);
   if (call.memory_blob) next().url("🧠 Sealed on Walrus before the result", blobUrl(call.memory_blob));
-  if (call.source?.url) next().url(`📎 The original post on ${call.source.kind === "x" ? "X" : "Telegram"}`, call.source.url);
+  if (call.source?.url)
+    next().url(call.source.kind === "polymarket" ? "👤 The trader on Polymarket" : `📎 The original post on ${call.source.kind === "x" ? "X" : "Telegram"}`, call.source.url);
   return kb.inline_keyboard.flat().length ? kb : undefined;
 }
 
@@ -311,6 +340,79 @@ export async function announceResolutions(bot: Bot) {
   }
 }
 
+/** "+$77,146 all time · $995,370 traded · 153 markets · biggest win $35,270 · since Jan 2025". */
+function statsLine(s: TraderStats): string {
+  const parts: string[] = [];
+  if (s.pnl !== undefined) parts.push(`${s.pnl >= 0 ? "+" : "−"}${usd(Math.abs(s.pnl))} all time`);
+  if (s.volume) parts.push(`${usd(s.volume)} traded`);
+  if (s.markets) parts.push(`${s.markets} markets`);
+  if (s.biggestWin) parts.push(`biggest win ${usd(s.biggestWin)}`);
+  if (s.joined) parts.push(`since ${s.joined.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}`);
+  return parts.join(" · ");
+}
+
+/** What the chat sees when it starts following a trader, or is reminded it already does. */
+function traderCard(t: Trader, stats: TraderStats, record: string | undefined, already: boolean): string {
+  const shown = statsLine(stats);
+  const lines = [`👁 ${already ? "Already following" : "Following"} <b>${esc(traderName(t.name))}</b>`];
+  if (shown) lines.push(`Polymarket's numbers: ${esc(shown)}`);
+  lines.push(
+    "",
+    `Every bet of $${MIN_STAKE}+ they place on CS2, politics or crypto comes here as their call, judged when the market resolves, and I learn where they're right the way I do for you.`,
+  );
+  if (record) lines.push("", `📊 Their record here: ${esc(record)}`);
+  return lines.join("\n");
+}
+
+/**
+ * Posts the new bets of the Polymarket traders each chat follows, filed as their calls. A trader on
+ * a spree gets MAX_POSTS receipts per sweep in a chat; the rest are filed all the same and listed in one line.
+ */
+export async function announceBets(bot: Bot) {
+  const bets = await newBets();
+  const posted = new Map<string, number>();
+  const more = new Map<string, { chat: string; name: string; ids: number[] }>();
+  for (const bet of bets) {
+    const chats = await db<{ chat_id: string; added_by_id: string; added_by_name: string; title: string | null }>(
+      `select f.chat_id, f.added_by_id, f.added_by_name, c.title from trader_follows f left join chats c using (chat_id) where f.wallet = $1`,
+      [bet.trader.wallet],
+    );
+    for (const f of chats) {
+      // A private chat with the bot has a positive id: the member's own journal.
+      const title = f.title ?? (Number(f.chat_id) > 0 ? PERSONAL_TITLE : null);
+      const call = await logBet({ id: f.chat_id, title }, { id: Number(f.added_by_id), name: f.added_by_name }, bet).catch((err) => {
+        console.error("bet not logged", err);
+        return null;
+      });
+      if (!call) continue;
+      const key = `${f.chat_id}:${bet.trader.wallet}`;
+      const n = posted.get(key) ?? 0;
+      if (n >= MAX_POSTS) {
+        const m = more.get(key) ?? { chat: f.chat_id, name: call.author_name, ids: [] };
+        m.ids.push(call.id);
+        more.set(key, m);
+        continue;
+      }
+      posted.set(key, n + 1);
+      await bot.api
+        .sendMessage(f.chat_id, receiptText(call, "new bet 💸", [], await learnedForNew(call)), {
+          parse_mode: "HTML",
+          reply_markup: receiptButtons(call),
+          link_preview_options: { is_disabled: true },
+        })
+        .catch(async (err) => {
+          console.error("bet not posted", f.chat_id, err);
+          // Removed from the chat: nobody there to follow for.
+          if (err?.error_code === 403) await unfollow(f.chat_id, bet.trader.wallet);
+        });
+    }
+  }
+  for (const m of more.values())
+    await bot.api
+      .sendMessage(m.chat, `💸 ${m.name} also bet $${MIN_STAKE}+ on ${m.ids.length} more market${m.ids.length === 1 ? "" : "s"}: ${m.ids.map((id) => `#${id}`).join(", ")}. All filed; /open lists them.`)
+      .catch((err) => console.error("bet summary not posted", m.chat, err));
+}
+
 let lastSweep = 0;
 
 /** Webhook traffic doubles as a clock: settle due calls at most every few minutes. */
@@ -318,6 +420,7 @@ async function sweepSoon(bot: Bot) {
   if (Date.now() - lastSweep < 3 * 60_000) return;
   lastSweep = Date.now();
   await announceResolutions(bot).catch((err) => console.error("sweep failed", err));
+  await announceBets(bot).catch((err) => console.error("bets sweep failed", err));
   // And make sure the quarter-hourly sweep is running, for when the chats go quiet.
   await nextSweep();
 }
@@ -347,7 +450,7 @@ export function createBot(): Bot {
 
   bot.command("start", (ctx) =>
     ctx.reply(
-      "I keep receipts on your group chat's crypto and CS2 calls.\n\nAdd me to a group, then:\n• /call SUI to $5 by Friday\n• /call NaVi beat FaZe tonight\n• or just talk — I'll offer to log anything that sounds like a call\n• /board — who calls it right\n• /ask what did Jake say about SUI?\n\nOr keep a journal of your own right here: write me a call (“BTC 100k by Friday”, “NaVi win”) and I'll log it, settle it and remember how you did.",
+      "I keep receipts on your group chat's crypto and CS2 calls.\n\nAdd me to a group, then:\n• /call SUI to $5 by Friday\n• /call NaVi beat FaZe tonight\n• or just talk — I'll offer to log anything that sounds like a call\n• /board — who calls it right\n• /ask what did Jake say about SUI?\n• paste a Polymarket profile link and I'll post that trader's $500+ bets and keep their record\n\nOr keep a journal of your own right here: write me a call (“BTC 100k by Friday”, “NaVi win”) and I'll log it, settle it and remember how you did.",
       {
         reply_markup: new InlineKeyboard().url("➕ Add to a group", `https://t.me/${ctx.me.username}?startgroup=receipts`),
       },
@@ -379,9 +482,10 @@ export function createBot(): Bot {
   });
 
   bot.command("board", async (ctx) => {
-    const [crypto, cs2, scorecard, records] = await Promise.all([
+    const [crypto, cs2, bets, scorecard, records] = await Promise.all([
       leaderboard(ctx.chat.id, "crypto"),
       leaderboard(ctx.chat.id, "cs2"),
+      leaderboard(ctx.chat.id, "polymarket"),
       memoryScorecard(ctx.chat.id),
       trackRecords(ctx.chat.id),
     ]);
@@ -397,7 +501,15 @@ export function createBot(): Bot {
         : `<b>${title}</b>\nno settled calls yet`;
     // Groups can't host web_app buttons, so link to the bot's Main Mini App with the chat as start_param.
     const open = new InlineKeyboard().url("📊 Open the board", `https://t.me/${ctx.me.username}?startapp=${ctx.chat.id}`);
-    await ctx.reply(`🏆 Who calls it right\n\n${section("Crypto", crypto)}\n\n${section("CS2", cs2, vsMarket)}${check ? `\n\n${esc(check)}` : ""}`, {
+    // A followed trader's bets, against the prices they paid.
+    const vsPaid = (r: (typeof bets)[number]) => {
+      const edge = records.get(String(r.author_id))?.betEdge;
+      if (edge === undefined) return "";
+      const pts = Math.round(edge * 100);
+      return ` · ${pts >= 0 ? "+" : "−"}${Math.abs(pts)} pts vs the prices paid`;
+    };
+    const traders = bets.length ? `\n\n${section("Polymarket bets (traders this chat follows)", bets, vsPaid)}` : "";
+    await ctx.reply(`🏆 Who calls it right\n\n${section("Crypto", crypto)}\n\n${section("CS2", cs2, vsMarket)}${traders}${check ? `\n\n${esc(check)}` : ""}`, {
       parse_mode: "HTML",
       reply_markup: open,
     });
@@ -598,6 +710,76 @@ export function createBot(): Bot {
     await announceSlate(bot, call);
   });
 
+  /* ---------- Polymarket traders the chat follows ---------- */
+
+  async function followFromLink(ctx: Context, link: { handle?: string; wallet?: string }, replyTo?: number) {
+    const reply = replyTo ? { reply_parameters: { message_id: replyTo } } : {};
+    void ctx.replyWithChatAction("typing").catch(() => {});
+    const trader = await findTrader(link).catch(() => null);
+    if (!trader) return ctx.reply("I can't find that trader on Polymarket. A profile link looks like polymarket.com/@name.", reply);
+    const by = authorOf(ctx);
+    const result = await follow(ctx.chat!.id, trader, by);
+    if (result === "full") return ctx.reply(`This chat already follows ${MAX_FOLLOWS} traders. /following lists them, with a button to stop one.`, reply);
+    const [stats, records] = await Promise.all([traderStats(trader.wallet).catch((): TraderStats => ({})), trackRecords(ctx.chat!.id).catch(() => new Map())]);
+    const record = records.get(String(traderId(trader.wallet)));
+    if (result === "added") {
+      const shown = statsLine(stats);
+      await remember(
+        ctx.chat!.id,
+        `[FOLLOW ${traderName(trader.name)}] ${when(new Date())}: ${by.name} started following ${trader.name}, a Polymarket trader (${trader.url}).` +
+          (shown ? ` Polymarket's own numbers for them then: ${shown}.` : "") +
+          ` Their new bets of $${MIN_STAKE}+ on CS2, politics and crypto are logged as their calls.`,
+      ).catch((err) => console.error("memory write failed", err));
+    }
+    await ctx.reply(traderCard(trader, stats, record?.summary, result === "already"), {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+      reply_markup: new InlineKeyboard().url("👤 The trader on Polymarket", trader.url).text("⏹ Stop following", `unfollow:${trader.wallet}`),
+      ...reply,
+    });
+  }
+
+  bot.command("follow", async (ctx) => {
+    const link = profileLinkIn(ctx.match);
+    if (!link) return ctx.reply("Send a link to a trader's Polymarket profile: /follow polymarket.com/@name");
+    await followFromLink(ctx, link);
+  });
+
+  bot.command("following", async (ctx) => {
+    const list = await follows(ctx.chat.id);
+    if (!list.length)
+      return ctx.reply(
+        `This chat follows no Polymarket traders yet. Paste a link to a profile (polymarket.com/@name) and I'll post their bets of $${MIN_STAKE}+ on CS2, politics and crypto, and keep their record.`,
+      );
+    const records = await trackRecords(ctx.chat.id);
+    const kb = new InlineKeyboard();
+    for (const f of list) kb.text(`⏹ Stop following ${f.name}`, `unfollow:${f.wallet}`).row();
+    await ctx.reply(
+      "👁 <b>Traders this chat follows on Polymarket</b>\n\n" +
+        list
+          .map((f) => {
+            const r = records.get(String(traderId(f.wallet)));
+            return `• <b>${esc(f.name)}</b> · added by ${esc(f.added_by_name)}\n  ${r ? esc(r.summary) : "no settled bets yet"}`;
+          })
+          .join("\n"),
+      { parse_mode: "HTML", reply_markup: kb },
+    );
+  });
+
+  bot.callbackQuery(/^unfollow:(0x[0-9a-f]{40})$/, async (ctx) => {
+    const wallet = ctx.match![1];
+    const [f] = await db<{ added_by_id: string; name: string }>(
+      `select f.added_by_id, t.name from trader_follows f join traders t using (wallet) where f.chat_id = $1 and f.wallet = $2`,
+      [ctx.chat!.id, wallet],
+    );
+    if (!f) return ctx.answerCallbackQuery({ text: "Not following them any more." });
+    if (String(f.added_by_id) !== String(ctx.from.id) && !(await isAdmin(ctx)))
+      return ctx.answerCallbackQuery({ text: "Only whoever added this trader, or a group admin, can stop following.", show_alert: true });
+    await unfollow(ctx.chat!.id, wallet);
+    await ctx.answerCallbackQuery({ text: "Stopped following." });
+    await ctx.reply(`⏹ Stopped following ${f.name} on Polymarket. Bets already logged stay and still settle.`);
+  });
+
   // Captions too: signals are often a chart with the call written under it.
   bot.on(["message:text", "message:caption"], async (ctx) => {
     const text = ctx.message.text ?? ctx.message.caption ?? "";
@@ -616,6 +798,10 @@ export function createBot(): Bot {
       const q = text.replace(mention, "").trim();
       if (q) return replyFromMemory(ctx, q, ctx.message.message_id);
     }
+
+    // A link to a trader's Polymarket profile: the chat follows their bets from now on.
+    const profile = profileLinkIn(text);
+    if (profile) return followFromLink(ctx, profile, ctx.message.message_id);
 
     if (!llmEnabled) return;
 
@@ -723,4 +909,5 @@ export const BOT_COMMANDS = [
   { command: "hide", description: "Hide one of your calls" },
   { command: "mode", description: "Ask before logging calls, or log them automatically" },
   { command: "public", description: "Open this chat's file to anyone with the link, or close it" },
+  { command: "following", description: "Polymarket traders this chat follows" },
 ];

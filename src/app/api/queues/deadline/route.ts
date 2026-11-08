@@ -1,10 +1,11 @@
 import { handleCallback } from "@vercel/queue";
 import { Bot } from "grammy";
-import { announceResolutions } from "@/lib/bot";
+import { announceBets, announceResolutions } from "@/lib/bot";
 import { openTargets, type CallRow } from "@/lib/calls";
 import { config } from "@/lib/config";
 import { db } from "@/lib/db";
 import { MATCH_POLL_SECONDS, nextSweep, queueWatches, wakeAt, type WakeMessage } from "@/lib/schedule";
+import { anyFollows } from "@/lib/traders";
 
 /** CS2 calls on a Polymarket match are checked for this long past their deadline before giving up. */
 const MATCH_GRACE = 24 * 3_600_000;
@@ -21,15 +22,18 @@ export const POST = handleCallback(
     const bot = new Bot(config.telegram.botToken);
     if ("sweep" in message) {
       await announceResolutions(bot);
+      await announceBets(bot).catch((err) => console.error("bets sweep failed", err));
       const [running] = await db<{ n: number }>(`select count(*)::int as n from calls where status in ('open', 'awaiting_score')`);
+      // A followed trader can place a bet at any time, so the sweep keeps going while anyone follows one.
       if (running?.n) await Promise.all([nextSweep(), openTargets().then(queueWatches)]);
+      else if (await anyFollows()) await nextSweep();
       return;
     }
 
     const [call] = await db<CallRow>(`select * from calls where id = $1`, [message.callId]);
     if (!call || (call.status !== "open" && call.status !== "awaiting_score")) return;
     const deadline = new Date(call.deadline).getTime();
-    const onMarket = call.market === "cs2" && Boolean(call.market_ref);
+    const onMarket = (call.market === "cs2" || call.market === "polymarket") && Boolean(call.market_ref);
     if (!onMarket && deadline > Date.now()) return wakeAt(call.id, call.deadline);
 
     await announceResolutions(bot);

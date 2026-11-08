@@ -9,6 +9,7 @@ import { backedTeam, canExtend, claim, coinNamed, mightBeCall, reached, scoreIn,
 import { habitOf } from "./habits";
 import { coinWords, midsFrom, priceIn } from "./hyperliquid";
 import { chanceLine, likeCallsIn, recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
+import { categoryOf, notABet, positionsOf, profileLinkIn } from "./traders";
 import { fromGammaMarket, pickName, scoreOdds, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
@@ -581,5 +582,55 @@ describe("calls made with no date", () => {
     assert.equal(canExtend(undated, 115 * DAY), false);
     assert.equal(canExtend(call({ undated: false, direction: "above", target: 5 }), DAY), false);
     assert.equal(canExtend(call({ undated: true, direction: "up", target: null }), DAY), false);
+  });
+});
+
+describe("Polymarket traders a chat follows", () => {
+  const ref = (over: Partial<NonNullable<CallRow["market_ref"]>> = {}) =>
+    ({ platform: "polymarket", eventId: "1", marketId: "0xc", title: "Will X?", url: "", outcome: "Yes", prob: 0.3, direct: true, category: "politics", stake: 800, ...over }) as CallRow["market_ref"];
+
+  it("reads a profile link by name or by wallet, and nothing else on Polymarket", () => {
+    assert.deepEqual(profileLinkIn("look https://polymarket.com/@fred4332?tab=activity"), { handle: "fred4332" });
+    assert.deepEqual(profileLinkIn("follow polymarket.com/@fred4332."), { handle: "fred4332" });
+    assert.deepEqual(profileLinkIn("https://polymarket.com/profile/0x301E286fd88abb7cda0a19a24e4dc4823c4db752"), { wallet: "0x301e286fd88abb7cda0a19a24e4dc4823c4db752" });
+    assert.equal(profileLinkIn("https://polymarket.com/event/some-market"), null);
+  });
+
+  it("files bets on CS2, politics and crypto markets only, by Polymarket's tags", () => {
+    assert.equal(categoryOf(["esports", "counter-strike-2"]), "cs2");
+    assert.equal(categoryOf(["crypto", "ethereum"]), "crypto");
+    assert.equal(categoryOf(["politics", "elections"]), "politics");
+    assert.equal(categoryOf(["sports", "soccer"]), null);
+  });
+
+  it("sums a trader's buys into one position per outcome, and leaves sells out", () => {
+    const fill = (over: object) => ({ condition_id: "0xc", outcome: "Yes", side: "BUY", size: 1000, price: 0.2, timestamp: 10, title: "", slug: "", event_slug: "", transaction_hash: "0x1", ...over });
+    const [yes, no] = positionsOf("0xw", [fill({}), fill({ size: 2000, price: 0.25, timestamp: 5, transaction_hash: "0x0" }), fill({ side: "SELL" }), fill({ outcome: "No", price: 0.8 })]);
+    assert.equal(yes.cash, 700);
+    assert.equal(yes.shares, 3000);
+    assert.equal(yes.first_at, 5);
+    assert.equal(yes.tx, "0x0");
+    assert.equal(no.outcome, "No");
+  });
+
+  it("posts a position once it's a real bet: $500 or more, not already decided, not a crypto market settling within the hour", () => {
+    const open = { category: "politics" as const, closed: false, endDate: null };
+    assert.equal(notABet({ cash: 400, shares: 1000, first_at: 0 }, open), "under the stake");
+    assert.equal(notABet({ cash: 970, shares: 1000, first_at: 0 }, open), "already decided");
+    assert.equal(notABet({ cash: 900, shares: 3000, first_at: 0 }, { ...open, category: null }), "not a CS2, politics or crypto market");
+    assert.equal(notABet({ cash: 900, shares: 3000, first_at: 0 }, { category: "crypto", closed: false, endDate: new Date(600_000) }), "settles within the hour");
+    assert.equal(notABet({ cash: 900, shares: 3000, first_at: 0 }, open), null);
+  });
+
+  it("learns a trader's bets by kind of market, price, side and range, and against the prices they paid", () => {
+    const bet = (over: Partial<CallRow>) => call({ market: "polymarket", subject: "Yes", direction: "win", entry_price: null, deadline: new Date(DAY), market_ref: ref(), ...over });
+    assert.deepEqual(segmentsOf(bet({})), ["Polymarket bets", "politics bets", "longshot bets", "bets on Yes", "bets settling within two days"]);
+    assert.equal(claim(bet({})), "Yes at 30¢");
+    const record = trackRecordOf([bet({ status: "win" }), bet({ status: "win" }), bet({ status: "loss", market_ref: ref({ prob: 0.8 }) })])!;
+    // 2/3 on politics is under the 67% a strength takes; 2/2 on longshots isn't.
+    assert.match(record.summary, /strong on longshot bets 2\/2/);
+    assert.equal(Math.round(record.betEdge! * 100), Math.round(((2 - 0.3 - 0.3 - 0.8) / 3) * 100));
+    assert.equal(record.marketEdge, undefined);
+    assert.ok(!record.segments.some((s) => s.segment === "Polymarket bets" && record.strong.includes(s)));
   });
 });

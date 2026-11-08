@@ -33,7 +33,7 @@ Whether this makes the bot better at judging people is measured, not assumed: se
 
 1. Add [@mykoll_bot](https://t.me/mykoll_bot) to a Telegram group. No Telegram? Open [a real chat's public file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc), or the [demo chat](https://mykoll.vercel.app/app).
 2. Write a call the way you'd say it: `btc 80k tomorrow`, or `easy for furia`. Tap **Log it**: the receipt shows the price or the Polymarket odds at that moment, and its source. No date in it (`sui 5$`)? It gets a week; the bot says the moment the coin gets there, and if it doesn't, the author can give it another week or let it go as missed.
-3. Paste a link to a signal post on X, or forward one from a Telegram channel: the call goes under the post's author.
+3. Paste a link to a signal post on X, or forward one from a Telegram channel: the call goes under the post's author. Paste a Polymarket profile (`polymarket.com/@name`) and the chat follows that trader: each new bet of $500 or more on CS2, politics or crypto comes in as their call.
 4. Ask `@mykoll_bot who called furia?`, or just `who called furia?`. The answer comes from Walrus Memory.
 5. Make a call that settles soon, such as `sui above 1 in 10 minutes`. The result comes on its own, with a link to where the call was sealed on Walrus before the result.
 6. No group to try it in? Write the bot a call in a private chat. It logs it right away into your own journal, with its own memory, and settles it the same way.
@@ -121,6 +121,8 @@ Left alone: questions, jokes, other people’s predictions, vague moods (“sol 
 ```
 
 **Calls from posts on X and Telegram.** Chats argue about what someone posted as much as about their own takes. Share a link to a post on X or in a public Telegram channel, or forward the post into the group, and the bot reads it (X through the public fxtwitter API with vxtwitter as a fallback, Telegram through the channel’s embed widget; no API keys), finds the call in it, and asks the member who shared it whether to keep score. The call is filed under the post’s author (`@cryptoguru on X`), so outside accounts build a track record in the chat like members do and show up on the board. Times are read from when the post went up, so “by Friday” in a Wednesday post means that Friday; if the deadline has already passed, the bot says so instead of filing it. The price is taken when the link is shared, and the receipt links the original post and names who shared it. The member who shared it can hide or undo it, and it doesn’t count toward their own habits.
+
+**Polymarket traders the chat follows.** Chats also argue about the whales. Paste a link to a trader's Polymarket profile and the chat follows them (up to 5 at a time; `/following` lists them, and whoever added one, or an admin, can stop). From then on, every position of $500 or more the trader opens on a CS2, politics or crypto market is posted as a receipt under `name on Polymarket`, with the stake and the price paid, and settles when Polymarket resolves the market. A bet on a CS2 match becomes a pick on that team, so it meets the chat's own picks on the match and is weighed with them. Fills are summed per outcome, so a bet built from many small orders still counts once; bets at 95¢ or more (parking money on a settled question) and crypto markets that settle within the hour are left out. Each bet is written to the chat's Walrus Memory, and the trader gets a track record by kind of bet: politics, crypto or CS2 bets, longshots and favourites, Yes or No, short or long range, plus how often they win against the prices they paid, the number that tells luck on 90¢ favourites from skill. Everything comes from Polymarket's public Data API and Gamma API, no key needed ([`traders.ts`](src/lib/traders.ts)). The Memory Check leaves these bets out, so it stays a score of the chat's own calls.
 
 **The prompt only carries what a message needs.** The free LLM tier counts input tokens per minute, so the rules for signal posts and for CS2 picks are added only when a message looks like one, and a 429 waits as long as the provider asks before trying again.
 
@@ -282,6 +284,7 @@ By 2 November 2026, the 23 logged calls had been priced by: Tatum Price API 7, T
 | `/open` | Calls still waiting for their deadline |
 | `/hide 12` | Take your call off the board and out of the bot’s answers |
 | `/mode` | Admins choose *ask first* or *auto* logging |
+| `/following` | Polymarket traders this chat follows (paste a profile link to follow one), each with their record here and a button to stop |
 | `/public` | Admins open the chat's file (board, receipts, what memory changed) to anyone with the link, or close it. Nobody's own file and no hidden call is ever in it |
 
 CS2 calls settle from Polymarket when the match is listed there (see below); otherwise, or until Polymarket resolves it, someone other than the author confirms the winner with one tap.

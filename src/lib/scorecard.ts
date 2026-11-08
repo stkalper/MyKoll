@@ -60,7 +60,8 @@ export function scoreMemory(settled: CallRow[]): Scorecard {
 /** The scorecard for one chat, or for every chat the bot is in. */
 export async function memoryScorecard(chatId?: number | string): Promise<Scorecard> {
   const rows = await db<CallRow>(
-    `select * from calls where status in ('win', 'loss') and not hidden ${chatId === undefined ? "" : "and chat_id = $1"} order by made_at`,
+    // Bets by Polymarket traders a chat follows have their own record; the check is about the chat's own calls.
+    `select * from calls where status in ('win', 'loss') and not hidden and coalesce(source->>'kind', '') <> 'polymarket' ${chatId === undefined ? "" : "and chat_id = $1"} order by made_at`,
     chatId === undefined ? [] : [chatId],
   );
   return scoreMemory(rows);

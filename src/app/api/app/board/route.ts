@@ -7,9 +7,10 @@ import { memoryScorecard } from "@/lib/scorecard";
 import { chatMember } from "@/lib/telegramAuth";
 import type { BoardView, LearnedView, MemberView, StandingView } from "@/lib/view";
 
-const toStanding = (records: Map<string, TrackRecord>, cs2 = false) => (s: Standing): StandingView => {
+const toStanding = (records: Map<string, TrackRecord>, against?: "cs2" | "bets") => (s: Standing): StandingView => {
   const record = records.get(String(s.author_id));
-  const edge = cs2 && record?.marketEdge !== undefined ? Math.round(record.marketEdge * 100) : undefined;
+  const raw = against === "cs2" ? record?.marketEdge : against === "bets" ? record?.betEdge : undefined;
+  const edge = raw !== undefined ? Math.round(raw * 100) : undefined;
   return { name: s.author_name, calls: s.calls, hits: s.hits, insight: record ? insightLine(record) || undefined : undefined, vsMarket: edge };
 };
 
@@ -49,8 +50,8 @@ const learnedOf = (r: TrackRecord): LearnedView => ({ name: r.authorName, hits: 
  * board, so a member's Telegram id never leaves the server.
  */
 async function memberView(chatId: string, name: string): Promise<MemberView | null> {
-  const [crypto, cs2, records] = await Promise.all([leaderboard(chatId, "crypto"), leaderboard(chatId, "cs2"), trackRecords(chatId)]);
-  const standing = [...crypto, ...cs2].find((s) => s.author_name === name);
+  const [crypto, cs2, bets, records] = await Promise.all([leaderboard(chatId, "crypto"), leaderboard(chatId, "cs2"), leaderboard(chatId, "polymarket"), trackRecords(chatId)]);
+  const standing = [...crypto, ...cs2, ...bets].find((s) => s.author_name === name);
   if (!standing) return null;
   const rows = (await callsBy(chatId, standing.author_id)).filter((c) => !c.hidden);
   const [sealed, reasons] = await Promise.all([withBlobs(rows), reasonsFor(rows.map((c) => c.id))]);
@@ -59,9 +60,10 @@ async function memberView(chatId: string, name: string): Promise<MemberView | nu
 }
 
 async function chatView(chatId: string, userId: number | null): Promise<BoardView> {
-  const [crypto, cs2, latest, myCalls, title, records, habits, effects, minds] = await Promise.all([
+  const [crypto, cs2, bets, latest, myCalls, title, records, habits, effects, minds] = await Promise.all([
     leaderboard(chatId, "crypto"),
     leaderboard(chatId, "cs2"),
+    leaderboard(chatId, "polymarket"),
     recentCalls(chatId),
     userId ? callsBy(chatId, userId) : [],
     chatTitle(chatId),
@@ -79,7 +81,7 @@ async function chatView(chatId: string, userId: number | null): Promise<BoardVie
   return {
     chat: { id: chatId, title: title ?? recent[0]?.chat_title ?? "Your chat" },
     me: userId ? { id: userId } : null,
-    boards: { crypto: crypto.map(toStanding(records)), cs2: cs2.map(toStanding(records, true)) },
+    boards: { crypto: crypto.map(toStanding(records)), cs2: cs2.map(toStanding(records, "cs2")), ...(bets.length ? { polymarket: bets.map(toStanding(records, "bets")) } : {}) },
     recent: recent.map((c) => toView(c, reasons)),
     mine: mine.map((c) => toView(c, reasons)),
     learned: mineLearned && learnedOf(mineLearned),

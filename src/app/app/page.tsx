@@ -29,6 +29,7 @@ type Tab = "board" | "calls" | "me";
 const markets: { id: Market; label: string }[] = [
   { id: "crypto", label: "Crypto" },
   { id: "cs2", label: "CS2" },
+  { id: "polymarket", label: "Polymarket" },
 ];
 
 /**
@@ -131,7 +132,10 @@ export default function MiniApp() {
     ] as const
   ).filter(([id]) => id !== "me" || !isPublic);
 
-  const settledCount = view ? view.boards.crypto.reduce((n, s) => n + s.calls, 0) + view.boards.cs2.reduce((n, s) => n + s.calls, 0) : 0;
+  const settledCount = view ? [view.boards.crypto, view.boards.cs2, view.boards.polymarket ?? []].reduce((n, b) => n + b.reduce((m, s) => m + s.calls, 0), 0) : 0;
+  // The Polymarket tab shows once a followed trader has a settled bet.
+  const shownMarkets = markets.filter((m) => m.id !== "polymarket" || view?.boards.polymarket?.length);
+  const standings = view ? (view.boards[market] ?? []) : [];
 
   return (
     <main className="glow mx-auto flex w-full max-w-md flex-1 flex-col px-4 pt-6 pb-28">
@@ -218,7 +222,7 @@ export default function MiniApp() {
         <>
           <Title>Who called it right.</Title>
           <div className="mt-6 flex gap-2">
-            {markets.map((m) => (
+            {shownMarkets.map((m) => (
               <button
                 key={m.id}
                 onClick={() => setMarket(m.id)}
@@ -231,7 +235,7 @@ export default function MiniApp() {
             ))}
           </div>
           <ol className="folder -mt-[2px] space-y-3 rounded-b-2xl rounded-tr-2xl p-3">
-            {view.boards[market].map((s, i) => (
+            {standings.map((s, i) => (
               <li
                 key={s.name}
                 onClick={() => void openMember(s.name)}
@@ -254,7 +258,7 @@ export default function MiniApp() {
                 <span className={`font-mono text-2xl font-semibold tabular-nums ${hitRate(s) >= 50 ? "text-stamp-win" : "text-stamp-loss"}`}>{hitRate(s)}%</span>
               </li>
             ))}
-            {!view.boards[market].length && (
+            {!standings.length && (
               <li className="paper rounded-sm px-4 py-5 font-mono text-sm">
                 No settled {market === "cs2" ? "CS2" : "crypto"} calls yet. Make one in the chat and come back after the deadline.
               </li>

@@ -25,7 +25,9 @@ export function ReceiptCard({
           ? "Polymarket"
           : "Polymarket via Tatum"
         : "score confirmed in chat"
-      : priceLabel(call.priceSource);
+      : call.market === "polymarket"
+        ? "resolved on Polymarket"
+        : priceLabel(call.priceSource);
   const price = call.entry !== undefined ? `${usd(call.entry)} → ${call.final !== undefined ? usd(call.final) : "…"}` : null;
   return (
     <article

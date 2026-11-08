@@ -1,5 +1,5 @@
 import { Bot } from "grammy";
-import { announceResolutions } from "@/lib/bot";
+import { announceBets, announceResolutions } from "@/lib/bot";
 import { config } from "@/lib/config";
 import { db } from "@/lib/db";
 import { postWeeklyDigests } from "@/lib/digest";
@@ -12,6 +12,7 @@ export async function GET(req: Request) {
   }
   const bot = new Bot(config.telegram.botToken);
   await announceResolutions(bot);
+  await announceBets(bot).catch((err) => console.error("bets sweep failed", err));
   // Restarts the quarter-hourly sweep if it ever stopped.
   await nextSweep();
   await db(`delete from seen_updates where seen_at < now() - interval '2 days'`);

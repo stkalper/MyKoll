@@ -14,8 +14,8 @@ create table if not exists calls (
   chat_title    text,
   author_id     bigint not null,
   author_name   text not null,
-  market        text not null check (market in ('crypto', 'cs2')),
-  -- crypto: ticker; cs2: the team picked to win
+  market        text not null check (market in ('crypto', 'cs2', 'polymarket')),
+  -- crypto: ticker; cs2: the team picked to win; polymarket: the outcome a followed trader bought
   subject       text not null,
   -- cs2 only: the other team
   opponent      text,
@@ -57,6 +57,9 @@ alter table calls add column if not exists wait_by timestamptz;
 alter table calls add column if not exists undated boolean not null default false;
 alter table calls add column if not exists extended int not null default 0;
 alter table calls add column if not exists extend_by timestamptz;
+-- Bets by Polymarket traders the chat follows are calls too (market 'polymarket', or 'cs2' on a CS2 match).
+alter table calls drop constraint if exists calls_market_check;
+alter table calls add constraint calls_market_check check (market in ('crypto', 'cs2', 'polymarket'));
 create index if not exists calls_chat_idx on calls (chat_id, made_at desc);
 create index if not exists calls_due_idx on calls (status, deadline);
 create index if not exists calls_slate_idx on calls (slate_id) where slate_id is not null;
@@ -157,6 +160,41 @@ create table if not exists chat_settings (
 );
 -- An admin can open the chat's file (board, receipts, what memory changed) to anyone with the link.
 alter table chat_settings add column if not exists public boolean not null default false;
+
+-- Polymarket traders some chat follows (see traders.ts), each read from seen_until (epoch seconds) on.
+create table if not exists traders (
+  wallet      text primary key,
+  name        text not null,
+  url         text not null,
+  seen_until  bigint not null,
+  created_at  timestamptz not null default now()
+);
+-- Set while a sweep reads the trader's fills, so two sweeps at once don't count them twice.
+alter table traders add column if not exists reading_at timestamptz;
+create table if not exists trader_follows (
+  chat_id        bigint not null,
+  wallet         text not null references traders (wallet),
+  added_by_id    bigint not null,
+  added_by_name  text not null,
+  created_at     timestamptz not null default now(),
+  primary key (chat_id, wallet)
+);
+-- A followed trader's buys on one outcome, summed; posted once they reach the stake, or put aside with why.
+create table if not exists trader_positions (
+  wallet        text not null,
+  condition_id  text not null,
+  outcome       text not null,
+  cash          double precision not null,
+  shares        double precision not null,
+  first_at      bigint not null,
+  title         text not null,
+  slug          text,
+  event_slug    text,
+  tx            text,
+  posted        boolean not null default false,
+  skipped       text,
+  primary key (wallet, condition_id, outcome)
+);
 `;
 
 let ready: Promise<Query> | undefined;

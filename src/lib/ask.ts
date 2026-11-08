@@ -79,11 +79,12 @@ export function sourcesText(sources: Source[]): string {
 /** Answers a question about the chat's past calls from its Walrus Memory. */
 export async function answer(chatId: number, asked: string): Promise<Answer> {
   const question = spellTeams(asked);
-  const [memories, hidden, crypto, cs2, records, scorecard] = await Promise.all([
+  const [memories, hidden, crypto, cs2, bets, records, scorecard] = await Promise.all([
     recall(chatId, question, 12),
     hiddenIds(chatId),
     leaderboard(chatId, "crypto"),
     leaderboard(chatId, "cs2"),
+    leaderboard(chatId, "polymarket"),
     trackRecords(chatId),
     memoryScorecard(chatId),
   ]);
@@ -106,12 +107,13 @@ export async function answer(chatId: number, asked: string): Promise<Answer> {
         content: `You are MyKoll, the memory of a Telegram group chat. People make crypto and CS2 calls; you remember who said what and whether they were right.
 Answer the question using ONLY the memories and track records below. Quote people's exact words, give dates, and say if a call was right or wrong.
 CALL entries are predictions, RESULT entries say how they ended, REASON entries are the author's own explanation of why they made the call, HABIT entries say how you changed the way you handle someone's calls, RECORD CHANGE entries say when a result changed what you think someone is good or bad at.
+Some authors are Polymarket traders the chat follows ("name on Polymarket"): their CALL entries are bets they placed there, with the stake and the price paid, and FOLLOW entries say when the chat started following them.
 A "record at the time" inside a CALL entry is how things stood back then; for how good someone is now, use the current track records below.
 When asked who to trust, or how good someone is, use the track records: they say where each person tends to be right or wrong.
 If nothing below answers it, say you don't remember that. Be short and a little playful, like a friend in the chat. No markdown.
 Reply in ${language}, whatever language the memories and quotes are in (quote people's words as they wrote them).
 
-Settled calls so far — ${board("crypto", crypto)}; ${board("CS2", cs2)}.
+Settled calls so far — ${board("crypto", crypto)}; ${board("CS2", cs2)}${bets.length ? `; ${board("Polymarket bets by followed traders", bets)}` : ""}.
 What you have learned about each member (current):
 ${learned}
 How good your memory has been at predicting who is right: ${scorecardLine(scorecard) ?? `too early to say (${scorecard.calls} settled calls)`}

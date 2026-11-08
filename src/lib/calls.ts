@@ -10,11 +10,13 @@ import { remember, sealedBlobs } from "./memory";
 import { firstCheck, nextSweep, wakeAt } from "./schedule";
 import { findMatch, knownTeam, listedTeams, mapsPlayed, marketWinner, nextMatch, pickName, startedMatch, teamKey, type MarketRef } from "./polymarket";
 import { sourceId, sourceName, type PostSource } from "./posts";
+import { traderId, traderName, type NewBet } from "./traders";
 import type { PoolRead } from "./proof";
 import { DISAGREE, gap, quote, sourceLabel, type PriceSource, type Quote } from "./tatum";
 import type { Target } from "./schedule";
 
-export type Market = "crypto" | "cs2";
+/** "polymarket" is a bet a followed trader placed on Polymarket (see traders.ts); on a CS2 match it is a "cs2" pick. */
+export type Market = "crypto" | "cs2" | "polymarket";
 /** "to" is a bare price level ("BTC 102k tomorrow"): only on a draft, it becomes above/below once the price is known. */
 export type Direction = "above" | "below" | "up" | "down" | "win" | "to";
 export type Status = "open" | "awaiting_score" | "win" | "loss" | "void";
@@ -573,6 +575,9 @@ export function sideOf(direction: Direction, target: number | null, price: numbe
   return direction === "to" && target !== null ? (target > price ? "above" : "below") : direction;
 }
 
+/** A Polymarket price as it's quoted there: 0.34 is 34¢. */
+export const cents = (p: number) => `${p >= 0.1 ? Math.round(p * 100) : (p * 100).toFixed(1)}¢`;
+
 export function usd(n: number): string {
   if (n >= 1000) return `$${Math.round(n).toLocaleString("en-US")}`;
   if (n >= 1) return `$${n.toFixed(2)}`;
@@ -590,10 +595,11 @@ export function when(d: Date | string): string {
   });
 }
 
-/** "SUI above $5.00", "NaVi to beat FaZe", "SOL up from $186.40". */
+/** "SUI above $5.00", "NaVi to beat FaZe", "SOL up from $186.40", "Yes at 34¢" (a trader's bet). */
 export function claim(
-  c: Pick<CallRow, "market" | "subject" | "opponent" | "direction" | "target" | "entry_price"> & { targetPct?: number | null; score?: string | null },
+  c: Pick<CallRow, "market" | "subject" | "opponent" | "direction" | "target" | "entry_price"> & { targetPct?: number | null; score?: string | null; market_ref?: MarketRef | null },
 ): string {
+  if (c.market === "polymarket") return `${c.subject}${c.market_ref ? ` at ${cents(c.market_ref.prob)}` : ""}`;
   if (c.market === "cs2") return c.opponent ? `${c.subject} to beat ${c.opponent}${c.score ? ` ${c.score.replace("-", ":")}` : ""}` : `${c.subject} to win their next match${c.score ? ` ${c.score.replace("-", ":")}` : ""}`;
   if (hasLevel(c.direction) && c.target === null && c.targetPct) return `${c.subject} ${c.targetPct > 0 ? "up" : "down"} ${Math.abs(c.targetPct)}%`;
   if (hasLevel(c.direction)) return `${c.subject} ${c.direction} ${usd(c.target!)}`;
@@ -746,6 +752,49 @@ export async function logSlate(
   return { calls, errors };
 }
 
+/**
+ * Files a followed trader's new Polymarket bet as their call in one chat. A bet on a CS2 match is a
+ * CS2 pick on that team, so it meets the chat's own picks on the match; any other bet is on an
+ * outcome, judged by how Polymarket resolves the market. Null when the chat already has it.
+ */
+export async function logBet(chat: { id: number | string; title?: string | null }, follower: Author, bet: NewBet): Promise<CallRow | null> {
+  const { trader, position: p, market: m, ref } = bet;
+  const author = { id: traderId(trader.wallet), name: traderName(trader.name) };
+  const [repeat] = await db<{ id: number }>(
+    `select id from calls where chat_id = $1 and author_id = $2 and market_ref->>'marketId' = $3 and market_ref->>'outcome' = $4 limit 1`,
+    [chat.id, author.id, ref.marketId, ref.outcome],
+  );
+  if (repeat) return null;
+  const opponent = m.teams ? (m.teams.find((t) => t !== p.outcome) ?? null) : null;
+  // A match is judged a few hours after it starts, as the chat's own picks are; any other market when it's due to close.
+  const due = m.teams ? (m.start ?? m.endDate ?? new Date()).getTime() + 4 * 3_600_000 : (m.endDate?.getTime() ?? Date.now() + 7 * DAY);
+  const deadline = new Date(Math.max(due, Date.now() + 3_600_000));
+  const source: PostSource = {
+    kind: "polymarket",
+    url: trader.url,
+    handle: trader.name,
+    wallet: trader.wallet,
+    postedAt: new Date(p.first_at * 1000).toISOString(),
+    sharedBy: follower,
+  };
+  const [call] = await db<CallRow>(
+    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, market_ref, quote, deadline, source, shared_by_id)
+     values ($1, $2, $3, $4, $5, $6, $7, 'win', null, $8, $9, $10, $11, $12) returning *`,
+    [chat.id, chat.title ?? null, author.id, author.name, m.teams ? "cs2" : "polymarket", p.outcome, opponent, JSON.stringify(ref), m.question, deadline.toISOString(), JSON.stringify(source), follower.id],
+  );
+  await Promise.all([wakeAt(call.id, firstCheck(call)), nextSweep()]);
+  inBackground(async () => {
+    const record = (await trackRecords(chat.id).catch(() => new Map())).get(String(author.id));
+    const job = await remember(
+      chat.id,
+      `[CALL #${call.id}] ${when(source.postedAt)}: ${author.name}, a trader the chat follows, bet ${usd(ref.stake ?? p.cash)} on "${ref.outcome}" in the Polymarket market "${m.question}" at ${cents(ref.prob)} (${ref.category ? `${ref.category} market, ` : ""}first fill tx ${ref.tx}). Logged as ${claim(call)}, judged ${m.teams ? "after the match" : "when Polymarket resolves it"}. ${follower.name} added the trader.` +
+        (record ? ` Their record at the time: ${record.summary}` : ""),
+    );
+    if (job) await db(`update calls set memory_job = $1 where id = $2`, [job, call.id]);
+  });
+  return call;
+}
+
 export interface SlateResult {
   author_name: string;
   quote: string;
@@ -873,6 +922,12 @@ export async function resolveDue(): Promise<Resolution[]> {
   for (const call of open) {
     const due = new Date(call.deadline).getTime() <= now;
 
+    if (call.market === "polymarket") {
+      const settled = await settleBet(call, due, now);
+      if (settled) out.push(settled);
+      continue;
+    }
+
     if (call.market === "cs2") {
       if (call.waiting) {
         const placed = due ? null : await placeWaiting(call);
@@ -971,6 +1026,28 @@ export async function resolveDue(): Promise<Resolution[]> {
   return out;
 }
 
+/**
+ * A followed trader's bet, settled once Polymarket says which outcome won. Before its close a market
+ * is looked at once an hour, since a question can settle early ("…by December 31?" can happen in
+ * May); after it, every sweep until Polymarket resolves it, and dropped if it never does.
+ */
+async function settleBet(call: CallRow, due: boolean, now: number): Promise<Resolution | null> {
+  const ref = call.market_ref;
+  if (!ref) return null;
+  if (!due && new Date(now).getUTCMinutes() >= 15) return null;
+  const winner = await marketWinner(ref.marketId).catch(() => null);
+  if (winner) {
+    const how = winner.price ? `Polymarket has it at ${(winner.price * 100).toFixed(1)}%` : "resolved on Polymarket";
+    const settled = await settle(call, winner.name.toLowerCase() === ref.outcome.toLowerCase() ? "win" : "loss", `${winner.name} won (${how})`, null);
+    return settled ? { call: settled } : null;
+  }
+  if (due && now > new Date(call.deadline).getTime() + 14 * DAY) {
+    const dropped = await drop(call, "Polymarket hadn't resolved this market two weeks after it closed, so the bet was dropped.");
+    return dropped ? { call: dropped, dropped: true } : null;
+  }
+  return null;
+}
+
 async function settle(call: CallRow, outcome: "win" | "loss", note: string, q: Quote | null): Promise<CallRow | null> {
   const [row] = await db<CallRow>(
     `update calls set status = $2, result_note = $3, final_price = $4, final_proof = $5, final_check = $6, resolved_at = now()
@@ -982,7 +1059,7 @@ async function settle(call: CallRow, outcome: "win" | "loss", note: string, q: Q
     row.chat_id,
     `[RESULT #${row.id}] ${row.author_name}'s call "${row.quote}" (${claim(row)}) was ${outcome === "win" ? "RIGHT" : "WRONG"}: ${note}${q ? ` (${sourcing(q)})` : ""}.` +
       (row.market_ref
-        ? ` Polymarket had ${pickName(row.market_ref)} at ${Math.round(row.market_ref.prob * 100)}% when ${row.market_ref.late ? "the match was listed" : "it was called"}` +
+        ? ` Polymarket had ${pickName(row.market_ref)} at ${Math.round(row.market_ref.prob * 100)}% when ${row.market_ref.late ? "the match was listed" : row.market_ref.stake ? `the trader bought it (${usd(row.market_ref.stake)})` : "it was called"}` +
           (row.market_ref.book ? `, ${bookLine(row.market_ref.book)}.` : ".")
         : ""),
   ).catch((err) => console.error("memory write failed", err));

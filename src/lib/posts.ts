@@ -4,7 +4,8 @@
  * accounts it argues about, not only on its own members.
  */
 
-export type PostKind = "x" | "telegram";
+/** Where an outside call came from: a post on X or Telegram, or a bet by a trader the chat follows on Polymarket (see traders.ts). */
+export type PostKind = "x" | "telegram" | "polymarket";
 
 export interface PostLink {
   kind: PostKind;
@@ -58,6 +59,8 @@ export interface PostSource {
   handle: string;
   postedAt: string;
   sharedBy: { id: number; name: string };
+  /** A Polymarket trader's wallet: what identifies them, since a display name can change. */
+  wallet?: string;
 }
 
 const X_LINK = /https?:\/\/(?:www\.|mobile\.)?(?:x|twitter|fxtwitter|vxtwitter|fixupx)\.com\/(\w{1,15})\/status(?:es)?\/(\d+)/i;
@@ -79,15 +82,17 @@ export function justTheLink(text: string, link: PostLink): boolean {
 
 /** "@cryptoguru on X"; a channel or person without a username goes by its name. */
 export const sourceName = (s: Pick<PostSource, "kind" | "handle">) =>
-  `${/^[A-Za-z]\w{3,31}$/.test(s.handle) ? `@${s.handle}` : s.handle} on ${s.kind === "x" ? "X" : "Telegram"}`;
+  s.kind === "polymarket"
+    ? `${s.handle} on Polymarket`
+    : `${/^[A-Za-z]\w{3,31}$/.test(s.handle) ? `@${s.handle}` : s.handle} on ${s.kind === "x" ? "X" : "Telegram"}`;
 
 /**
  * A stable id for an outside account, so its calls add up to one track record per chat. Negative,
  * so it never meets a Telegram user id.
  */
-export function sourceId(s: Pick<PostSource, "kind" | "handle">): number {
+export function sourceId(s: Pick<PostSource, "kind" | "handle" | "wallet">): number {
   let h = 0x811c9dc5;
-  for (const ch of `${s.kind}:${s.handle.toLowerCase()}`) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+  for (const ch of `${s.kind}:${(s.wallet ?? s.handle).toLowerCase()}`) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
   return -(h + 1);
 }
 

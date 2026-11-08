@@ -1,6 +1,7 @@
 // Shapes the Mini App renders. Kept free of server imports so client components can use them.
 
-export type Market = "crypto" | "cs2";
+/** "polymarket": bets by Polymarket traders the chat follows. */
+export type Market = "crypto" | "cs2" | "polymarket";
 export type Outcome = "win" | "loss" | "open" | "void";
 
 export interface ReceiptView {
@@ -68,7 +69,8 @@ export interface BoardView {
   chat: { id: string; title: string };
   /** Null on a chat's public file, which shows nobody's own file. */
   me: { id: number } | null;
-  boards: Record<Market, StandingView[]>;
+  /** Polymarket only once the chat follows a trader whose bet has settled. */
+  boards: Record<"crypto" | "cs2", StandingView[]> & { polymarket?: StandingView[] };
   recent: ReceiptView[];
   mine: ReceiptView[];
   learned?: LearnedView;

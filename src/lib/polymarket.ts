@@ -35,6 +35,10 @@ export interface MarketRef {
   late?: boolean;
   /** The bookmakers' chance for the same pick at the same moment (OddsPapi: Pinnacle, or the median of the books). */
   book?: BookOdds;
+  /** A followed trader's bet (see traders.ts): the kind of market, the USDC put on the outcome, and the first fill's transaction. `prob` is then the average price paid. */
+  category?: "cs2" | "politics" | "crypto";
+  stake?: number;
+  tx?: string;
 }
 
 /** The pick as a receipt names it: "FURIA", or "FURIA 2:0" for a map-score pick. */

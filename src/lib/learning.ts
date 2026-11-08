@@ -18,6 +18,19 @@ const DAY = 86_400_000;
 
 /** The groups a call counts towards, e.g. "Sui tokens", "bullish calls", "NaVi picks". */
 export function segmentsOf(c: Pick<CallRow, "market" | "subject" | "direction" | "made_at" | "deadline"> & { market_ref?: CallRow["market_ref"] }): string[] {
+  if (c.market === "polymarket") {
+    // A followed trader's bet: the kind of market, what the price said of it, the side and how far out.
+    const ref = c.market_ref;
+    const out = ["Polymarket bets"];
+    if (ref?.category) out.push(`${ref.category === "cs2" ? "CS2" : ref.category} bets`);
+    if (ref && ref.prob < 0.35) out.push("longshot bets");
+    else if (ref && ref.prob > 0.65) out.push("favourite bets");
+    if (/^(yes|no)$/i.test(c.subject)) out.push(`bets on ${c.subject.toLowerCase() === "yes" ? "Yes" : "No"}`);
+    const horizon = new Date(c.deadline).getTime() - new Date(c.made_at).getTime();
+    if (horizon < 2 * DAY) out.push("bets settling within two days");
+    else if (horizon > 30 * DAY) out.push("long-range bets");
+    return out;
+  }
   if (c.market === "cs2") {
     const out = ["CS2 picks", `${c.subject} picks`];
     // What the market thought of the team winning when it was picked (a score pick's own odds are lower).
@@ -56,6 +69,8 @@ export interface TrackRecord {
   segments: SegmentRecord[];
   /** CS2 picks with Polymarket odds: hit rate minus the market's average price for them. */
   marketEdge?: number;
+  /** A followed trader's bets: hit rate minus the average price they paid, so a run of 90¢ favourites coming in isn't skill. */
+  betEdge?: number;
   summary: string;
 }
 
@@ -63,7 +78,7 @@ const rate = (r: { hits: number; calls: number }) => r.hits / r.calls;
 const fmt = (r: SegmentRecord) => `${r.segment} ${r.hits}/${r.calls}`;
 
 // A pattern needs at least two settled calls before the bot calls it a strength or weakness.
-const isTelling = (r: SegmentRecord) => r.calls >= 2 && r.segment !== "crypto calls";
+const isTelling = (r: SegmentRecord) => r.calls >= 2 && r.segment !== "crypto calls" && r.segment !== "Polymarket bets";
 const isStrong = (r: SegmentRecord) => isTelling(r) && rate(r) >= 0.67;
 const isWeak = (r: SegmentRecord) => isTelling(r) && rate(r) <= 0.34;
 
@@ -133,14 +148,20 @@ export function trackRecordOf(settled: CallRow[]): TrackRecord | null {
 
   // Against the market: how much more often their CS2 picks came true than Polymarket gave them.
   // Odds read after the call was made (a pick that waited for its match) would flatter the edge.
-  const priced = settled.filter((c) => c.market_ref && !c.market_ref.late);
-  const marketEdge = priced.length >= 2 ? priced.reduce((sum, c) => sum + (c.status === "win" ? 1 : 0) - c.market_ref!.prob, 0) / priced.length : undefined;
+  const edgeOf = (calls: CallRow[]) => (calls.length >= 2 ? calls.reduce((sum, c) => sum + (c.status === "win" ? 1 : 0) - c.market_ref!.prob, 0) / calls.length : undefined);
+  const priced = settled.filter((c) => c.market === "cs2" && c.market_ref && !c.market_ref.late);
+  const marketEdge = edgeOf(priced);
   if (marketEdge !== undefined) {
     const pts = Math.round(marketEdge * 100);
     parts.push(pts >= 0 ? `beats Polymarket by ${pts} pts on CS2` : `trails Polymarket by ${-pts} pts on CS2`);
   }
+  const betEdge = edgeOf(settled.filter((c) => c.market === "polymarket" && c.market_ref));
+  if (betEdge !== undefined) {
+    const pts = Math.round(betEdge * 100);
+    parts.push(pts >= 0 ? `wins ${pts} pts more often than the prices they bet at` : `wins ${-pts} pts less often than the prices they bet at`);
+  }
 
-  return { authorName: name, hits, calls: settled.length, strong, weak, segments, marketEdge, summary: parts.join("; ") + "." };
+  return { authorName: name, hits, calls: settled.length, strong, weak, segments, marketEdge, betEdge, summary: parts.join("; ") + "." };
 }
 
 /** The feed line for a change of mind; a long or multi-line quote (a forwarded signal post) is cut to its start. */
@@ -211,7 +232,7 @@ export const insightLine = (r: TrackRecord) =>
  * and their most similar past call, recalled from the chat's Walrus Memory by meaning.
  */
 /** Which way a call leans, for finding its like in memory: bullish or bearish on a coin, or a pick on a team. */
-const leanOf = (c: Pick<CallRow, "market" | "direction">) => (c.market === "cs2" ? "pick" : c.direction === "below" || c.direction === "down" ? "bearish" : "bullish");
+const leanOf = (c: Pick<CallRow, "market" | "direction">) => (c.market !== "crypto" ? "pick" : c.direction === "below" || c.direction === "down" ? "bearish" : "bullish");
 
 /**
  * How past calls like this one ended, read from the chat's Walrus Memory: the [RESULT] entries of
@@ -246,6 +267,8 @@ const LIKE_LINKS = 5;
 
 /** A receipt line on how calls like this one have gone in the chat, from memory, once there are at least 3. */
 async function likeCallsLine(call: CallRow): Promise<ReceiptLine | null> {
+  // A bet's subject is an outcome ("Yes"), not a topic other calls share.
+  if (call.market === "polymarket") return null;
   const lean = leanOf(call);
   // Three searches worded differently, side by side, and their results merged: now and then the
   // relayer answers one with a handful of entries, or with entries on something else, and in
@@ -329,7 +352,7 @@ export async function noteForNewCall(call: CallRow): Promise<ReceiptLine[]> {
     if (chance) lines.push(chance);
   }
 
-  const memories = past?.n ? await recall(call.chat_id, `${call.author_name} ${call.subject} ${call.quote}`, 8).catch(() => []) : [];
+  const memories = past?.n && call.market !== "polymarket" ? await recall(call.chat_id, `${call.author_name} ${call.subject} ${call.quote}`, 8).catch(() => []) : [];
   const similar = memories.find(
     (m) => m.text.startsWith("[RESULT #") && m.text.includes(call.author_name) && m.text.includes(call.subject) && !m.text.startsWith(`[RESULT #${call.id}]`),
   );
@@ -342,20 +365,24 @@ export async function noteForNewCall(call: CallRow): Promise<ReceiptLine[]> {
     }
   }
   if (like) lines.push(like);
-  if (room.length) await noteEffect(call.chat_id, "room", `Weighed everyone's record on ${call.subject} to show which way the people worth listening to lean.`, call.id);
+  if (room.length) await noteEffect(call.chat_id, "room", `Weighed everyone's record on ${call.market === "polymarket" ? `"${call.quote}"` : call.subject} to show which way the people worth listening to lean.`, call.id);
   return [...lines, ...room];
 }
 
 /* ---------- Whom to trust ---------- */
 
 /** Which way a call leans: "up" or "down" for crypto, the team picked for CS2. */
-const sideOf = (c: CallRow) => (c.market === "cs2" ? c.subject : c.direction === "above" || c.direction === "up" ? "up" : "down");
+const sideOf = (c: CallRow) => (c.market !== "crypto" ? c.subject : c.direction === "above" || c.direction === "up" ? "up" : "down");
 const sideLabel = (side: string) => (side === "up" ? "↑ up" : side === "down" ? "↓ down" : side);
 
 /** Two calls on the same coin, or on the same match from either side. */
 const sameQuestion = (a: CallRow, b: CallRow) =>
   a.market === b.market &&
-  (a.market === "crypto" ? a.subject === b.subject : [a.subject, a.opponent].sort().join() === [b.subject, b.opponent].sort().join());
+  (a.market === "crypto"
+    ? a.subject === b.subject
+    : a.market === "polymarket"
+      ? a.market_ref?.marketId === b.market_ref?.marketId
+      : [a.subject, a.opponent].sort().join() === [b.subject, b.opponent].sort().join());
 
 /**
  * How far the bot trusts an author on a call. It starts from a coin flip and moves only as far as
@@ -407,7 +434,7 @@ export async function roomNote(call: CallRow): Promise<string[]> {
   const [mostSaid, saidBy] = [...heads.entries()].sort((a, b) => b[1] - a[1])[0];
   const overruled = mostSaid !== lead && saidBy > votes.length / 2 ? `${saidBy} of ${votes.length} say ${sideLabel(mostSaid)}, but w` : "W";
 
-  const topic = call.market === "cs2" && call.opponent ? `${call.subject} vs ${call.opponent}` : call.subject;
+  const topic = call.market === "polymarket" ? `“${call.quote}”` : call.market === "cs2" && call.opponent ? `${call.subject} vs ${call.opponent}` : call.subject;
   return [
     `🧭 Also on ${topic}: ${votes
       .slice(1)
