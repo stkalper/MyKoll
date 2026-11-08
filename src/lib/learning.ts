@@ -2,6 +2,7 @@ import type { CallRow } from "./calls";
 import { db } from "./db";
 import { noteEffect } from "./effects";
 import { recall, remember } from "./memory";
+import { blobUrl } from "./proof";
 import { robinhoodKind } from "./robinhoodPrices";
 import { isSuiToken } from "./suiPrices";
 
@@ -232,11 +233,19 @@ export function likeCallsIn(texts: string[], call: Pick<CallRow, "id" | "market"
       lean === "pick" ? /^to (beat|win)( |$)/.test(rest) : lean === "bullish" ? /^(above|up)( |$)/.test(rest) : /^(below|down)( |$)/.test(rest);
     if (same) seen.set(id, m[3] === "RIGHT");
   }
-  return { n: seen.size, hits: [...seen.values()].filter(Boolean).length, lean };
+  return { n: seen.size, hits: [...seen.values()].filter(Boolean).length, lean, ids: [...seen.keys()].sort((a, b) => a - b) };
 }
 
+/** A line on a receipt: plain text (escaped when sent), or HTML the bot built itself, e.g. with links. */
+export type ReceiptLine = string | { html: string };
+
+const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** How many of the recalled calls get a link to their sealed result, so the line stays one line. */
+const LIKE_LINKS = 5;
+
 /** A receipt line on how calls like this one have gone in the chat, from memory, once there are at least 3. */
-async function likeCallsLine(call: CallRow): Promise<string | null> {
+async function likeCallsLine(call: CallRow): Promise<ReceiptLine | null> {
   const lean = leanOf(call);
   // Three searches worded differently, side by side, and their results merged: now and then the
   // relayer answers one with a handful of entries, or with entries on something else, and in
@@ -251,18 +260,44 @@ async function likeCallsLine(call: CallRow): Promise<string | null> {
     Promise.all(queries.map(([q, limit]) => recall(call.chat_id, q, limit).catch(() => []))),
     db<{ id: number }>(`select id from calls where chat_id = $1 and hidden`, [call.chat_id]),
   ]);
+  const memories = found.flat();
   const like = likeCallsIn(
-    found.flat().map((m) => m.text),
+    memories.map((m) => m.text),
     call,
     new Set(hiddenRows.map((r) => r.id)),
   );
   if (like.n < 3) return null;
   const what = lean === "pick" ? `picks on ${call.subject}` : `${lean} ${call.subject} calls`;
   await noteEffect(call.chat_id, "last_time", `Recalled ${like.n} past ${what} from memory, ${like.hits} of them right, for ${call.author_name}'s call "${call.quote}".`, call.id);
-  return `🧠 From this chat's memory: ${like.hits} of ${like.n} ${what} came true`;
+  // The latest few of those results, each linked to the Walrus blob it was recalled from.
+  const blobOf = new Map<number, string>();
+  for (const m of memories) {
+    const id = Number(m.text.match(/^\[RESULT #(\d+)\]/)?.[1]);
+    if (id && m.blobId && !blobOf.has(id)) blobOf.set(id, m.blobId);
+  }
+  const linked = like.ids.filter((id) => blobOf.has(id)).slice(-LIKE_LINKS);
+  const links = linked.map((id) => `<a href="${blobUrl(blobOf.get(id)!)}">#${id}</a>`).join(" ");
+  const more = linked.length && like.n > linked.length ? " …" : "";
+  return {
+    html: `🧠 From this chat's memory: ${like.hits} of ${like.n} ${escHtml(what)} came true${links ? `
+<i>recalled from Walrus: ${links}${more}</i>` : ""}`,
+  };
 }
 
-export async function noteForNewCall(call: CallRow): Promise<string[]> {
+/**
+ * The bot's own chance that the call comes true, from what it has learned about the author: the
+ * same number the Memory Check scores against outcomes. Next to Polymarket's price on a CS2 pick.
+ * Only said once the author has a record; with none the bot knows nothing and it would read 50%.
+ */
+export function chanceLine(record: TrackRecord | undefined, call: CallRow): string | null {
+  if (!record) return null;
+  const { weight, basis } = trustOn(record, call);
+  const ref = call.market_ref;
+  const market = ref && !ref.score ? ` · Polymarket ${Math.round(ref.prob * 100)}%` : "";
+  return `🎯 Memory's chance: ${Math.round(weight * 100)}% (${basis})${market}`;
+}
+
+export async function noteForNewCall(call: CallRow): Promise<ReceiptLine[]> {
   // Recall takes a second or more, so it only runs when the author has a settled call on this coin or team to recall.
   const [records, [past], room, like] = await Promise.all([
     trackRecords(call.chat_id),
@@ -274,7 +309,7 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
     likeCallsLine(call).catch(() => null),
   ]);
   const record = records.get(String(call.author_id));
-  const lines: string[] = [];
+  const lines: ReceiptLine[] = [];
   const said = `${call.author_name}'s call "${call.quote}"`;
 
   if (record) {
@@ -290,6 +325,8 @@ export async function noteForNewCall(call: CallRow): Promise<string[]> {
     if (weak) await noteEffect(call.chat_id, "weak_spot", `Flagged ${said} as a weak spot (${fmt(weak)}).`, call.id);
     else if (strong) await noteEffect(call.chat_id, "strong_spot", `Flagged ${said} as a strong spot (${fmt(strong)}).`, call.id);
     lines.push(`📊 ${call.author_name}'s record: ${relevant.length ? relevant.map(fmt).join(" · ") : `${record.hits}/${record.calls} overall`}${spot}`);
+    const chance = chanceLine(record, call);
+    if (chance) lines.push(chance);
   }
 
   const memories = past?.n ? await recall(call.chat_id, `${call.author_name} ${call.subject} ${call.quote}`, 8).catch(() => []) : [];

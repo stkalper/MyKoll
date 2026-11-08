@@ -5,7 +5,7 @@ import { insightLine, trackRecords, type TrackRecord } from "@/lib/learning";
 import { chatOfFile, toView } from "@/lib/receipts";
 import { memoryScorecard } from "@/lib/scorecard";
 import { chatMember } from "@/lib/telegramAuth";
-import type { BoardView, StandingView } from "@/lib/view";
+import type { BoardView, LearnedView, MemberView, StandingView } from "@/lib/view";
 
 const toStanding = (records: Map<string, TrackRecord>, cs2 = false) => (s: Standing): StandingView => {
   const record = records.get(String(s.author_id));
@@ -21,16 +21,41 @@ const toStanding = (records: Map<string, TrackRecord>, cs2 = false) => (s: Stand
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const file = params.get("file");
+  // With `member=<name>`, one member's file in the chat instead of the whole chat.
+  const member = params.get("member");
   if (file) {
     const chatId = chatOfFile(file);
     if (!chatId || !(await isPublicChat(chatId))) return Response.json({ error: "This chat's file isn't public." }, { status: 404 });
-    return Response.json(await chatView(chatId, null), { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
+    const view = member ? await memberView(chatId, member) : await chatView(chatId, null);
+    if (!view) return Response.json({ error: "No one by that name has settled calls here." }, { status: 404 });
+    return Response.json(view, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
   }
 
   const chatId = params.get("chat") ?? "";
   const user = await chatMember(req, chatId);
   if (!user) return Response.json({ error: "Open this from your group's /board button." }, { status: 403 });
+  if (member) {
+    const view = await memberView(chatId, member);
+    return view ? Response.json(view) : Response.json({ error: "No one by that name has settled calls here." }, { status: 404 });
+  }
   return Response.json(await chatView(chatId, user.id));
+}
+
+const learnedOf = (r: TrackRecord): LearnedView => ({ name: r.authorName, hits: r.hits, calls: r.calls, summary: r.summary, strong: r.strong, weak: r.weak });
+
+/**
+ * A member's file, as anyone who can see the chat's board sees it: what the bot has learned about
+ * them and every call of theirs still on the board (hidden ones stay out). Found by the name on the
+ * board, so a member's Telegram id never leaves the server.
+ */
+async function memberView(chatId: string, name: string): Promise<MemberView | null> {
+  const [crypto, cs2, records] = await Promise.all([leaderboard(chatId, "crypto"), leaderboard(chatId, "cs2"), trackRecords(chatId)]);
+  const standing = [...crypto, ...cs2].find((s) => s.author_name === name);
+  if (!standing) return null;
+  const rows = (await callsBy(chatId, standing.author_id)).filter((c) => !c.hidden);
+  const [sealed, reasons] = await Promise.all([withBlobs(rows), reasonsFor(rows.map((c) => c.id))]);
+  const record = records.get(String(standing.author_id));
+  return { name, learned: record ? learnedOf(record) : undefined, calls: sealed.map((c) => toView(c, reasons)) };
 }
 
 async function chatView(chatId: string, userId: number | null): Promise<BoardView> {
@@ -57,14 +82,7 @@ async function chatView(chatId: string, userId: number | null): Promise<BoardVie
     boards: { crypto: crypto.map(toStanding(records)), cs2: cs2.map(toStanding(records, true)) },
     recent: recent.map((c) => toView(c, reasons)),
     mine: mine.map((c) => toView(c, reasons)),
-    learned: mineLearned && {
-      name: mineLearned.authorName,
-      hits: mineLearned.hits,
-      calls: mineLearned.calls,
-      summary: mineLearned.summary,
-      strong: mineLearned.strong,
-      weak: mineLearned.weak,
-    },
+    learned: mineLearned && learnedOf(mineLearned),
     habits,
     memoryCheck: memoryCheck.calls ? memoryCheck : undefined,
     memoryEffects: effects.map((e) => ({ kind: e.kind, text: e.text, when: when(e.created_at) })),

@@ -59,5 +59,7 @@ export async function isMember(chatId: string, userId: number): Promise<boolean>
 export async function chatMember(req: Request, chatId: string): Promise<TelegramWebAppUser | null> {
   const user = appUser(req);
   if (!user || !/^-?\d+$/.test(chatId)) return null;
+  // A private chat with the bot has the member's own id: their personal journal, theirs alone.
+  if (!chatId.startsWith("-")) return chatId === String(user.id) ? user : null;
   return (await isMember(chatId, user.id)) ? user : null;
 }

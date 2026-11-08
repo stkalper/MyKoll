@@ -57,6 +57,13 @@ export interface LearnedView {
   weak: { segment: string; hits: number; calls: number }[];
 }
 
+/** One member's file within a chat: what the bot has learned about them, and their calls. */
+export interface MemberView {
+  name: string;
+  learned?: LearnedView;
+  calls: ReceiptView[];
+}
+
 export interface BoardView {
   chat: { id: string; title: string };
   /** Null on a chat's public file, which shows nobody's own file. */
@@ -111,3 +118,6 @@ export interface MemoryCheckView {
 }
 
 export const hitRate = (s: StandingView) => Math.round((s.hits / s.calls) * 100);
+
+/** The title of a member's private chat with the bot, where they keep a journal of their own calls. */
+export const PERSONAL_TITLE = "Personal journal";

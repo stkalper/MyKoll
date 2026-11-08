@@ -8,7 +8,7 @@ import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
 import { backedTeam, claim, coinNamed, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { coinWords, midsFrom, priceIn } from "./hyperliquid";
-import { likeCallsIn, recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
+import { chanceLine, likeCallsIn, recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { fromGammaMarket, pickName, scoreOdds, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
@@ -142,6 +142,14 @@ describe("the learning loop", () => {
     assert.equal(basis, "3/3 on SUI calls");
     assert.ok(weight > 0.6 && weight < 0.65, String(weight));
     assert.deepEqual(trustOn(undefined, call({})), { weight: 0.5, basis: "no record yet" });
+  });
+
+  it("says its own chance on a new call only once there's a record, next to Polymarket's on a pick", () => {
+    const record = trackRecordOf([call({ status: "win" }), call({ status: "win" }), call({ status: "win" }), call({ subject: "BTC", status: "loss" })])!;
+    assert.equal(chanceLine(undefined, call({})), null);
+    assert.match(chanceLine(record, call({}))!, /^🎯 Memory's chance: 6\d% \(3\/3 on SUI calls\)$/);
+    const ref = { platform: "polymarket", eventId: "1", marketId: "2", title: "NaVi vs FaZe", url: "", outcome: "NaVi", prob: 0.585 } as const;
+    assert.match(chanceLine(record, call({ market: "cs2", subject: "NaVi", direction: "win", market_ref: ref }))!, / · Polymarket 59%$/);
   });
 
   it("moves little on one result, and further with more", () => {
@@ -556,12 +564,12 @@ describe("calls like this one, from memory", () => {
   ];
   it("counts calls on the same coin leaning the same way, each once, hidden ones left out", () => {
     const bullish = likeCallsIn(results, { id: 9, market: "crypto", direction: "above", subject: "BTC" }, new Set([6]));
-    assert.deepEqual(bullish, { n: 3, hits: 1, lean: "bullish" });
+    assert.deepEqual(bullish, { n: 3, hits: 1, lean: "bullish", ids: [1, 2, 4] });
     const bearish = likeCallsIn(results, { id: 9, market: "crypto", direction: "down", subject: "BTC" }, new Set());
-    assert.deepEqual(bearish, { n: 1, hits: 1, lean: "bearish" });
+    assert.deepEqual(bearish, { n: 1, hits: 1, lean: "bearish", ids: [3] });
   });
   it("counts picks on the same team, not against it, and never the call itself", () => {
-    assert.deepEqual(likeCallsIn(results, { id: 7, market: "cs2", direction: "win", subject: "FURIA" }, new Set()), { n: 0, hits: 0, lean: "pick" });
-    assert.deepEqual(likeCallsIn(results, { id: 99, market: "cs2", direction: "win", subject: "FURIA" }, new Set()), { n: 1, hits: 1, lean: "pick" });
+    assert.deepEqual(likeCallsIn(results, { id: 7, market: "cs2", direction: "win", subject: "FURIA" }, new Set()), { n: 0, hits: 0, lean: "pick", ids: [] });
+    assert.deepEqual(likeCallsIn(results, { id: 99, market: "cs2", direction: "win", subject: "FURIA" }, new Set()), { n: 1, hits: 1, lean: "pick", ids: [7] });
   });
 });

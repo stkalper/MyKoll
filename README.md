@@ -20,8 +20,8 @@ Built for the **Tatum × Walrus “Total Recall”** hackathon, track *Markets &
 | Without memory | With Walrus Memory |
 |---|---|
 | A call is a price alert: it settles and is gone | Every call, verdict and reason stays in the chat's own Walrus Memory, each sealed before its result was known |
-| Every member's call looks equally credible | Each member has a track record by kind of call, and a new call is flagged as their strong or weak spot |
-| A new call stands alone | The bot brings back the member's last similar call and how it ended, and how calls like it have gone in the chat, read from its memory (*🧠 From this chat's memory: 4 of 7 bullish BTC calls came true*) |
+| Every member's call looks equally credible | Each member has a track record by kind of call, a new call is flagged as their strong or weak spot, and the receipt shows the bot's own chance for it next to Polymarket's (*🎯 Memory's chance: 62% (5/7 on NaVi picks) · Polymarket 58%*), the same number the Memory Check scores |
+| A new call stands alone | The bot brings back the member's last similar call and how it ended, and how calls like it have gone in the chat, read from its memory (*🧠 From this chat's memory: 4 of 7 bullish BTC calls came true*), with links to the sealed results it recalled |
 | “I never said that” | “Who called furia?” is answered with their own words, and *What I recalled* lists the memories behind the answer, each linked to its blob on Walruscan |
 | A split room is a headcount | A split room is weighed by who has earned trust |
 | The bot asks everyone, every time | It stops asking members who always confirm, and doesn't repeat a call it misread |
@@ -36,7 +36,8 @@ Whether this makes the bot better at judging people is measured, not assumed: se
 3. Paste a link to a signal post on X, or forward one from a Telegram channel: the call goes under the post's author.
 4. Ask `@mykoll_bot who called furia?`, or just `who called furia?`. The answer comes from Walrus Memory.
 5. Make a call that settles soon, such as `sui above 1 in 10 minutes`. The result comes on its own, with a link to where the call was sealed on Walrus before the result.
-6. [`/api/health`](https://mykoll.vercel.app/api/health) checks every integration live, and [`/api/stats`](https://mykoll.vercel.app/api/stats) has the live counts and the raw memory score.
+6. No group to try it in? Write the bot a call in a private chat. It logs it right away into your own journal, with its own memory, and settles it the same way.
+7. [`/api/health`](https://mykoll.vercel.app/api/health) checks every integration live, and [`/api/stats`](https://mykoll.vercel.app/api/stats) has the live counts and the raw memory score.
 
 ## By the numbers
 
@@ -160,6 +161,7 @@ Every settled call and every tap on a spotted call teaches the bot something, an
 - **Where each member is right.** Each verdict recomputes the author’s track record by kind of call: per coin or team, Sui tokens vs majors, bullish vs bearish, short vs long range. New calls come back with that record, a warning when the call is in a known weak spot (or a 🔥 for a strong one), and the author’s most similar past call, recalled by meaning.
   ```
   📊 @jake's record: WAL calls 0/2 · Sui tokens 1/4 · bullish calls 2/6 — ⚠️ a weak spot (Sui tokens 1/4)
+  🎯 Memory's chance: 38% (0/2 on WAL calls)
   ↩ Last time: “WAL to 5 cents by Friday” — ❌ wrong
   ```
 - **Whom to trust.** When others already have an open call on the same coin or match, the bot weighs everyone by their record on that kind of call, so a head count can lose to the people who are usually right:
@@ -276,7 +278,7 @@ By 2 November 2026, the 23 logged calls had been priced by: Tatum Price API 7, T
 | `/call SUI to $5 by Friday` | Log a call (or just say it in the chat); `/call <link to a post>` files the call in that post |
 | `/why 12 ETF inflows` | Add your reasoning to call #12 (or reply to its receipt) |
 | `/ask what did Max say about SOL?` | Answer from the chat’s memory (or mention the bot). **🧠 What I recalled** under the answer lists the memories it used, each linked to its Walrus blob |
-| `/board` | Leaderboard, plus a button that opens the Mini App |
+| `/board` | Leaderboard, plus a button that opens the Mini App, where tapping a member opens their file: what the bot has learned about them and every call of theirs |
 | `/open` | Calls still waiting for their deadline |
 | `/hide 12` | Take your call off the board and out of the bot’s answers |
 | `/mode` | Admins choose *ask first* or *auto* logging |

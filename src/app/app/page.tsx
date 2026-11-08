@@ -7,7 +7,7 @@ import { MemoryCheck } from "@/components/file/MemoryCheck";
 import { Tally } from "@/components/file/Tally";
 import { ReceiptCard } from "@/components/ReceiptCard";
 import { demoBoard } from "@/lib/demo";
-import { hitRate, vsMarketText, type BoardView, type Market } from "@/lib/view";
+import { hitRate, vsMarketText, type BoardView, type Market, type MemberView } from "@/lib/view";
 
 interface TelegramWebApp {
   initData: string;
@@ -44,6 +44,10 @@ export default function MiniApp() {
   const [initData, setInitData] = useState("");
   /** The viewer's groups, when the app was opened without one (e.g. from the bot's profile). */
   const [chats, setChats] = useState<{ id: string; title: string }[] | null>(null);
+  /** The public file link the page was opened with, if any. */
+  const [file, setFile] = useState("");
+  /** One member's file, opened from the board. */
+  const [member, setMember] = useState<MemberView | null>(null);
 
   const openChat = useCallback(async (chat: string, auth: string) => {
     const res = await fetch(`/api/app/board?chat=${encodeURIComponent(chat)}`, {
@@ -52,6 +56,7 @@ export default function MiniApp() {
     const data = await res.json();
     if (!res.ok) return setError(data.error ?? "Something went wrong.");
     setError("");
+    setMember(null);
     setView(data);
     try {
       localStorage.setItem("receipts:lastChat", chat);
@@ -70,6 +75,7 @@ export default function MiniApp() {
     if (!tg?.initData) {
       const file = new URLSearchParams(window.location.search).get("file");
       if (!file) return setView(demoBoard);
+      setFile(file);
       const res = await fetch(`/api/app/board?file=${encodeURIComponent(file)}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return setError(data.error ?? "Something went wrong.");
@@ -90,6 +96,19 @@ export default function MiniApp() {
     if (preferred) return openChat(preferred.id, tg.initData);
     setChats(list);
   }, [openChat]);
+
+  async function openMember(name: string) {
+    if (!view) return;
+    if (view.chat.id === "demo") return setMember({ name, learned: view.learned?.name === name ? view.learned : undefined, calls: view.recent.filter((c) => c.author === name) });
+    const res = file
+      ? await fetch(`/api/app/board?file=${encodeURIComponent(file)}&member=${encodeURIComponent(name)}`)
+      : await fetch(`/api/app/board?chat=${encodeURIComponent(view.chat.id)}&member=${encodeURIComponent(name)}`, { headers: { "X-Telegram-Init-Data": initData } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return setError(data.error ?? "Something went wrong.");
+    setError("");
+    setMember(data);
+    window.scrollTo({ top: 0 });
+  }
 
   async function toggleHidden(callId: number, hidden: boolean) {
     if (!view || view.chat.id === "demo") return;
@@ -166,7 +185,36 @@ export default function MiniApp() {
         </>
       )}
 
-      {view && tab === "board" && (
+      {view && tab === "board" && member && (
+        <>
+          <button onClick={() => setMember(null)} className="mt-6 font-mono text-xs font-semibold uppercase tracking-wider text-muted">
+            ← Board
+          </button>
+          <Title>{member.name}</Title>
+          <div className="mt-8 flex justify-center">
+            {member.learned ? (
+              <MemberBadge
+                name={member.learned.name}
+                hits={member.learned.hits}
+                calls={member.learned.calls}
+                strong={member.learned.strong.map((r) => `${r.segment} ${r.hits}/${r.calls}`)}
+                weak={member.learned.weak.map((r) => `${r.segment} ${r.hits}/${r.calls}`)}
+                className="-rotate-2"
+              />
+            ) : (
+              <p className="paper rounded-sm px-5 py-5 font-mono text-sm">No record yet. Once a few of their calls settle, I&apos;ll learn where they tend to be right.</p>
+            )}
+          </div>
+          {member.learned && <p className="mt-4 text-center font-hand text-xl text-muted">I bring this up when they make a new call of the same kind.</p>}
+          <div className="mt-8 space-y-6">
+            {member.calls.map((c, i) => (
+              <ReceiptCard key={c.id} call={c} tilt={i % 2 ? 0.6 : -0.6} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {view && tab === "board" && !member && (
         <>
           <Title>Who called it right.</Title>
           <div className="mt-6 flex gap-2">
@@ -184,7 +232,12 @@ export default function MiniApp() {
           </div>
           <ol className="folder -mt-[2px] space-y-3 rounded-b-2xl rounded-tr-2xl p-3">
             {view.boards[market].map((s, i) => (
-              <li key={s.name} className="paper flex items-center gap-3 rounded-sm px-4 py-3" style={{ transform: `rotate(${i % 2 ? 0.5 : -0.5}deg)` }}>
+              <li
+                key={s.name}
+                onClick={() => void openMember(s.name)}
+                className="paper flex cursor-pointer items-center gap-3 rounded-sm px-4 py-3"
+                style={{ transform: `rotate(${i % 2 ? 0.5 : -0.5}deg)` }}
+              >
                 <span className="font-form text-lg font-extrabold text-ink-muted">{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-mono font-semibold">{s.name}</p>
@@ -328,7 +381,10 @@ export default function MiniApp() {
           {tabs.map(([id, label]) => (
             <button
               key={id}
-              onClick={() => setTab(id)}
+              onClick={() => {
+                setTab(id);
+                setMember(null);
+              }}
               className={`rounded-md px-4 py-2 font-form text-xs font-extrabold uppercase tracking-wider ${tab === id ? "bg-ink text-paper" : "text-ink-muted"}`}
             >
               {label}

@@ -37,7 +37,7 @@ import {
 import { config, llmEnabled } from "./config";
 import { db } from "./db";
 import { habitFor, habitText, misreadsLike, recordFeedback } from "./habits";
-import { noteForNewCall, trackRecords } from "./learning";
+import { noteForNewCall, trackRecords, type ReceiptLine } from "./learning";
 import { bookLine } from "./bookmakers";
 import { pickName } from "./polymarket";
 import { fileUrl, shareUrl } from "./receipts";
@@ -47,7 +47,7 @@ import { blobUrl, proofLabel, proofUrl } from "./proof";
 import { nextSweep } from "./schedule";
 import { noteEffect } from "./effects";
 import { DISAGREE, gap, sourceLabel } from "./tatum";
-import { vsMarketText } from "./view";
+import { PERSONAL_TITLE, vsMarketText } from "./view";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -65,7 +65,10 @@ function crossCheck(price: number | null, check: number | null): string | null {
     : `✓ The price feed agrees: ${usd(check)} (${(apart * 100).toFixed(1)}% apart)`;
 }
 
-function receiptText(call: CallRow, headline: string, reasons: string[] = [], learned: string[] = []): string {
+/** Where a call is filed: the group, or for a private chat with the bot, the member's own journal. */
+const chatOf = (chat: Context["chat"]) => ({ id: chat!.id, title: chat!.type === "private" ? PERSONAL_TITLE : "title" in chat! ? chat!.title : undefined });
+
+function receiptText(call: CallRow, headline: string, reasons: string[] = [], learned: ReceiptLine[] = []): string {
   const lines = [`🧾 <b>Receipt #${call.id}</b> · ${headline}`, `${esc(call.author_name)}: “${esc(call.quote)}”`];
   if (call.source)
     lines.push(`<i>📎 posted ${esc(when(call.source.postedAt))} · shared by ${esc(call.source.sharedBy.name)}</i>`);
@@ -94,7 +97,7 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
     if (ref.book) lines.push(`🏦 Bookmakers then: ${esc(bookLine(ref.book))}`);
   }
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
-  if (learned.length) lines.push("", ...learned.map(esc));
+  if (learned.length) lines.push("", ...learned.map((l) => (typeof l === "string" ? esc(l) : l.html)));
   if (call.status === "open" && !reasons.length && !call.source) lines.push("", "<i>Reply to this receipt to add why you think so.</i>");
   return lines.join("\n");
 }
@@ -114,7 +117,7 @@ function receiptButtons(call: CallRow, kb = new InlineKeyboard()): InlineKeyboar
 }
 
 /** What the bot has learned that bears on this call: shown when it's made, and after it settles. */
-const learnedForNew = (call: CallRow) => noteForNewCall(call).catch(() => [] as string[]);
+const learnedForNew = (call: CallRow) => noteForNewCall(call).catch(() => [] as ReceiptLine[]);
 async function learnedAfter(call: CallRow): Promise<string[]> {
   const [records, changed] = await Promise.all([
     trackRecords(call.chat_id).catch(() => new Map()),
@@ -318,7 +321,7 @@ export function createBot(): Bot {
 
   bot.command("start", (ctx) =>
     ctx.reply(
-      "I keep receipts on your group chat's crypto and CS2 calls.\n\nAdd me to a group, then:\n• /call SUI to $5 by Friday\n• /call NaVi beat FaZe tonight\n• or just talk — I'll offer to log anything that sounds like a call\n• /board — who calls it right\n• /ask what did Jake say about SUI?",
+      "I keep receipts on your group chat's crypto and CS2 calls.\n\nAdd me to a group, then:\n• /call SUI to $5 by Friday\n• /call NaVi beat FaZe tonight\n• or just talk — I'll offer to log anything that sounds like a call\n• /board — who calls it right\n• /ask what did Jake say about SUI?\n\nOr keep a journal of your own right here: write me a call (“BTC 100k by Friday”, “NaVi win”) and I'll log it, settle it and remember how you did.",
       {
         reply_markup: new InlineKeyboard().url("➕ Add to a group", `https://t.me/${ctx.me.username}?startgroup=receipts`),
       },
@@ -338,7 +341,7 @@ export function createBot(): Bot {
     const draft = link ? await callFromPost(link, authorOf(ctx)) : await extractCall(text);
     if (!draft) return ctx.reply("That doesn't read like a checkable call. Try: /call BTC under 90k by Sunday, or /call Spirit beat Vitality.");
     if ("reason" in draft) return ctx.reply(draft.reason);
-    const chat = { id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined };
+    const chat = chatOf(ctx.chat);
     if ("picks" in draft) {
       const { calls, errors } = await logSlate(chat, author, draft);
       if (!calls.length) return ctx.reply(errors.join("\n"));
@@ -455,6 +458,7 @@ export function createBot(): Bot {
   }
 
   bot.command("mode", async (ctx) => {
+    if (ctx.chat.type === "private") return ctx.reply("Here I log your calls right away; tap ✗ Not a call under a receipt if I misread you. /mode is for groups.");
     const current = await chatMode(ctx.chat.id);
     await ctx.reply(`How should I handle calls in this chat?\n\n${MODE_TEXT.ask}\n\n${MODE_TEXT.auto}\n\nOnly group admins can switch.`, {
       parse_mode: "HTML",
@@ -507,7 +511,7 @@ export function createBot(): Bot {
     // Whoever removes the draft logs it, so a double tap can't log it twice.
     const claimed = await db(`delete from pending_calls where id = $1 returning id`, [pendingId]);
     if (!claimed.length) return ctx.answerCallbackQuery({ text: "Already handled." });
-    const chat = { id: ctx.chat!.id, title: "title" in ctx.chat! ? ctx.chat!.title : undefined };
+    const chat = chatOf(ctx.chat);
     if ("picks" in pending.draft) {
       const slate = pending.draft;
       if (action === "nolog") {
@@ -570,7 +574,7 @@ export function createBot(): Bot {
       if (q) return replyFromMemory(ctx, q, ctx.message.message_id);
     }
 
-    if (ctx.chat.type === "private" || !llmEnabled) return;
+    if (!llmEnabled) return;
 
     // A link to a post on X or Telegram: the call in it is filed under the post's author, once the
     // member who shared it says so. A message forwarded from a channel or another person works the
@@ -623,14 +627,19 @@ export function createBot(): Bot {
 
     // What the bot has learned about this member can override the chat's mode, and it says so.
     const author = authorOf(ctx);
-    const [mode, habit, misreads] = await Promise.all([chatMode(ctx.chat.id), habitFor(ctx.chat.id, author.id), misreadsLike(ctx.chat.id, author, draft)]);
+    // In a private chat the member is writing to the bot on purpose, so a call is logged right away.
+    const [mode, habit, misreads] = await Promise.all([
+      ctx.chat.type === "private" ? ("auto" as const) : chatMode(ctx.chat.id),
+      habitFor(ctx.chat.id, author.id),
+      misreadsLike(ctx.chat.id, author, draft),
+    ]);
     if (misreads >= 2) {
       await noteEffect(ctx.chat.id, "stayed_quiet", `Stayed quiet on ${author.name}: they said twice that messages like this aren't calls.`);
       return console.log("skipped: the author said this reading wasn't a call before", { chat: ctx.chat.id, misreads });
     }
 
     if (!misreads && (habit === "trusted" || (mode === "auto" && habit !== "unsure"))) {
-      const call = await logCall({ id: ctx.chat.id, title: "title" in ctx.chat ? ctx.chat.title : undefined }, author, draft);
+      const call = await logCall(chatOf(ctx.chat), author, draft);
       if ("error" in call) return ctx.reply(call.error, { reply_parameters: { message_id: ctx.message.message_id } });
       const why = mode === "ask" ? [`🤝 ${author.name} ${habitText.trusted.them}.`] : [];
       if (mode === "ask") await noteEffect(ctx.chat.id, "logged_without_asking", `Logged ${author.name}'s "${call.quote}" without asking: ${author.name} ${habitText.trusted.them}.`, call.id);
