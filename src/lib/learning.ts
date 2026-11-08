@@ -302,8 +302,7 @@ async function likeCallsLine(call: CallRow): Promise<ReceiptLine | null> {
   const links = linked.map((id) => `<a href="${blobUrl(blobOf.get(id)!)}">#${id}</a>`).join(" ");
   const more = linked.length && like.n > linked.length ? " …" : "";
   return {
-    html: `🧠 From this chat's memory: ${like.hits} of ${like.n} ${escHtml(what)} came true${links ? `
-<i>recalled from Walrus: ${links}${more}</i>` : ""}`,
+    html: `🧠 From memory: ${like.hits} of ${like.n} ${escHtml(what)} here came true${links ? ` · <i>${links}${more}</i>` : ""}`,
   };
 }
 
@@ -317,7 +316,8 @@ export function chanceLine(record: TrackRecord | undefined, call: CallRow): stri
   const { weight, basis } = trustOn(record, call);
   const ref = call.market_ref;
   const market = ref && !ref.score ? ` · Polymarket ${Math.round(ref.prob * 100)}%` : "";
-  return `🎯 Memory's chance: ${Math.round(weight * 100)}% (${basis})${market}`;
+  // The record line above names the basis already, unless it's the author's overall record.
+  return `🎯 Memory's chance: ${Math.round(weight * 100)}%${/on everything|no record/.test(basis) ? ` (${basis})` : ""}${market}`;
 }
 
 export async function noteForNewCall(call: CallRow): Promise<ReceiptLine[]> {
@@ -344,10 +344,12 @@ export async function noteForNewCall(call: CallRow): Promise<ReceiptLine[]> {
     const isIn = (list: SegmentRecord[]) => relevant.find((r) => list.some((s) => s.segment === r.segment));
     const strong = isIn(record.strong);
     const weak = isIn(record.weak);
-    const spot = weak ? ` — ⚠️ a weak spot (${fmt(weak)})` : strong ? ` — 🔥 a strong spot (${fmt(strong)})` : "";
+    const spot = weak ? " — ⚠️ weak spot" : strong ? " — 🔥 strong spot" : "";
     if (weak) await noteEffect(call.chat_id, "weak_spot", `Flagged ${said} as a weak spot (${fmt(weak)}).`, call.id);
     else if (strong) await noteEffect(call.chat_id, "strong_spot", `Flagged ${said} as a strong spot (${fmt(strong)}).`, call.id);
-    lines.push(`📊 ${call.author_name}'s record: ${relevant.length ? relevant.map(fmt).join(" · ") : `${record.hits}/${record.calls} overall`}${spot}`);
+    // The spot leads, so the line says which record it means without repeating it.
+    const shown = [...(weak ?? strong ? [(weak ?? strong)!] : []), ...relevant.filter((r) => r !== (weak ?? strong))].slice(0, 2);
+    lines.push(`📊 Record: ${shown.length ? shown.map(fmt).join(" · ") : `${record.hits}/${record.calls} overall`}${spot}`);
     const chance = chanceLine(record, call);
     if (chance) lines.push(chance);
   }
@@ -432,18 +434,21 @@ export async function roomNote(call: CallRow): Promise<string[]> {
   const heads = new Map<string, number>();
   for (const v of votes) heads.set(v.side, (heads.get(v.side) ?? 0) + 1);
   const [mostSaid, saidBy] = [...heads.entries()].sort((a, b) => b[1] - a[1])[0];
-  const overruled = mostSaid !== lead && saidBy > votes.length / 2 ? `${saidBy} of ${votes.length} say ${sideLabel(mostSaid)}, but w` : "W";
+  const overruled = mostSaid !== lead && saidBy > votes.length / 2;
 
   const topic = call.market === "polymarket" ? `“${call.quote}”` : call.market === "cs2" && call.opponent ? `${call.subject} vs ${call.opponent}` : call.subject;
-  return [
-    `🧭 Also on ${topic}: ${votes
-      .slice(1)
-      .map((v) => `${v.c.author_name} ${sideLabel(v.side)} (${v.basis})`)
-      .join(", ")}`,
+  // One line: who else is on it (their record, as a fraction where there is one), and where the weight lands.
+  const alsoOn = votes
+    .slice(1)
+    .map((v) => `${v.c.author_name} ${sideLabel(v.side)} (${v.basis.match(/^\d+\/\d+/)?.[0] ?? v.basis})`)
+    .join(", ");
+  const verdict =
     bySide.size === 1
-      ? `Everyone agrees: ${sideLabel(lead)}.`
+      ? `everyone says ${sideLabel(lead)}`
       : share === 50
-        ? "Weighted by track record, the chat is split 50/50."
-        : `${overruled}eighted by track record the chat leans ${sideLabel(lead)} (${share}%).`,
-  ];
+        ? "split 50/50 by record"
+        : overruled
+          ? `${saidBy} of ${votes.length} say ${sideLabel(mostSaid)}, but by record ${sideLabel(lead)} ${share}%`
+          : `by record the chat leans ${sideLabel(lead)} ${share}%`;
+  return [`🧭 Also on ${topic}: ${alsoOn} · ${verdict}`];
 }

@@ -149,7 +149,8 @@ describe("the learning loop", () => {
   it("says its own chance on a new call only once there's a record, next to Polymarket's on a pick", () => {
     const record = trackRecordOf([call({ status: "win" }), call({ status: "win" }), call({ status: "win" }), call({ subject: "BTC", status: "loss" })])!;
     assert.equal(chanceLine(undefined, call({})), null);
-    assert.match(chanceLine(record, call({}))!, /^🎯 Memory's chance: 6\d% \(3\/3 on SUI calls\)$/);
+    // The record line above it names the basis, so the chance line doesn't repeat it.
+    assert.match(chanceLine(record, call({}))!, /^🎯 Memory's chance: 6\d%$/);
     const ref = { platform: "polymarket", eventId: "1", marketId: "2", title: "NaVi vs FaZe", url: "", outcome: "NaVi", prob: 0.585 } as const;
     assert.match(chanceLine(record, call({ market: "cs2", subject: "NaVi", direction: "win", market_ref: ref }))!, / · Polymarket 59%$/);
   });

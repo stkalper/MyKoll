@@ -77,14 +77,28 @@ const authorOf = (ctx: Context) => ({
   name: ctx.from!.username ? `@${ctx.from!.username}` : ctx.from!.first_name,
 });
 
-/** The Price API's view of an on-chain price, flagged when the two sources disagree. */
+/** The Price API's view of an on-chain price, said only when the two sources disagree; the button links the pool read. */
 function crossCheck(price: number | null, check: number | null): string | null {
   if (price === null || check === null) return null;
   const apart = gap(price, check);
-  return apart > DISAGREE
-    ? `⚠️ The price feed says ${usd(check)}, ${(apart * 100).toFixed(1)}% apart. The on-chain price is the one that counts.`
-    : `✓ The price feed agrees: ${usd(check)} (${(apart * 100).toFixed(1)}% apart)`;
+  return apart > DISAGREE ? `⚠️ The price feed says ${usd(check)}, ${(apart * 100).toFixed(1)}% apart; the on-chain price counts.` : null;
 }
+
+/** Where a price came from, in a few words for a receipt (memory keeps the full sourceLabel). */
+const shortSource: Record<string, string> = {
+  "price-api": "Tatum Price API",
+  "sui-onchain": "Cetus pool · Tatum Sui RPC",
+  "robinhood-onchain": "Uniswap pool · Tatum RPC",
+  binance: "Binance",
+  hyperliquid: "Hyperliquid",
+  coingecko: "CoinGecko",
+  "sui-public": "Cetus pool · Sui GraphQL",
+  "robinhood-public": "Uniswap pool · Robinhood RPC",
+};
+
+/** "Sun 15 Nov, 22:39": a deadline on a receipt. */
+const shortWhen = (d: Date | string) =>
+  new Date(d).toLocaleString("en-GB", { timeZone: config.timezone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 /** Where a call is filed: the group, or for a private chat with the bot, the member's own journal. */
 const chatOf = (chat: Context["chat"]) => ({ id: chat!.id, title: chat!.type === "private" ? PERSONAL_TITLE : "title" in chat! ? chat!.title : undefined });
@@ -98,22 +112,22 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
     );
   else if (call.source) lines.push(`<i>📎 posted ${esc(when(call.source.postedAt))} · shared by ${esc(call.source.sharedBy.name)}</i>`);
   const judged = call.waiting
-    ? "judged after the match, once Polymarket lists it"
+    ? "after the match, once Polymarket lists it"
     : call.market === "polymarket"
-      ? `judged when Polymarket resolves it (it closes ${esc(when(call.deadline))})`
-      : `judged ${esc(when(call.deadline))}`;
-  lines.push("", `<i>${esc(claim(call))}</i> · ${judged}`);
+      ? `when Polymarket resolves it (closes ${esc(shortWhen(call.deadline))})`
+      : `by ${esc(shortWhen(call.deadline))}`;
+  lines.push(`<i>${esc(claim(call))}</i> · ${judged}`);
   const settled = call.status === "win" || call.status === "loss";
+  if (call.entry_price !== null && !settled)
+    lines.push(`${call.subject} ${usd(call.entry_price)} ${call.source ? "when shared" : "now"} · ${shortSource[call.price_source ?? "price-api"] ?? sourceLabel[call.price_source ?? "price-api"]}`);
   if (call.undated && call.status === "open")
     lines.push(
       call.extended
-        ? `<i>No date was given; ${esc(call.author_name)} has given it ${call.extended + 1} weeks so far.</i>`
+        ? `<i>⏳ No date given · week ${call.extended + 1}, given by ${esc(call.author_name)}</i>`
         : call.target !== null
-          ? `<i>No date was given, so it has a week. I'll say the moment ${esc(call.subject)} gets there; if it doesn't, ${esc(call.author_name)} can give it another week.</i>`
-          : "<i>No date was given, so it has a week.</i>",
+          ? `<i>⏳ No date given, so a week; then ${esc(call.author_name)} can give it another</i>`
+          : "<i>⏳ No date given, so a week</i>",
     );
-  if (call.entry_price !== null && !settled)
-    lines.push(`${call.subject} was ${usd(call.entry_price)} when ${call.source ? "shared" : "called"} · ${sourceLabel[call.price_source ?? "price-api"]}`);
   if (call.result_note) lines.push(esc(call.result_note));
   const cross = settled ? crossCheck(call.final_price, call.final_check) : crossCheck(call.entry_price, call.entry_check);
   if (cross) lines.push(cross);
@@ -136,7 +150,7 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
   }
   for (const r of reasons) lines.push(`💭 why: ${esc(r)}`);
   if (learned.length) lines.push("", ...learned.map((l) => (typeof l === "string" ? esc(l) : l.html)));
-  if (call.status === "open" && !reasons.length && !call.source) lines.push("", "<i>Reply to this receipt to add why you think so.</i>");
+  if (call.status === "open" && !reasons.length && !call.source) lines.push("<i>Reply with your why.</i>");
   return lines.join("\n");
 }
 
