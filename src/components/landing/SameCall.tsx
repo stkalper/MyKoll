@@ -7,6 +7,7 @@ const receipt = "🧾 Receipt #151 · logged ⚡\nSUI above $5.00 · by Fri 23:5
 
 const recalled = [
   { line: "📊 Jake: Sui tokens 1/4 · ⚠️ a weak spot", from: "TRACK RECORD" },
+  { line: "🎯 Memory's chance: 30% (1/4 on Sui tokens)", from: "TRACK RECORD · worked out" },
   { line: "↩ Last time: “WAL to 5 cents by Friday” — ❌ missed", from: "RESULT #142" },
   { line: "🧭 Also on SUI: Max ↓ down (3/3 on SUI calls)\nWeighted by record the chat leans ↓ down (64%)", from: "TRACK RECORD @max" },
 ];

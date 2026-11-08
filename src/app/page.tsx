@@ -20,46 +20,46 @@ const GITHUB = "https://github.com/stkalper/MyKoll";
 const steps = [
   {
     title: "Someone makes a call",
-    text: "“SOL to 300 by Friday”, “BTC 102k tomorrow”, “easy for NaVi”. Said in passing or with /call. The bot asks the author once, or logs it straight away in auto mode.",
+    text: "“SOL to 300 by Friday”, “easy for NaVi”, said in passing. The bot asks the author once, or logs it straight away in auto mode.",
   },
   {
-    title: "The bot files the receipt",
-    text: "Who said it, the exact words, when, and the price at that second from Tatum. Saved to the chat’s Walrus Memory.",
+    title: "It files the receipt",
+    text: "The exact words, when, and the price or Polymarket odds at that second, sealed in the chat’s Walrus Memory.",
   },
   {
-    title: "Deadline hits, it posts first",
-    text: "At the deadline the verdict lands in the chat by itself, with the author’s own reasoning next to it.",
+    title: "The verdict posts itself",
+    text: "At the deadline, or the moment the price gets there, the result lands in the chat.",
   },
   {
     title: "It learns who to trust",
-    text: "Every verdict updates the author’s record. Their next call is met with it, and with their most similar past call.",
+    text: "Every verdict updates the author’s record by kind of call, and their next call comes back with it.",
   },
 ];
 
 const features = [
   {
-    title: "Logs calls from plain talk",
-    text: "No commands, no format to learn. Price levels, trading signals, betting slang, a list of teams, a link to a post on X or Telegram, in English, Ukrainian and more. Ask-first or auto mode, chosen by group admins.",
+    title: "New: follows Polymarket traders",
+    text: "Paste a trader’s profile link. Their bets of $500+ on CS2, politics and crypto land as receipts with the stake and the price paid, settle when the market resolves, and build a record like any member’s. Up to 10 traders per chat.",
   },
   {
-    title: "Settles on time, on its own",
-    text: "Each call schedules its own wake-up for the deadline. Crypto settles on price, CS2 on the Polymarket result for the match (from HLTV). Picks made together come back together, once the last match ends.",
+    title: "Its own odds, from memory",
+    text: "Every receipt shows the bot’s chance the call comes true, worked out from the author’s record, next to Polymarket’s: 🎯 62% (5/7 on NaVi picks) · Polymarket 58%.",
   },
   {
-    title: "Remembers the why",
-    text: "Reply to a receipt to add your reasoning. When the verdict comes in, everyone sees whether the logic held up.",
+    title: "A journal of your own",
+    text: "No group to try it in? Write the bot privately. Your calls are logged right away, settled and remembered the same way.",
   },
   {
     title: "Answers from memory",
-    text: "/ask or mention the bot. It recalls calls, verdicts and reasons by meaning, in the language you ask.",
+    text: "“Who called FURIA?” comes back with their own words and dates, and a list of the Walrus blobs behind the answer.",
   },
   {
-    title: "Sunday digest",
-    text: "Sharpest caller, best call and biggest miss of the week, posted to the chat without anyone asking.",
+    title: "Settles on its own",
+    text: "Crypto on price, CS2 on the Polymarket result (from HLTV). Reply to a receipt to add your why, and everyone sees if it held up.",
   },
   {
-    title: "Receipts you can share",
-    text: "Every verdict has a public card with a preview for X. Links are signed and hidden calls stay hidden.",
+    title: "Digest and share cards",
+    text: "Sharpest caller and biggest miss of the week, every Sunday. Every verdict gets a signed public card; hidden calls stay hidden.",
   },
 ];
 
@@ -68,47 +68,42 @@ const callFormats = [
   {
     kind: "Crypto",
     says: "SUI to $5 by Friday",
-    files: "SUI above $5.00, judged at the end of Friday.",
+    files: "SUI above $5.00, judged at the end of Friday. Any language works.",
   },
   {
     kind: "Crypto",
     says: "BTC 102k tomorrow",
-    files: "No side said, so it checks the price. BTC is at $76,900, so this is a call for up.",
+    files: "No side said, so it checks the price: BTC is below that, so it’s a call for up.",
   },
   {
-    kind: "Crypto",
-    says: "sui over a dollar in 5 hours",
-    files: "SUI above $1.00, judged in exactly five hours. Any language works.",
+    kind: "No date",
+    says: "Sui 5$",
+    files: "Gets a week. If SUI isn’t there by then, the author gives it another week or lets it go.",
   },
   {
     kind: "Signal",
-    says: "TRX long from 0.34, TP 0.37. Broke daily resistance on volume",
-    files: "TRX above $0.37. The reasoning goes on the receipt as the why.",
+    says: "TRX long from 0.34, TP 0.37. Broke resistance",
+    files: "TRX above $0.37, with the reasoning on the receipt as the why.",
   },
   {
     kind: "CS2",
-    says: "easy for Vitality",
-    files: "No opponent named, so it looks up Vitality’s next match: Vitality to beat MOUZ, Polymarket 56%.",
-  },
-  {
-    kind: "CS2",
-    says: "FaZe 2-0 G2 · backing FURIA",
-    files: "A predicted score or betting slang is a pick on the winner.",
-  },
-  {
-    kind: "CS2",
-    says: "bcgame ez, mid-match",
-    files: "A match already on counts too, at Polymarket’s live odds. Teams outside the big names are known from Polymarket’s listings.",
+    says: "easy for Vitality · NaVi 2:1",
+    files: "Finds the team’s next match and its Polymarket odds; a score is a map-score pick. Waits if the match isn’t listed yet.",
   },
   {
     kind: "Several",
     says: "NaVi, Vitality, FURIA, fnatic",
-    files: "Picks on four matches, logged with one tap. When the last one ends it posts every winner and the score: 3/4.",
+    files: "Four picks, one tap. When the last match ends: every winner and the score, 3/4.",
   },
   {
     kind: "A post",
-    says: "x.com/cryptoguru/status/…, t.me/channel/…, or a forwarded post",
-    files: "Reads the post and files its call under @cryptoguru, timed from when it was posted. Brags like “TP3 HIT ✅” and both-ways scenarios don’t count. The accounts your chat quotes get a track record too.",
+    says: "x.com/cryptoguru/status/… or a forwarded post",
+    files: "Filed under @cryptoguru, timed from when it went up.",
+  },
+  {
+    kind: "A trader",
+    says: "polymarket.com/@fred4332",
+    files: "Follows the trader: each new $500+ bet on CS2, politics or crypto comes in as their call.",
   },
 ];
 
@@ -133,39 +128,24 @@ const memoryEntries = [
     color: "border-stamp-win text-stamp-win",
     text: "@jake is 13/18 right; strong on majors 9/10; weak on Sui tokens 1/4.",
   },
-  {
-    tag: "HABIT",
-    color: "border-ink-muted text-ink-muted",
-    text: "@max confirmed their last 3 calls, so I log theirs without asking.",
-  },
 ];
 
-/** The same chat, with a bot that forgets and with one that remembers. */
+/** What happens after the call above, with a bot that forgets and with one that remembers. */
 const withMemory = [
-  {
-    moment: "Jake: “SUI to $5 by Friday”",
-    without: "Logs it.",
-    with: "Logs it with his record: 1/4 on Sui tokens, a weak spot. His last call like it, “WAL to 5 cents”, missed.",
-  },
   {
     moment: "Max: “nah, SUI bleeds”",
     without: "One more opinion.",
-    with: "Weighs both: Max is 3/3 on SUI, so the chat leans his way, even though more people side with Jake.",
+    with: "Max is 3/3 on SUI, so the chat leans his way, even with more people siding with Jake.",
   },
   {
     moment: "Friday, 23:59",
     without: "SUI is $3.80.",
-    with: "❌ Jake missed, with the pool transaction to check it on Sui. Both records update.",
+    with: "❌ Jake missed, with the Sui transaction to check it. Both records update.",
   },
   {
     moment: "A week later: “who’s good on SUI?”",
     without: "No idea.",
     with: "Max, 4/4, with his exact words and dates.",
-  },
-  {
-    moment: "Emma’s jokes keep reading as calls",
-    without: "Keeps asking.",
-    with: "She said “not a call” twice, so it stops asking about that kind of message.",
   },
 ];
 
@@ -194,18 +174,17 @@ const commands = [
   ["/ask who should I trust on CS2?", "Answer from the chat’s memory"],
   ["/board", "Who calls it right, with a Mini App"],
   ["/open", "Calls still waiting for their deadline"],
+  ["/following", "Polymarket traders the chat follows"],
   ["/hide 12", "Take your call off the board and out of answers"],
   ["/mode", "Admins: ask first, or log automatically"],
   ["/public", "Admins: open the chat’s file to anyone with the link"],
 ];
 
 const privacy = [
-  "Stores calls, never the rest of the chat.",
-  "In ask mode nothing is saved until the author taps “Log it”.",
-  "When you say a message wasn’t a call, it keeps its own misreading (“BTC below $90,000”), not your message.",
-  "Auto mode is opt-in per group and every logged call can be undone by its author.",
+  "Stores calls, never the rest of the chat. In ask mode nothing is saved until the author taps “Log it”.",
+  "Auto mode is opt-in per group, and the author can undo any call it logged.",
   "Hidden calls drop off the board, the share links and the bot’s answers.",
-  "The Mini App only shows a group to people who are in it.",
+  "The Mini App shows a group only to its members, unless an admin makes its file public.",
 ];
 
 /** A folder-tab label over each section. */
@@ -405,9 +384,8 @@ export default function Landing() {
           </ul>
         </div>
         <p className="mt-6 max-w-2xl text-sm text-muted">
-          Questions, jokes, other people&apos;s predictions and talk about
-          matches already played are left alone. A pick the market already
-          prices at 97% isn&apos;t taken: that match is decided.
+          Questions, jokes and talk about matches already played are left
+          alone.
         </p>
       </Section>
 
@@ -432,7 +410,7 @@ export default function Landing() {
         <SameCall />
         <div className="paper mb-14 rounded-sm p-5 sm:p-6">
           <div className="hidden grid-cols-[1fr_1fr_2fr] gap-6 border-b-2 border-ink pb-2 sm:grid">
-            <span className="field-label">In the chat</span>
+            <span className="field-label">Then</span>
             <span className="field-label">A bot that forgets</span>
             <span className="field-label">MyKoll, with Walrus Memory</span>
           </div>
@@ -519,23 +497,28 @@ export default function Landing() {
       </Section>
 
       <Section id="prices" tab="Tatum" title="Prices you can check.">
-        <p className="mb-4 max-w-2xl text-sm text-muted">
-          Our Tatum credits ran out during the hackathon, so for now the bot
-          falls back to public endpoints whenever Tatum says so, and every
-          receipt names the source it really used.
-        </p>
-        <p className="mb-8 max-w-2xl text-muted">
-          Majors come from Tatum&apos;s Price API. Sui tokens like WAL, DEEP and
-          NS aren&apos;t covered there, so the bot reads their price straight
-          from the deepest Cetus pool on Sui mainnet through Tatum&apos;s Sui
-          gRPC gateway. Stock tokens like TSLA and NVDA, and memecoins like
-          PONS, come from their Uniswap pool on Robinhood Chain through
-          Tatum&apos;s Robinhood Chain RPC. Each on-chain price links to where it
-          was read, and where two sources cover a token, the receipt shows how
-          far apart they are. CS2 calls get the match&apos;s Polymarket odds at
-          the moment of the call, live if the match is on, and settle from its
-          result, through Tatum&apos;s Prediction Market API. It also finds the
-          match when only a team is named. Live right now:
+        <ul className="mb-6 max-w-2xl space-y-2 text-muted">
+          <li>
+            <span className="text-text">Majors</span>: Tatum&apos;s Price API.
+          </li>
+          <li>
+            <span className="text-text">Sui tokens</span> (WAL, DEEP, NS): their
+            Cetus pool on Sui mainnet, through Tatum&apos;s Sui gRPC.
+          </li>
+          <li>
+            <span className="text-text">Stock tokens and memecoins</span> (TSLA,
+            PONS): their Uniswap pool on Robinhood Chain, through Tatum&apos;s RPC.
+          </li>
+          <li>
+            <span className="text-text">CS2</span>: Polymarket odds and results,
+            through Tatum&apos;s Prediction Market API.
+          </li>
+        </ul>
+        <p className="mb-8 max-w-2xl text-sm text-muted">
+          Each on-chain price links to where it was read. Our Tatum credits ran
+          out mid-hackathon, so for now the bot falls back to public endpoints
+          when Tatum says so, and every receipt names the source it really
+          used. Live right now:
         </p>
         <div data-pen="5" data-pen-points="0.12,0.5">
           <Suspense fallback={<LivePricesSkeleton />}>
@@ -569,8 +552,8 @@ export default function Landing() {
           </div>
           <div className="space-y-5">
             <Sheet label="Tab 1" title="Board">
-              Hit rate per member, split into crypto and CS2, with what the bot
-              has learned about each of them.
+              Hit rate per member in crypto, CS2 and followed traders&apos; bets.
+              Tap anyone for their file: what the bot learned and every call.
             </Sheet>
             <Sheet label="Tab 2" title="Calls">
               Every filed call in the chat, with prices, verdicts and reasons.
@@ -583,7 +566,7 @@ export default function Landing() {
         </div>
       </Section>
 
-      <Section tab="Commands" title="Everything, in seven commands.">
+      <Section tab="Commands" title="Nine commands. Plain talk does the rest.">
         <div data-pen="7" data-pen-points="0.9,0.5" className="paper divide-y divide-rule rounded-sm">
           {commands.map(([cmd, what]) => (
             <div
