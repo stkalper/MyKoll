@@ -41,18 +41,18 @@ Whether this makes the bot better at judging people is measured, not assumed: se
 
 ## By the numbers
 
-Measured from the live bot on **4 November 2026**. Today's numbers are at [`/api/stats`](https://mykoll.vercel.app/api/stats), and `npx tsx scripts/blog-numbers.mts` prints them.
+Measured from the live bot on **9 November 2026**. Today's numbers are at [`/api/stats`](https://mykoll.vercel.app/api/stats), and `npx tsx scripts/blog-numbers.mts` prints them.
 
 | | |
 |---|---|
-| Real group chats | 2, with 4 members making calls |
-| Calls logged | 50, of which 49 settled |
-| Memories on Walrus Mainnet | 158 |
-| Memory Check (Brier, lower is better) | **0.235** with memory, 0.237 for a bot that knows only the chats' hit rate, 0.25 for a bot that forgets, on 49 settled calls. A tie with the hit-rate bot, [as expected this early](#is-the-memory-earning-its-keep) |
-| Calls the bot flagged as a strong spot | 8 of 9 came true (no flag: 22 of 39) |
-| Times memory changed what the bot did | 19: 8 calls logged without asking, 6 past calls brought back, 4 strong spots flagged, 1 room weighed by record |
-| Times a result changed the bot's mind about someone | 11 over the 49 settled calls, replayed from history ([`scripts/record-history.mts`](scripts/record-history.mts)) |
-| CS2 picks against Polymarket | @crypcort 10 points ahead of the market, @craffny 1 point behind |
+| Real group chats | 3, with 7 callers on record |
+| Calls logged | 85, of which 81 settled |
+| Memories on Walrus Mainnet | 273 |
+| Memory Check (Brier, lower is better) | **0.227** with memory, 0.231 for a bot that knows only the chats' hit rate, 0.25 for a bot that forgets, on 81 settled calls. A near tie with the hit-rate bot, [as expected this early](#is-the-memory-earning-its-keep) |
+| Calls the bot flagged as a strong spot | 18 of 20 came true (no flag: 32 of 57; weak spot: 2 of 4). One-sided Fisher exact test, strong vs no flag: p = 0.005 |
+| Times memory changed what the bot did | 63: 22 calls logged without asking, 21 past calls brought back, 10 strong and 3 weak spots flagged, 7 rooms weighed by record |
+| Times a result changed the bot's mind about someone | 14 over the 81 settled calls, said in the chat as they happened; replayable from history ([`scripts/record-history.mts`](scripts/record-history.mts)) |
+| CS2 picks against Polymarket | @crypcort 15 points ahead of the market, @craffny level with it |
 
 ## Check it yourself
 
@@ -193,7 +193,7 @@ Trust starts at 50/50 and moves only as far as the evidence takes it. A member's
 
 The Memory Check scores that trust against how each call ended (Brier, lower is better), using only what was known when the call was made, next to two bots that know less: one that forgets and trusts everyone 50/50 (always 0.25), and one that remembers nothing about anyone, only how often the chat's calls have come true so far. Beating the first can just mean the chat is usually right; beating the second takes knowing who is right about what. It's shown in chat and on the site from 30 settled calls: below that, one call can move the score past 0.25. The raw number is always public at [`/api/stats`](https://mykoll.vercel.app/api/stats).
 
-The score has limits worth saying out loud. In simulated chats, memory wins clearly only when members really differ and have a real history. When everyone is about equally good, no memory can beat a coin flip, and this score stays a little above 0.25. In the real chats it was 0.251 on 30 settled calls, and 0.235 on 49 (4 November), against 0.237 for the bot that knows only the chats' 61% hit rate: **a tie with that bot**. In simulated chats like these (four members, right 60% of the time, who really differ), memory is ahead of it in about 6 chats in 10 at 50 calls, 3 in 4 at 100 and 4 in 5 at 200 ([`scripts/try-trust.mts`](scripts/try-trust.mts)), so a tie at 49 is what to expect. The signal so far is in the flags: strong spots came true 8 times in 9, unflagged calls 22 in 39.
+The score has limits worth saying out loud. In simulated chats, memory wins clearly only when members really differ and have a real history. When everyone is about equally good, no memory can beat a coin flip, and this score stays a little above 0.25. In the real chats it was 0.251 on 30 settled calls, 0.235 on 49 (4 November) and 0.227 on 81 (9 November), against 0.231 for the bot that knows only the chats' 64% hit rate: **a near tie with that bot**. In simulated chats like these (four members, right 60% of the time, who really differ), memory is ahead of it in about 6 chats in 10 at 50 calls, 3 in 4 at 100 and 4 in 5 at 200 ([`scripts/try-trust.mts`](scripts/try-trust.mts)), so a near tie at 81 is what to expect. The signal so far is in the flags: strong spots came true 18 times in 20, unflagged calls 32 in 57 (one-sided Fisher exact test, p = 0.005).
 
 The rules were fixed before the numbers quoted here, and the commits are dated: the Memory Check against a bot that forgets ([`b5e08be`](https://github.com/stkalper/MyKoll/commit/b5e08be), 29 October), the trust prior of 16 coin-flip calls, chosen on simulated chats ([`1ccbcb2`](https://github.com/stkalper/MyKoll/commit/1ccbcb2), 2 November), and the bot that knows only the chat’s hit rate ([`ded0088`](https://github.com/stkalper/MyKoll/commit/ded0088), 4 November). Later changes are in the history of [`scorecard.ts`](https://github.com/stkalper/MyKoll/commits/main/src/lib/scorecard.ts) and [`learning.ts`](https://github.com/stkalper/MyKoll/commits/main/src/lib/learning.ts).
 

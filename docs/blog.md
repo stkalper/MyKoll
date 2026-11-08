@@ -1,6 +1,6 @@
 <!--
-Draft for Medium. Numbers marked [N] are from the live bot on 4 November 2026 and get refreshed
-before publishing (scripts/blog-numbers.mts prints the current ones). Video link: [VIDEO].
+Draft for Medium. Numbers are from the live bot on 9 November 2026 (scripts/blog-numbers.mts
+prints the current ones). Video link: [VIDEO].
 -->
 
 # My group chat finally keeps receipts: how a Telegram bot learned who to trust
@@ -43,15 +43,15 @@ The screenshots below are from a real group of friends, not a demo. Its file is 
 
 **It started bringing up the past.** When @crypcort wrote “Bnb 700 in 3hours”, the receipt came back with their last call like it, recalled from memory: *“Bnb 708 in 2 hours”, right*. And it flagged the new call as a **strong spot**: bullish calls 2/2. It was right again.
 
-**It stopped asking.** After a member confirms three spotted calls in a row, the bot logs theirs without asking, says why, and leaves an undo button. In this chat that has already happened [4] times. It works the other way too: when two of someone's last three spotted calls were “not a call”, the bot asks first even in auto mode. When it misreads a message, it stores *its own misreading* (“BTC below $90,000”), never the message itself, and stops offering the same kind of call after two rejections.
+**It stopped asking.** After a member confirms three spotted calls in a row, the bot logs theirs without asking, says why, and leaves an undo button. In this chat that has already happened 5 times. It works the other way too: when two of someone's last three spotted calls were “not a call”, the bot asks first even in auto mode. When it misreads a message, it stores *its own misreading* (“BTC below $90,000”), never the message itself, and stops offering the same kind of call after two rejections.
 
 **It weighed the room.** When @crypcort called BetBoom over MOUZ while @craffny already had MOUZ, the bot didn't just count heads. It weighed both by their record on that kind of pick and showed which way the people worth listening to lean.
 
-**It changed its mind.** A record isn't a verdict. When a result moves someone clearly across the line, the bot says so: after “Btc 78k in 30 min” missed, @craffny went from 1/2 to 1/3 on majors: *now weak on majors*. The bot says that in the chat under the result and writes it into memory, so its history shows when and why its view of someone changed. Near the line it stays quiet, so 2/2 → 2/3 → 3/4 isn't three changes of mind. Replayed over both chats' history, that happened [11] times in [49] settled calls.
+**It changed its mind.** A record isn't a verdict. When a result moves someone clearly across the line, the bot says so: after “Btc 78k in 30 min” missed, @craffny went from 1/2 to 1/3 on majors: *now weak on majors*. The bot says that in the chat under the result and writes it into memory, so its history shows when and why its view of someone changed. Near the line it stays quiet, so 2/2 → 2/3 → 3/4 isn't three changes of mind. Across the chats, that has happened 14 times in 81 settled calls.
 
-**It measured people against the market.** CS2 picks are matched to the Polymarket match-winner market, so the bot knows the odds at the moment of the call. Picks under 45% are filed as underdog picks, and each member gets an edge against the market. The best moment so far: Liquid over Aurora, which Polymarket had at **31%**. It won. But honest numbers matter more than highlights, so the board shows the whole picture: over all their CS2 picks, @crypcort is [10] points ahead of Polymarket and @craffny is [1] point behind. Earlier in the week, both were behind.
+**It measured people against the market.** CS2 picks are matched to the Polymarket match-winner market, so the bot knows the odds at the moment of the call. Picks under 45% are filed as underdog picks, and each member gets an edge against the market. The best moment so far: Liquid over Aurora, which Polymarket had at **31%**. It won. But honest numbers matter more than highlights, so the board shows the whole picture: over all their CS2 picks, @crypcort is 15 points ahead of Polymarket and @craffny is level with it. Earlier in the week, both were behind.
 
-Every one of these moments is written down. The chat's file has a feed called *What memory changed here*, and the site counts them across all chats: [12] times in this chat so far.
+Every one of these moments is written down. The chat's file has a feed called *What memory changed here*, and the site counts them across all chats: 12 times in this chat so far.
 
 ## Is the memory actually earning its keep?
 
@@ -61,11 +61,13 @@ The **Memory Check** takes the trust the bot had in each call *at the moment it 
 
 The first time it had enough calls to say anything, at 30 settled calls, the memory scored **0.251**: a tie with forgetting. I was ready to publish that, because that is what the data said.
 
-Then the chats kept going. On [49] settled calls the memory scores **[0.235]** against forgetting's 0.25. That looked like a win, until I added the second bot: knowing only that [61]% of these chats' calls come true already scores **[0.237]**. Almost all of the lead over 50/50 is the chat being right more often than not. Against the bot that knows that, it's a tie.
+Then the chats kept going. On 81 settled calls the memory scores **0.227** against forgetting's 0.25. That looked like a win, until I added the second bot: knowing only that 64% of these chats' calls come true already scores **0.231**. Almost all of the lead over 50/50 is the chat being right more often than not. Against the bot that knows that, memory is only a hair ahead: close to a tie.
 
-Where the memory does show something is the flags. Calls the bot marked as a member's **strong spot** came true [8] times out of [9]. Calls with no flag came true [22] of [39]. The score averages that signal away, because most calls aren't flagged yet.
+Where the memory does show something is the flags. Calls the bot marked as a member's **strong spot** came true 18 times out of 20. Calls with no flag came true 32 of 57, and calls flagged as a weak spot 2 of 4. Chance alone would open a gap that wide between flagged and unflagged calls about 1 time in 200 (one-sided Fisher exact test, p = 0.005). The score averages that signal away, because most calls aren't flagged yet.
 
-It's a tie, not a failure. Trust starts at 50/50 and moves only as far as the evidence takes it (a record counts as if 16 coin-flip calls came before it), so one lucky call can't make anyone an oracle, and it takes many calls per member before their record moves the trust far from the chat's average. In simulated chats like these (four members, right 60% of the time, who really differ), memory is ahead of the hit-rate bot in a bit over half the chats at 50 calls, three in four at 100 and four in five at 200 ([the simulation](https://github.com/stkalper/MyKoll/blob/main/scripts/try-trust.mts)). At [49] calls, a tie is what to expect. The score is shown in the chat and on the site from 30 calls, and the raw number is always at [/api/stats](https://mykoll.vercel.app/api/stats).
+A near tie is not a failure. Trust starts at 50/50 and moves only as far as the evidence takes it (a record counts as if 16 coin-flip calls came before it), so one lucky call can't make anyone an oracle, and it takes many calls per member before their record moves the trust far from the chat's average. In simulated chats like these (four members, right 60% of the time, who really differ), memory is ahead of the hit-rate bot in a bit over half the chats at 50 calls, three in four at 100 and four in five at 200 ([the simulation](https://github.com/stkalper/MyKoll/blob/main/scripts/try-trust.mts)). At 81 calls, a near tie is what to expect. The score is shown in the chat and on the site from 30 calls, and the raw number is always at [/api/stats](https://mykoll.vercel.app/api/stats).
+
+The same trust is on every receipt now, as the bot's own chance the call comes true, next to Polymarket's: *🎯 Memory's chance: 62% (5/7 on NaVi picks) · Polymarket 58%*. What the chat sees and what the Memory Check scores are the same number.
 
 None of this was tuned after the fact, and the commits show it: the Memory Check against a bot that forgets went in on [29 October](https://github.com/stkalper/MyKoll/commit/b5e08be), the 16-call prior, chosen on simulated chats, on [2 November](https://github.com/stkalper/MyKoll/commit/1ccbcb2), and the hit-rate bot on [4 November](https://github.com/stkalper/MyKoll/commit/ded0088).
 
@@ -82,6 +84,12 @@ Long-term memory in a group chat is only OK if people stay in control:
 - Each chat has its own namespace, so one chat's calls never come up in another chat's answers.
 - A chat's file is private unless an admin opens it with `/public`.
 
+## Following the whales
+
+Chats argue about Polymarket traders as much as about each other, so the bot can follow them too. Paste a link to a trader's profile and the chat follows them: every new position of $500 or more they open on a CS2, politics or crypto market lands as a receipt with the stake and the price paid, is sealed in the chat's memory, and settles when the market resolves. The trader builds a record the way members do, by kind of bet: politics, crypto or CS2, longshots or favourites, Yes or No. It also says how often they win against the prices they paid, because a run of 90¢ favourites coming in isn't skill. A bet on a CS2 match becomes a pick on that team, so a whale's bet is weighed against the chat's own picks on the same match.
+
+It went live on 8 November, so there are no settled bets to show yet. Everything comes from Polymarket's public API, no key needed.
+
 ## Prices you can check
 
 Every receipt says where its price came from. Majors come from the **Tatum Price API**. Sui tokens like WAL, DEEP and NS are priced straight from their **Cetus pools on Sui mainnet through Tatum's Sui gRPC**, because the price feed doesn't cover them; for those tokens, the pool is the only price there is. Stock tokens on Robinhood Chain are read from their Uniswap v3 pools over Tatum's Robinhood Chain RPC. Coins none of those list (FARTCOIN, PURR, ZEREBRO and the rest of Hyperliquid's 230+) are priced from Hyperliquid's public mid prices, so a chat can call almost anything that trades. An on-chain price links the Sui transaction that set it, and CS2 calls link the Polymarket market and settle from its result.
@@ -94,12 +102,14 @@ Halfway through the hackathon the project used up its Tatum credits. With the Ta
 - **Polymarket's `closeTime` is not the match time.** CS2 markets keep trading while the match is played, so the real start comes from the event description, in New York time.
 - **Polymarket lists matches late.** Even a big event's playoff match can appear only the day before, while the chat is already calling it. So a pick waits for its match: a team's next one, the pair named, or the day named. Once the match is listed, the pick gets its odds (marked as read after the call) and settles from the market.
 - **People call the score, not just the winner.** “NaVi 2:1” is now a pick on that score, priced from the maps handicap and totals markets beside the match winner and settled from the totals: “won, but 2:1, not 2:0”.
+- **People don't always give a date.** “Sui 5$” is a call too. It gets a week, the bot says the moment the coin gets there, and if it doesn't, the author decides: another week, or count it as missed.
 - **Webhooks get delivered twice.** A slow reply made Telegram resend an update, and a few calls were logged twice. Updates are now de-duplicated by id, and hiding a duplicate takes it out of the record.
 - **A memory metric has to be allowed to lose.** Otherwise it's marketing.
 
 ## Try it, or check it
 
 - Add [@mykoll_bot](https://t.me/mykoll_bot) to a group and say something bold.
+- No group? Write the bot privately: it keeps a journal of your own calls, and a Polymarket profile link works there too.
 - No Telegram? Open [a real chat's file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc) or the [demo chat](https://mykoll.vercel.app/app).
 - Every claim in this post links to a receipt, a Walrus blob, a Sui transaction or a Polymarket market in the README's [Check it yourself](https://github.com/stkalper/MyKoll#check-it-yourself) table.
 
