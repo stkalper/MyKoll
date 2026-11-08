@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { recallQuestion, replyLanguage, shownMemory, sourcesText } from "./ask";
 import { bookChance, bookLine, consensus, type BookmakerOdds } from "./bookmakers";
 import { isOutOfCredits, tatumOr, tatumOut } from "./fallback";
-import { backedTeam, claim, coinNamed, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
+import { backedTeam, canExtend, claim, coinNamed, mightBeCall, reached, scoreIn, sideOf, teamsNamed, tickerOf, unknownNames, usd, type CallRow } from "./calls";
 import { habitOf } from "./habits";
 import { coinWords, midsFrom, priceIn } from "./hyperliquid";
 import { chanceLine, likeCallsIn, recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
@@ -571,5 +571,15 @@ describe("calls like this one, from memory", () => {
   it("counts picks on the same team, not against it, and never the call itself", () => {
     assert.deepEqual(likeCallsIn(results, { id: 7, market: "cs2", direction: "win", subject: "FURIA" }, new Set()), { n: 0, hits: 0, lean: "pick", ids: [] });
     assert.deepEqual(likeCallsIn(results, { id: 99, market: "cs2", direction: "win", subject: "FURIA" }, new Set()), { n: 1, hits: 1, lean: "pick", ids: [7] });
+  });
+});
+
+describe("calls made with no date", () => {
+  it("can get another week while on a level and within 120 days of being made", () => {
+    const undated = call({ undated: true, direction: "above", target: 5, made_at: new Date(0) });
+    assert.equal(canExtend(undated, 30 * DAY), true);
+    assert.equal(canExtend(undated, 115 * DAY), false);
+    assert.equal(canExtend(call({ undated: false, direction: "above", target: 5 }), DAY), false);
+    assert.equal(canExtend(call({ undated: true, direction: "up", target: null }), DAY), false);
   });
 });

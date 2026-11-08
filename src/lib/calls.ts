@@ -57,6 +57,12 @@ export interface CallRow {
   waiting: boolean;
   /** The end of the day a waiting pick named, when it named one: its match must start that day. */
   wait_by: string | null;
+  /** A crypto call made with no time ("SUI 5$"): it gets a week, and its author can give it more. */
+  undated: boolean;
+  /** How many more weeks the author has given an undated call. */
+  extended: number;
+  /** Set when an undated call's week ran out short of its level: the author has until then to give it another week. */
+  extend_by: string | null;
 }
 
 /** Several CS2 picks in one message ("NaVi, Vitality, FURIA"), each on its team's next match. */
@@ -101,6 +107,8 @@ export interface Draft {
   waiting?: boolean;
   /** CS2, waiting: the end of the day named, if one was ("tomorrow"). */
   waitBy?: string | null;
+  /** Crypto: no time was said, so the call got the default week. */
+  undated?: boolean;
 }
 
 /** How long a pick waits for Polymarket to list the team's next match before it's dropped. */
@@ -203,6 +211,7 @@ function nowInZone(now = new Date()): string {
 
 const CRYPTO_RULES = `- crypto: a coin's price going above/below a level, or up/down, by some time. Example: "SUI to $5 by Friday", "btc dumps under 90k this week", "sol up by tomorrow".
   A coin with a price and a time is a call even without a side: "BTC 102k tomorrow" / "БТС 102к завтра" means BTC gets to 102000 by tomorrow.
+  A coin with just a price and no time is a call too (direction "to", deadline null): "Sui 5$" / "суі 5 баксів" / "eth 5000 soon" means the coin gets to that price. But a price said as where the coin is now ("btc at 80k lol", "sui is 1.2 already") is not a call.
   A trading signal is a call too: "TRX long, entry 0.33, TP 0.36, SL 0.31" / "лонг TRX, тейк 0.36" means TRX above the first take-profit (short: below it).
   Any coin counts, big or small, including those traded on Hyperliquid (HYPE, FARTCOIN, PURR, kPEPE means PEPE).
   This also covers stock tokens on Robinhood Chain (TSLA, NVDA, AAPL, SPY, MSFT, AMZN, GOOGL, META, COIN) and its memecoins (PONS, CASHCAT): "tesla to 450 by Friday" is subject TSLA.`;
@@ -364,6 +373,7 @@ export async function extractCall(text: string, posted?: Date): Promise<Draft | 
     deadline: deadline.toISOString(),
     quote: quoted,
     why,
+    ...(said || HORIZON[r.timeframe?.toLowerCase() ?? ""] ? {} : { undated: true }),
   };
 }
 
@@ -664,13 +674,13 @@ export async function logCall(chat: { id: number; title?: string }, sharer: Auth
   if (repeat) return { error: `Already logged: that's receipt #${repeat}.` };
 
   const [call] = await db<CallRow>(
-    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id, source, shared_by_id, score, waiting, result_note, wait_by)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) returning *`,
+    `insert into calls (chat_id, chat_title, author_id, author_name, market, subject, opponent, direction, target, entry_price, price_source, entry_proof, entry_check, market_ref, quote, deadline, slate_id, source, shared_by_id, score, waiting, result_note, wait_by, undated)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) returning *`,
     [
       chat.id, chat.title ?? null, author.id, author.name, draft.market, draft.subject, draft.opponent, draft.direction, draft.target,
       q?.price ?? null, q?.source ?? null, q?.proof ? JSON.stringify(q.proof) : null, q?.check ?? null, market ? JSON.stringify(market) : null,
       draft.quote, draft.deadline, slateId, draft.source ? JSON.stringify(draft.source) : null, draft.source ? sharer.id : null,
-      draft.score ?? null, Boolean(draft.waiting), note, draft.waiting ? (draft.waitBy ?? null) : null,
+      draft.score ?? null, Boolean(draft.waiting), note, draft.waiting ? (draft.waitBy ?? null) : null, draft.market === "crypto" && Boolean(draft.undated),
     ],
   );
 
@@ -764,7 +774,18 @@ export interface Resolution {
   placed?: boolean;
   /** Set when a call was dropped without a result (no match listed, or never settled). */
   dropped?: boolean;
+  /** Set when an undated call's week ran out short of its level: its author is asked whether to give it another. */
+  askExtend?: { price: number };
 }
+
+/** How long an undated call runs, and each extra week its author gives it. */
+export const UNDATED_WEEK = 7 * DAY;
+/** How long the author has to answer "another week?" before the call counts as missed. */
+export const EXTEND_ANSWER_HOURS = 24;
+
+/** An undated call on a level that could still get another week (calls settle within 120 days of being made). */
+export const canExtend = (call: Pick<CallRow, "undated" | "direction" | "target" | "made_at">, now = Date.now()) =>
+  call.undated && (call.direction === "above" || call.direction === "below") && call.target !== null && now + UNDATED_WEEK <= new Date(call.made_at).getTime() + 120 * DAY;
 
 /** When each waiting pick was last looked up, so a sweep every few minutes doesn't search every time. */
 const lastLooked = new Map<number, number>();
@@ -913,8 +934,29 @@ export async function resolveDue(): Promise<Resolution[]> {
     if (!q) continue;
     const price = q.price;
 
+    const hit = (call.direction === "above" || call.direction === "below") && reached(price, call.direction, call.target!);
+    // An undated call whose week ran out: while its author decides on another week it still counts
+    // if the coin gets there; with no answer by the time given, it's missed.
+    if (!hit && call.extend_by) {
+      if (now < new Date(call.extend_by).getTime()) continue;
+      const settled = await settle(call, "loss", `${call.subject} was ${usd(price)} when its week ran out, short of ${usd(call.target!)}`, q);
+      if (settled) out.push({ call: settled });
+      continue;
+    }
+    if (!hit && due && call.status === "open" && canExtend(call, now)) {
+      const [asked] = await db<CallRow>(
+        `update calls set extend_by = now() + make_interval(hours => $2::int) where id = $1 and status = 'open' and extend_by is null returning *`,
+        [call.id, EXTEND_ANSWER_HOURS],
+      );
+      if (asked) {
+        await wakeAt(asked.id, asked.extend_by!);
+        out.push({ call: asked, askExtend: { price } });
+      }
+      continue;
+    }
+
     let outcome: "win" | "loss" | null = null;
-    if ((call.direction === "above" || call.direction === "below") && reached(price, call.direction, call.target!)) outcome = "win";
+    if (hit) outcome = "win";
     else if (due) {
       if (call.direction === "up") outcome = price > call.entry_price! ? "win" : "loss";
       else if (call.direction === "down") outcome = price < call.entry_price! ? "win" : "loss";
@@ -946,6 +988,41 @@ async function settle(call: CallRow, outcome: "win" | "loss", note: string, q: Q
   ).catch((err) => console.error("memory write failed", err));
   await learnFrom(row).catch((err) => console.error("learning failed", err));
   return row;
+}
+
+const decidesOn = (call: CallRow, userId: number) => String(call.author_id) === String(userId) || String(call.shared_by_id) === String(userId);
+
+/** The author gives an undated call whose week ran out another week, from now. */
+export async function extendCall(callId: number, userId: number): Promise<{ call?: CallRow; message: string }> {
+  const [call] = await db<CallRow>(`select * from calls where id = $1`, [callId]);
+  if (!call || !decidesOn(call, userId)) return { message: "Only the author can decide this one." };
+  if (call.status !== "open" || !call.extend_by) return { message: "This one is already decided." };
+  if (!canExtend(call)) return { message: "Calls settle within 120 days of being made, so this one can't get another week." };
+  const [row] = await db<CallRow>(
+    `update calls set deadline = now() + make_interval(days => 7), extended = extended + 1, extend_by = null
+      where id = $1 and status = 'open' and extend_by is not null returning *`,
+    [callId],
+  );
+  if (!row) return { message: "This one is already decided." };
+  await wakeAt(row.id, row.deadline);
+  await remember(
+    row.chat_id,
+    `[EXTENDED #${row.id}] ${when(new Date())}: a week ran out on ${row.author_name}'s call "${row.quote}" (${claim(row)}) short of its level, and they gave it another week, now judged by ${when(row.deadline)} (week ${row.extended + 1}).`,
+  ).catch((err) => console.error("memory write failed", err));
+  return { call: row, message: "Another week." };
+}
+
+/** The author counts an undated call whose week ran out as missed. */
+export async function missCall(callId: number, userId: number): Promise<{ call?: CallRow; message: string }> {
+  const [call] = await db<CallRow>(`select * from calls where id = $1`, [callId]);
+  if (!call || !decidesOn(call, userId)) return { message: "Only the author can decide this one." };
+  if (call.status !== "open" || !call.extend_by) return { message: "This one is already decided." };
+  const q = await quote(call.subject).catch(() => null);
+  const note = q
+    ? `${call.subject} was ${usd(q.price)} when ${call.author_name} let it go, short of ${usd(call.target!)}`
+    : `${call.author_name} let it go when its week ran out`;
+  const settled = await settle(call, "loss", note, q);
+  return settled ? { call: settled, message: "Counted as missed." } : { message: "This one is already decided." };
 }
 
 /** Records one member's answer to "who won?". A vote from anyone but the author settles it. */

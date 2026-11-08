@@ -32,7 +32,7 @@ Whether this makes the bot better at judging people is measured, not assumed: se
 ## Try it in two minutes
 
 1. Add [@mykoll_bot](https://t.me/mykoll_bot) to a Telegram group. No Telegram? Open [a real chat's public file](https://mykoll.vercel.app/app?file=-5318326021_0662615677bc), or the [demo chat](https://mykoll.vercel.app/app).
-2. Write a call the way you'd say it: `btc 80k tomorrow`, or `easy for furia`. Tap **Log it**: the receipt shows the price or the Polymarket odds at that moment, and its source.
+2. Write a call the way you'd say it: `btc 80k tomorrow`, or `easy for furia`. Tap **Log it**: the receipt shows the price or the Polymarket odds at that moment, and its source. No date in it (`sui 5$`)? It gets a week; the bot says the moment the coin gets there, and if it doesn't, the author can give it another week or let it go as missed.
 3. Paste a link to a signal post on X, or forward one from a Telegram channel: the call goes under the post's author.
 4. Ask `@mykoll_bot who called furia?`, or just `who called furia?`. The answer comes from Walrus Memory.
 5. Make a call that settles soon, such as `sui above 1 in 10 minutes`. The result comes on its own, with a link to where the call was sealed on Walrus before the result.

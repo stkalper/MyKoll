@@ -5,6 +5,7 @@ import {
   chatMode,
   claim,
   extractCall,
+  extendCall,
   finishedSlate,
   hiddenIds,
   hideCall,
@@ -13,6 +14,7 @@ import {
   addReason,
   logCall,
   logSlate,
+  missCall,
   ownerOf,
   mightBeCallNow,
   openCalls,
@@ -74,6 +76,14 @@ function receiptText(call: CallRow, headline: string, reasons: string[] = [], le
     lines.push(`<i>📎 posted ${esc(when(call.source.postedAt))} · shared by ${esc(call.source.sharedBy.name)}</i>`);
   lines.push("", `<i>${esc(claim(call))}</i> · ${call.waiting ? "judged after the match, once Polymarket lists it" : `judged ${esc(when(call.deadline))}`}`);
   const settled = call.status === "win" || call.status === "loss";
+  if (call.undated && call.status === "open")
+    lines.push(
+      call.extended
+        ? `<i>No date was given; ${esc(call.author_name)} has given it ${call.extended + 1} weeks so far.</i>`
+        : call.target !== null
+          ? `<i>No date was given, so it has a week. I'll say the moment ${esc(call.subject)} gets there; if it doesn't, ${esc(call.author_name)} can give it another week.</i>`
+          : "<i>No date was given, so it has a week.</i>",
+    );
   if (call.entry_price !== null && !settled)
     lines.push(`${call.subject} was ${usd(call.entry_price)} when ${call.source ? "shared" : "called"} · ${sourceLabel[call.price_source ?? "price-api"]}`);
   if (call.result_note) lines.push(esc(call.result_note));
@@ -232,8 +242,24 @@ export async function announceResolutions(bot: Bot) {
   const settled = await resolveDue();
   const reasons = await reasonsFor(settled.map((r) => r.call.id));
   const sealed = new Map((await withBlobs(settled.map((r) => r.call))).map((c) => [c.id, c]));
-  for (const { call: resolved, askScore, placed, dropped } of settled) {
+  for (const { call: resolved, askScore, placed, dropped, askExtend } of settled) {
     const call = sealed.get(resolved.id) ?? resolved;
+    if (askExtend) {
+      await bot.api.sendMessage(
+        call.chat_id,
+        `⏳ <b>Receipt #${call.id}</b> · a week is up · ${esc(call.author_name)}: “${esc(call.quote)}”
+
+` +
+          `${esc(call.subject)} is ${usd(askExtend.price)}, short of ${usd(call.target!)}. No date was given, so ${esc(call.author_name)} decides: another week, or count it as missed?
+` +
+          `<i>Until ${esc(when(call.extend_by!))} it still counts if ${esc(call.subject)} gets there; with no answer by then, it's missed.</i>`,
+        {
+          parse_mode: "HTML",
+          reply_markup: new InlineKeyboard().text("⏳ Another week", `extend:${call.id}`).text("Count it missed", `miss:${call.id}`),
+        },
+      );
+      continue;
+    }
     if (placed) {
       const ref = call.market_ref;
       const odds = ref
@@ -492,6 +518,23 @@ export function createBot(): Bot {
     await setChatPublic(ctx.chat!.id, on);
     await ctx.answerCallbackQuery({ text: on ? "The file is public" : "The file is private" });
     await ctx.editMessageText(publicStatus(ctx.chat!.id, on), { reply_markup: publicKeyboard(on), link_preview_options: { is_disabled: true } });
+  });
+
+  bot.callbackQuery(/^extend:(\d+)$/, async (ctx) => {
+    const res = await extendCall(Number(ctx.match![1]), ctx.from.id);
+    if (!res.call) return ctx.answerCallbackQuery({ text: res.message, show_alert: true });
+    await ctx.answerCallbackQuery({ text: res.message });
+    await ctx.editMessageText(receiptText(res.call, `⏳ another week, judged ${when(res.call.deadline)}`), { parse_mode: "HTML", reply_markup: receiptButtons(res.call) });
+  });
+
+  bot.callbackQuery(/^miss:(\d+)$/, async (ctx) => {
+    const res = await missCall(Number(ctx.match![1]), ctx.from.id);
+    if (!res.call) return ctx.answerCallbackQuery({ text: res.message, show_alert: true });
+    await ctx.answerCallbackQuery({ text: res.message });
+    await ctx.editMessageText(receiptText(res.call, outcomeHeadline(res.call), [], await learnedAfter(res.call)), {
+      parse_mode: "HTML",
+      reply_markup: receiptButtons(res.call),
+    });
   });
 
   bot.callbackQuery(/^undo:(\d+)$/, async (ctx) => {
