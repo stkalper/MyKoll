@@ -10,6 +10,7 @@ import { habitOf } from "./habits";
 import { coinWords, midsFrom, priceIn } from "./hyperliquid";
 import { chanceLine, likeCallsIn, recordChanges, segmentsOf, trackRecordOf, trustOn } from "./learning";
 import { categoryOf, notABet, positionsOf, profileLinkIn } from "./traders";
+import { betLine, betsDigest } from "./bot";
 import { fromGammaMarket, pickName, scoreOdds, spellTeams, startOf, teamKey, teamsOf, winnerOf } from "./polymarket";
 import { forwardedPost, justTheLink, postLinkIn, sourceId, sourceName } from "./posts";
 import { sqrtPriceFromSlot0, uniswapPrice } from "./robinhoodPrices";
@@ -632,5 +633,21 @@ describe("Polymarket traders a chat follows", () => {
     assert.equal(Math.round(record.betEdge! * 100), Math.round(((2 - 0.3 - 0.3 - 0.8) / 3) * 100));
     assert.equal(record.marketEdge, undefined);
     assert.ok(!record.segments.some((s) => s.segment === "Polymarket bets" && record.strong.includes(s)));
+  });
+});
+
+describe("many new bets at once", () => {
+  const bet = (over: Partial<CallRow>, ref: object) =>
+    call({ direction: "win", entry_price: null, market_ref: { platform: "polymarket", eventId: "", marketId: "0xc", title: "", url: "", outcome: "", prob: 0.65, direct: true, stake: 1213, ...ref } as CallRow["market_ref"], ...over });
+
+  it("puts each bet on one short line, under its trader", () => {
+    const cs2 = bet({ id: 12, market: "cs2", subject: "NaVi", opponent: "Falcons", author_name: "whale on Polymarket" }, { category: "cs2", outcome: "NaVi" });
+    const politics = bet({ id: 13, market: "polymarket", subject: "Yes", quote: "Will the Fed cut rates in December?", author_name: "whale on Polymarket" }, { category: "politics", outcome: "Yes", prob: 0.34, stake: 2000 });
+    assert.equal(betLine(cs2), "CS2 — NaVi beat Falcons — $1,213 — bought at 65% · #12");
+    assert.equal(betLine(politics), "Politics — Yes on “Will the Fed cut rates in December?” — $2,000 — bought at 34% · #13");
+    const digest = betsDigest([cs2, politics, bet({ id: 14, market: "polymarket", subject: "No", quote: "Bitcoin above 100k?", author_name: "fred on Polymarket" }, { category: "crypto", outcome: "No" })]);
+    assert.match(digest, /^💸 <b>3 new bets<\/b>/);
+    assert.equal(digest.match(/<b>whale on Polymarket<\/b>/g)?.length, 1);
+    assert.match(digest, /<b>fred on Polymarket<\/b>\n• Crypto — No on “Bitcoin above 100k\?” — \$1,213 — bought at 65% · #14/);
   });
 });

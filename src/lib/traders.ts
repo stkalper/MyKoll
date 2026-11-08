@@ -18,9 +18,9 @@ export const MIN_STAKE = 500;
 /** Fills smaller than this are left out of a position: market makers and bots trade dust all day. */
 const MIN_FILL = 25;
 /** Most traders one chat can follow, so the chat stays a chat. */
-export const MAX_FOLLOWS = 5;
-/** Most new bets posted for one trader in one sweep; the rest are filed and summed up in one line. */
-export const MAX_POSTS = 3;
+export const MAX_FOLLOWS = 10;
+/** Up to this many new bets in a chat in one sweep each get a receipt; more come as one message, a line per bet. */
+export const MAX_RECEIPTS = 5;
 /**
  * A bet at 95¢ or more (or 5¢ or less) is parking money on a settled question, not a prediction,
  * and would flatter a record, so it isn't filed.

@@ -57,7 +57,7 @@ import {
   follow,
   follows,
   MAX_FOLLOWS,
-  MAX_POSTS,
+  MAX_RECEIPTS,
   MIN_STAKE,
   newBets,
   profileLinkIn,
@@ -364,14 +364,49 @@ function traderCard(t: Trader, stats: TraderStats, record: string | undefined, a
   return lines.join("\n");
 }
 
+/** One bet as a line: "CS2 — NaVi beat Falcons — $1,213 — bought at 65% · #12". */
+export function betLine(call: CallRow): string {
+  const ref = call.market_ref;
+  const kind = ref?.category === "cs2" || call.market === "cs2" ? "CS2" : ref?.category === "politics" ? "Politics" : ref?.category === "crypto" ? "Crypto" : "Polymarket";
+  const question = call.quote.length > 70 ? `${call.quote.slice(0, 69)}…` : call.quote;
+  const what = call.market === "cs2" && call.opponent ? `${call.subject} beat ${call.opponent}` : `${call.subject} on “${question}”`;
+  const stake = ref?.stake ? ` — ${usd(ref.stake)}` : "";
+  const price = ref ? ` — bought at ${Math.round(ref.prob * 100)}%` : "";
+  return `${esc(kind)} — ${esc(what)}${stake}${price} · #${call.id}`;
+}
+
+/** Several new bets in one chat at once, as one message: a line per bet, under each trader. */
+export function betsDigest(calls: CallRow[]): string {
+  const byTrader = new Map<string, CallRow[]>();
+  for (const c of calls) byTrader.set(c.author_name, [...(byTrader.get(c.author_name) ?? []), c]);
+  const lines = [`💸 <b>${calls.length} new bets</b> from traders this chat follows`];
+  for (const [name, bets] of byTrader) lines.push("", `<b>${esc(name)}</b>`, ...bets.map((c) => `• ${betLine(c)}`));
+  lines.push("", "<i>All filed as their calls; each settles when Polymarket resolves it. /open lists them.</i>");
+  return lines.join("\n");
+}
+
+/** Telegram's limit for one message is 4096 characters; a long digest goes out in parts. */
+function messageParts(text: string, limit = 4000): string[] {
+  const parts: string[] = [];
+  let part = "";
+  for (const line of text.split("\n")) {
+    if (part && part.length + line.length + 1 > limit) {
+      parts.push(part);
+      part = "";
+    }
+    part = part ? `${part}\n${line}` : line;
+  }
+  if (part) parts.push(part);
+  return parts;
+}
+
 /**
- * Posts the new bets of the Polymarket traders each chat follows, filed as their calls. A trader on
- * a spree gets MAX_POSTS receipts per sweep in a chat; the rest are filed all the same and listed in one line.
+ * Posts the new bets of the Polymarket traders each chat follows, filed as their calls. Up to
+ * MAX_RECEIPTS new bets in a chat each get a receipt; more come as one message, a line per bet.
  */
 export async function announceBets(bot: Bot) {
   const bets = await newBets();
-  const posted = new Map<string, number>();
-  const more = new Map<string, { chat: string; name: string; ids: number[] }>();
+  const byChat = new Map<string, { calls: CallRow[]; wallets: Set<string> }>();
   for (const bet of bets) {
     const chats = await db<{ chat_id: string; added_by_id: string; added_by_name: string; title: string | null }>(
       `select f.chat_id, f.added_by_id, f.added_by_name, c.title from trader_follows f left join chats c using (chat_id) where f.wallet = $1`,
@@ -385,32 +420,32 @@ export async function announceBets(bot: Bot) {
         return null;
       });
       if (!call) continue;
-      const key = `${f.chat_id}:${bet.trader.wallet}`;
-      const n = posted.get(key) ?? 0;
-      if (n >= MAX_POSTS) {
-        const m = more.get(key) ?? { chat: f.chat_id, name: call.author_name, ids: [] };
-        m.ids.push(call.id);
-        more.set(key, m);
-        continue;
-      }
-      posted.set(key, n + 1);
+      const chat = byChat.get(f.chat_id) ?? { calls: [], wallets: new Set<string>() };
+      chat.calls.push(call);
+      chat.wallets.add(bet.trader.wallet);
+      byChat.set(f.chat_id, chat);
+    }
+  }
+  for (const [chatId, { calls, wallets }] of byChat) {
+    // Removed from the chat: nobody there to follow for.
+    const failed = async (err: { error_code?: number }) => {
+      console.error("bets not posted", chatId, err);
+      if (err?.error_code === 403) for (const w of wallets) await unfollow(chatId, w);
+    };
+    if (calls.length > MAX_RECEIPTS) {
+      for (const part of messageParts(betsDigest(calls)))
+        await bot.api.sendMessage(chatId, part, { parse_mode: "HTML", link_preview_options: { is_disabled: true } }).catch(failed);
+      continue;
+    }
+    for (const call of calls)
       await bot.api
-        .sendMessage(f.chat_id, receiptText(call, "new bet 💸", [], await learnedForNew(call)), {
+        .sendMessage(chatId, receiptText(call, "new bet 💸", [], await learnedForNew(call)), {
           parse_mode: "HTML",
           reply_markup: receiptButtons(call),
           link_preview_options: { is_disabled: true },
         })
-        .catch(async (err) => {
-          console.error("bet not posted", f.chat_id, err);
-          // Removed from the chat: nobody there to follow for.
-          if (err?.error_code === 403) await unfollow(f.chat_id, bet.trader.wallet);
-        });
-    }
+        .catch(failed);
   }
-  for (const m of more.values())
-    await bot.api
-      .sendMessage(m.chat, `💸 ${m.name} also bet $${MIN_STAKE}+ on ${m.ids.length} more market${m.ids.length === 1 ? "" : "s"}: ${m.ids.map((id) => `#${id}`).join(", ")}. All filed; /open lists them.`)
-      .catch((err) => console.error("bet summary not posted", m.chat, err));
 }
 
 let lastSweep = 0;
