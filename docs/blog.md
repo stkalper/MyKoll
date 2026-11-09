@@ -25,10 +25,9 @@ The first version I sketched had no memory. It logged a call, waited for the dea
 What the chat actually wants is the history: *who said what, when, why, and how it ended*. So every call writes plain-language entries into a namespace that belongs to that one chat (shortened here):
 
 ```
-[CALL #49] @crypcort called "Bnb 700 in 3hours". BNB above $700.00. BNB was $699.38 (Binance public API).
-[RESULT #49] @crypcort's call "Bnb 700 in 3hours" was RIGHT: BNB hit $700.30 before the deadline.
-[TRACK RECORD @crypcort] @crypcort is 21/26 right; strong on CS2 picks 11/14, calls under a day 10/12; beats Polymarket by 15 pts on CS2.
-[HABIT @crypcort] @crypcort confirmed their last 3 calls, so I log theirs without asking.
+[CALL #4] @crypcort called "DEEP впаде нижче 0.015 за тиждень". DEEP below $0.0150. DEEP was $0.0170 (on-chain Cetus pool via Tatum Sui RPC).
+[RESULT #4] @crypcort's call "DEEP впаде нижче 0.015 за тиждень" was WRONG: DEEP was $0.0159 at the deadline.
+[TRACK RECORD @crypcort] @crypcort is 3/9 right; weak on majors 1/5, bullish calls 1/5.
 ```
 
 Memories are recalled by meaning, not keywords: “who was bullish on BNB?” finds those calls though the word “bullish” never appears in them. Every answer has a **🧠 What I recalled** button that lists the memories it was built from, each linked to its blob on Walrus, so nobody has to take the bot's word for what it remembers. Each call is sealed on Walrus Mainnet when it is logged, so there is a timestamped record of every call from before its result was known.
