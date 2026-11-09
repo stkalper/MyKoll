@@ -1,11 +1,11 @@
 <!--
 Draft for Medium. Numbers are from the live bot on 9 November 2026 (scripts/blog-numbers.mts
-prints the current ones). Video link: [VIDEO].
+prints the current ones). Video: https://youtu.be/0csVH_PTqyM.
 -->
 
 # My group chat finally keeps receipts: how a Telegram bot learned who to trust
 
-*Built for the Tatum × Walrus “Total Recall” hackathon. Bot: [@mykoll_bot](https://t.me/mykoll_bot) · Site: [mykoll.vercel.app](https://mykoll.vercel.app) · Code: [github.com/stkalper/MyKoll](https://github.com/stkalper/MyKoll) · Video: [VIDEO]*
+*Built for the Tatum × Walrus “Total Recall” hackathon. Bot: [@mykoll_bot](https://t.me/mykoll_bot) · Site: [mykoll.vercel.app](https://mykoll.vercel.app) · Code: [github.com/stkalper/MyKoll](https://github.com/stkalper/MyKoll) · Video: [youtu.be/0csVH_PTqyM](https://youtu.be/0csVH_PTqyM)*
 
 Every crypto or Counter-Strike chat has the same fight.
 

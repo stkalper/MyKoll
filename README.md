@@ -5,6 +5,7 @@
 **Your group chat finally keeps receipts.** MyKoll is a Telegram bot for group chats that argue about crypto and Counter-Strike 2. When someone makes a call (“SUI to $5 by Friday”, “NaVi take FaZe tonight”), the bot logs it with the price at that second. It settles the call by itself at the deadline and remembers it in the chat’s **Walrus Memory**. So months later anyone can ask *“what did Jake say about SUI?”* and get Jake’s own words back.
 
 - **Bot:** [@mykoll_bot](https://t.me/mykoll_bot). Add it to a group.
+- **Demo video (3 min):** https://youtu.be/0csVH_PTqyM
 - **Site:** https://mykoll.vercel.app (the landing page with a live demo of the Mini App)
 - **Live integration status:** https://mykoll.vercel.app/api/health
 - **Tests:** `npm test` covers call spotting, price levels, CS2 team matching and match times, the learning loop, habits and pool pricing; CI runs lint, typecheck, tests and a build on every push.
