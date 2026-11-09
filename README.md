@@ -6,6 +6,7 @@
 
 - **Bot:** [@mykoll_bot](https://t.me/mykoll_bot). Add it to a group.
 - **Demo video (3 min):** https://youtu.be/0csVH_PTqyM
+- **Blog post:** https://medium.com/@stkalper/my-group-chat-finally-keeps-receipts-how-a-telegram-bot-learned-who-to-trust-acc02ae68a22
 - **Site:** https://mykoll.vercel.app (the landing page with a live demo of the Mini App)
 - **Live integration status:** https://mykoll.vercel.app/api/health
 - **Tests:** `npm test` covers call spotting, price levels, CS2 team matching and match times, the learning loop, habits and pool pricing; CI runs lint, typecheck, tests and a build on every push.
